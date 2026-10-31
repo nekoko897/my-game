@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>記憶聖境 - 精緻像素角色與魔物版</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body { background-color: #0f1115; color: #dcdde1; font-family: "Segoe UI", sans-serif; font-size: 12px; height: 100vh; overflow: hidden; }
+
+        /* 頂部系統欄 */
+        .top-bar {
+            height: 38px; background: #161920; border-bottom: 1px solid #2a2e3d;
+            display: flex; justify-content: space-between; align-items: center; padding: 0 15px; font-size: 12px;
+        }
+        .top-title { color: #f39c12; font-weight: bold; font-size: 14px; letter-spacing: 1px; }
+        .top-info { display: flex; gap: 15px; color: #8892b0; }
+        .top-info span { color: #00ffcc; font-weight: bold; }
+
+        /* 主架構：三欄式 Grid 佈局 */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 290px 1fr 280px;
+            height: calc(100vh - 38px);
+            gap: 6px;
+            padding: 6px;
+            background-color: #0b0c0f;
+        }
+
+        .panel-box {
+            background: #161922; border: 1px solid #282c3c; border-radius: 4px;
+            display: flex; flex-direction: column; padding: 10px; overflow-y: auto;
+        }
+        .panel-title { color: #f39c12; font-weight: bold; font-size: 13px; margin-bottom: 8px; border-bottom: 1px solid #282c3c; padding-bottom: 4px; }
+
+        /* 左側：角色面板 */
+        .char-avatar { display: flex; gap: 10px; align-items: center; background: #1f2330; padding: 8px; border-radius: 4px; margin-bottom: 8px; }
+        .avatar-img { width: 44px; height: 44px; background: #34495e; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        
+        .exp-bar-container { margin: 4px 0; }
+        .exp-label { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-bottom: 2px; }
+        .exp-bar { background: #252a38; height: 8px; border-radius: 4px; overflow: hidden; }
+        .exp-fill-base { background: #3498db; height: 100%; width: 55%; }
+        .exp-fill-job { background: #9b59b6; height: 100%; width: 100%; }
+
+        .stat-grid { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; background: #1c202b; padding: 3px 8px; border-radius: 3px; }
+        .stat-val { color: #2ecc71; font-weight: bold; }
+        .stat-bonus { color: #f1c40f; font-size: 10px; }
+        .btn-add { background: #2980b9; color: #fff; border: none; padding: 1px 6px; border-radius: 2px; cursor: pointer; }
+        .btn-add:hover { background: #3498db; }
+
+        .sub-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: #12141c; padding: 6px; border-radius: 4px; margin-top: 6px; font-size: 11px; }
+
+        /* 中央：戰鬥地圖 + 巨集掛機設定 + 聊天 */
+        .center-layout { display: flex; flex-direction: column; gap: 6px; height: 100%; }
+        .canvas-container { position: relative; flex-grow: 1; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #282c3c; }
+        #gameCanvas { width: 100%; height: 100%; display: block; }
+
+        /* 右上角 Buff 列 */
+        .buff-hud { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+        .buff-item { background: rgba(15, 17, 21, 0.85); border: 1px solid #3a3f55; border-radius: 3px; padding: 3px 8px; font-size: 11px; color: #f1c40f; }
+
+        /* 中央下方：掛機巨集與快捷列 */
+        .macro-panel { background: #161922; border: 1px solid #282c3c; border-radius: 4px; padding: 8px; display: flex; gap: 10px; }
+        .btn-auto-hunt { background: #e67e22; color: #fff; border: none; font-weight: bold; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-auto-hunt.active { background: #27ae60; }
+
+        .skill-bar { display: flex; gap: 4px; }
+        .skill-slot { width: 36px; height: 36px; background: #222735; border: 1px solid #3b4259; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 16px; position: relative; }
+        .skill-key { position: absolute; bottom: 1px; right: 3px; font-size: 9px; color: #7f8c8d; }
+
+        .chat-box { background: #12141c; border: 1px solid #222735; border-radius: 4px; height: 90px; padding: 6px; font-size: 11px; color: #2ecc71; overflow-y: auto; }
+
+        /* 右側：掉落與任務 */
+        .currency-box { background: #1f2330; padding: 8px; border-radius: 4px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .zeny-val { color: #f1c40f; font-weight: bold; font-size: 14px; }
+
+        .loot-list { background: #12141c; padding: 6px; border-radius: 4px; height: 120px; overflow-y: auto; font-size: 11px; display: flex; flex-direction: column; gap: 3px; }
+        .loot-item { display: flex; justify-content: space-between; color: #bdc3c7; border-bottom: 1px dashed #222735; padding-bottom: 2px; }
+
+        .quest-item { background: #1f2330; border: 1px solid #2c3245; padding: 6px; border-radius: 4px; margin-bottom: 6px; font-size: 11px; }
+        .quest-header { color: #3498db; font-weight: bold; display: flex; justify-content: space-between; }
+        .btn-claim { background: #27ae60; color: #fff; border: none; padding: 2px 6px; border-radius: 2px; cursor: pointer; font-size: 10px; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="top-title">⚔️ 記憶聖境 (MEMORIA SANCTUM)</div>
+        <div class="top-info">
+            <div>線上玩家: <span>1,165</span> 人</div>
+            <div>伺服器狀態: <span>良好</span></div>
+            <div>累積掛機: <span>67.9 小時</span></div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        
+        <!-- 左欄：冒險者屬性面板 -->
+        <div class="panel-box">
+            <div class="panel-title">冒險者檔案</div>
+            <div class="char-avatar">
+                <div class="avatar-img">👧</div>
+                <div>
+                    <div style="font-weight:bold; color:#fff;">分身·(GM) 阿貓</div>
+                    <div style="color:#aaa; font-size:10px;">職業：雙馬尾影星</div>
+                </div>
+            </div>
+
+            <div class="exp-bar-container">
+                <div class="exp-label"><span>Base Lv. <b id="base-lv" style="color:#fff;">1</b></span> <span id="exp-text">0/100</span></div>
+                <div class="exp-bar"><div id="hp-bar-fill" class="exp-fill-base" style="width: 0%;"></div></div>
+            </div>
+            <div class="exp-bar-container">
+                <div class="exp-label"><span>Job Lv. <b style="color:#fff;">70</b></span> <span>MAX</span></div>
+                <div class="exp-bar"><div class="exp-fill-job"></div></div>
+            </div>
+
+            <div style="margin: 6px 0;">
+                <div class="exp-label"><span style="color:#e74c3c; font-weight:bold;">HP</span> <span id="hp-num">500/800</span></div>
+                <div class="exp-bar" style="background:#442222;"><div id="hp-bar" style="background:#e74c3c; height:100%; width:60%;"></div></div>
+                <div class="exp-label" style="margin-top:3px;"><span style="color:#3498db; font-weight:bold;">SP</span> <span id="sp-num">200/300</span></div>
+                <div class="exp-bar" style="background:#223344;"><div id="sp-bar" style="background:#3498db; height:100%; width:66%;"></div></div>
+            </div>
+
+            <div style="margin: 6px 0; color:#00ffcc;">剩餘點數：<b id="stat-points">0</b></div>
+            
+            <div class="stat-grid" id="stat-list">載入素質中...</div>
+
+            <div class="panel-title" style="margin-top:10px;">戰鬥能力值</div>
+            <div class="sub-stats">
+                <div>ATK: <b style="color:#fff;">709</b></div>
+                <div>MATK: <b style="color:#fff;">171</b></div>
+                <div>DEF: <b style="color:#fff;">270</b></div>
+                <div>MDEF: <b style="color:#fff;">80</b></div>
+                <div>HIT: <b style="color:#fff;">452</b></div>
+                <div>FLEE: <b style="color:#fff;">508</b></div>
+                <div>CRIT: <b style="color:#f1c40f;">36%</b></div>
+                <div>ASPD: <b style="color:#00ffcc;">193</b></div>
+            </div>
+        </div>
+
+        <!-- 中欄：畫布戰鬥與自動掛機 -->
+        <div class="center-layout">
+            <div class="canvas-container">
+                <canvas id="gameCanvas" width="750" height="420"></canvas>
+                <div class="buff-hud">
+                    <div class="buff-item">✨ 經驗加倍 x2.25 (1時32分)</div>
+                    <div class="buff-item">🛡️ 鋼鐵刻刃護盾 (15s)</div>
+                    <div class="buff-item">🧪 詛咒藥劑 (224s)</div>
+                </div>
+            </div>
+
+            <div class="macro-panel">
+                <button id="btn-hunt-toggle" class="btn-auto-hunt" onclick="toggleAutoHunt()">⚔️ 開始自動掛機</button>
+                <div style="display:flex; flex-direction:column; justify-content:center;">
+                    <div style="font-size:10px; color:#aaa;">即時每秒傷害 (DPS)</div>
+                    <div style="font-weight:bold; color:#f1c40f; font-size:14px;">35,101</div>
+                </div>
+                <div class="skill-bar" style="margin-left:auto;">
+                    <div class="skill-slot">🗡️<span class="skill-key">1</span></div>
+                    <div class="skill-slot">❄️<span class="skill-key">2</span></div>
+                    <div class="skill-slot">⚡<span class="skill-key">3</span></div>
+                    <div class="skill-slot">🛡️<span class="skill-key">4</span></div>
+                    <div class="skill-slot">🧪<span class="skill-key">5</span></div>
+                </div>
+            </div>
+
+            <div id="chat-log" class="chat-box">
+                <div>[系統] 角色與精靈模組已更新為雙馬尾與翅膀精靈風格。</div>
+                <div>[玩家] 阿貓: 出發狩獵小精靈！</div>
+            </div>
+        </div>
+
+        <!-- 右欄：經濟、掉落與任務 -->
+        <div class="panel-box">
+            <div class="panel-title">資產與金錢</div>
+            <div class="currency-box">
+                <span>💰 Zeny 儲備</span>
+                <span class="zeny-val" id="zeny-num">10,000</span>
+            </div>
+
+            <div class="panel-title">本次狩獵戰利品</div>
+            <div class="loot-list" id="loot-box">
+                <div class="loot-item"><span>✨ 聖潔結晶</span><b>x107</b></div>
+                <div class="loot-item"><span>🌿 官苔纖維</span><b>x31</b></div>
+            </div>
+
+            <div class="panel-title" style="margin-top:10px;">進行中任務</div>
+            <div class="quest-item">
+                <div class="quest-header"><span>📜 讓明日到來</span><span style="color:#2ecc71;">可回報</span></div>
+                <div style="color:#aaa; margin-top:2px;">擊敗精靈王 (1/1)</div>
+                <button class="btn-claim">領取 50,000 Zeny</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let autoHuntInterval = null;
+        let isAutoHunting = false;
+
+        function loadPlayer() {
+            fetch('http://127.0.0.1:8000/api/player')
+                .then(res => res.json())
+                .then(data => renderUI(data));
+        }
+
+        function upgradeStat(statName) {
+            fetch('http://127.0.0.1:8000/api/upgrade_stat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stat_name: statName })
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    renderUI(result.data);
+                    logChat(`成功提升 ${statName.toUpperCase()}！`);
+                }
+            });
+        }
+
+        function huntMonster() {
+            fetch('http://127.0.0.1:8000/api/hunt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    renderUI(result.data);
+                    respawnMonster();
+                    
+                    const dmg = Math.floor(Math.random() * 4000) + 14000;
+                    addFloatingText(monster.x, monster.y - 10, `-${dmg}`, '#ff4d4d', 22);
+                    addFloatingText(monster.x + 20, monster.y - 30, '+185 EXP', '#f1c40f', 15);
+                    addLootDrop();
+                }
+            });
+        }
+
+        function toggleAutoHunt() {
+            const btn = document.getElementById('btn-hunt-toggle');
+            if (!isAutoHunting) {
+                isAutoHunting = true;
+                btn.innerText = '⏹️ 停止自動掛機';
+                btn.classList.add('active');
+                autoHuntInterval = setInterval(huntMonster, 1000);
+                logChat('[系統] 已開啟自動戰鬥掛機巨集。');
+            } else {
+                isAutoHunting = false;
+                btn.innerText = '⚔️ 開始自動掛機';
+                btn.classList.remove('active');
+                clearInterval(autoHuntInterval);
+                logChat('[系統] 已停止自動掛機。');
+            }
+        }
+
+        function logChat(msg) {
+            const box = document.getElementById('chat-log');
+            const div = document.createElement('div');
+            div.innerText = msg;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function addLootDrop() {
+            const items = ['精靈羽翼', '魔法露珠', '青苔纖維'];
+            const randomItem = items[Math.floor(Math.random() * items.length)];
+            const lootBox = document.getElementById('loot-box');
+            const div = document.createElement('div');
+            div.className = 'loot-item';
+            div.innerHTML = `<span>💎 ${randomItem}</span><b>x1</b>`;
+            lootBox.prepend(div);
+            if(lootBox.children.length > 8) lootBox.removeChild(lootBox.lastChild);
+        }
+
+        function renderUI(data) {
+            document.getElementById('base-lv').innerText = data.base_lv;
+            document.getElementById('exp-text').innerText = `${data.exp} / ${data.max_exp}`;
+            document.getElementById('hp-bar-fill').style.width = `${(data.exp / data.max_exp) * 100}%`;
+
+            document.getElementById('hp-num').innerText = `${data.hp}/${data.max_hp}`;
+            document.getElementById('hp-bar').style.width = `${(data.hp / data.max_hp) * 100}%`;
+            
+            document.getElementById('sp-num').innerText = `${data.sp}/${data.max_sp}`;
+            document.getElementById('sp-bar').style.width = `${(data.sp / data.max_sp) * 100}%`;
+
+            document.getElementById('stat-points').innerText = data.stat_points;
+            document.getElementById('zeny-num').innerText = data.zeny.toLocaleString();
+
+            const statList = document.getElementById('stat-list');
+            const bonuses = { str: '+40', agi: '+34', vit: '+30', int: '+42', dex: '+36', luk: '+20' };
+            statList.innerHTML = '';
+            
+            for (let key in data.stats) {
+                const row = document.createElement('div');
+                row.className = 'stat-row';
+                row.innerHTML = `
+                    <span><b>${key.toUpperCase()}</b>: <span class="stat-val">${data.stats[key]}</span> <span class="stat-bonus">${bonuses[key]||''}</span></span>
+                    <button class="btn-add" onclick="upgradeStat('${key}')">+</button>
+                `;
+                statList.appendChild(row);
+            }
+        }
+
+        // ----------------- 像素精靈陣列設定 (對應圖片造型) -----------------
+        // 雙馬尾冒險者角色像素圖 (16x16)
+        const playerSprite = [
+            "..WW......WW....",
+            ".WWWW....WWWW...",
+            "..OOO....OOO....",
+            "...RRWWWWFF.....",
+            "....RRRRRR......",
+            ".....CCCC.......",
+            "...CCCCCCCC.....",
+            "..CC.CC.CC.CC...",
+            ".....CCCC.......",
+            "....CC..CC......",
+            "....C....C......",
+            "....P....P......"
+        ];
+        const playerColors = { 'W': '#ffffff', 'O': '#f5d6b0', 'R': '#e74c3c', 'F': '#2c3e50', 'C': '#5d6d7e', 'P': '#111' };
+
+        // 雙翼綠色精靈魔物像素圖 (16x16)
+        const monsterSprite = [
+            "WW..........WW..",
+            ".WWWW....WWWW...",
+            "..GGWWGGWWGG....",
+            "...GGGGGGGG.....",
+            "....GGBEBG......",
+            "....GGGGGG......",
+            ".....GGGG.......",
+            "....GG..GG......"
+        ];
+        const monsterColors = { 'W': '#a3e4d7', 'G': '#58d68d', 'B': '#111', 'E': '#ffffff' };
+
+        function drawPixelArt(sprite, colorMap, startX, startY, pixelSize, flipX = false, isHit = false) {
+            ctx.save();
+            if (flipX) {
+                ctx.translate(startX + 16 * pixelSize, startY);
+                ctx.scale(-1, 1);
+            } else {
+                ctx.translate(startX, startY);
+            }
+            for (let row = 0; row < sprite.length; row++) {
+                for (let col = 0; col < sprite[row].length; col++) {
+                    const char = sprite[row][col];
+                    if (char !== '.') {
+                        ctx.fillStyle = isHit ? '#ffffff' : colorMap[char];
+                        ctx.fillRect(col * pixelSize, row * pixelSize, pixelSize, pixelSize);
+                    }
+                }
+            }
+            ctx.restore();
+        }
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const player = { x: 150, y: 200, size: 48, speed: 5, facingLeft: false };
+        const monster = { x: 500, y: 200, size: 48, hitTimer: 0 };
+        const floatingTexts = [];
+        const keys = {};
+
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+
+        function respawnMonster() {
+            monster.x = Math.floor(Math.random() * (canvas.width - 120)) + 60;
+            monster.y = Math.floor(Math.random() * (canvas.height - 120)) + 60;
+            monster.hitTimer = 8;
+        }
+
+        function checkCollision(r1, r2) {
+            return (
+                r1.x < r2.x + r2.size &&
+                r1.x + r1.size > r2.x &&
+                r1.y < r2.y + r2.size &&
+                r1.y + r1.size > r2.y
+            );
+        }
+
+        function addFloatingText(x, y, text, color, fontSize) {
+            floatingTexts.push({ x, y, text, color, fontSize, alpha: 1.0 });
+        }
+
+        function gameLoop() {
+            let isMoving = false;
+            if (keys['w'] || keys['W'] || keys['ArrowUp']) { if(player.y > 0) player.y -= player.speed; isMoving = true; }
+            if (keys['s'] || keys['S'] || keys['ArrowDown']) { if(player.y < canvas.height - player.size) player.y += player.speed; isMoving = true; }
+            if (keys['a'] || keys['A'] || keys['ArrowLeft']) { if(player.x > 0) player.x -= player.speed; player.facingLeft = true; isMoving = true; }
+            if (keys['d'] || keys['D'] || keys['ArrowRight']) { if(player.x < canvas.width - player.size) player.x += player.speed; player.facingLeft = false; isMoving = true; }
+
+            // 碰撞與打怪判定
+            if (checkCollision(player, monster)) {
+                huntMonster();
+                respawnMonster();
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 背景地圖
+            ctx.fillStyle = '#1a1e29'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#252b3b'; ctx.fillRect(60, 60, 40, 100); ctx.fillRect(600, 250, 60, 120);
+
+            // 地面陰影
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath(); ctx.ellipse(player.x+24, player.y+44, 16, 6, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(monster.x+24, monster.y+44, 16, 6, 0, 0, Math.PI*2); ctx.fill();
+
+            // 繪製雙馬尾角色精靈
+            drawPixelArt(playerSprite, playerColors, player.x, player.y, 3, player.facingLeft);
+            ctx.fillStyle = '#fff'; ctx.font = '10px sans-serif'; ctx.fillText('分身·(GM) 阿貓', player.x - 4, player.y - 6);
+
+            // 繪製綠色帶翅膀精靈魔物精靈 (帶血條)
+            let isHit = monster.hitTimer > 0;
+            if(isHit) monster.hitTimer--;
+            drawPixelArt(monsterSprite, monsterColors, monster.x, monster.y, 3, false, isHit);
+            
+            // 魔物血條 (類似截圖風格)
+            ctx.fillStyle = '#222'; ctx.fillRect(monster.x + 4, monster.y - 12, 40, 5);
+            ctx.fillStyle = '#2ecc71'; ctx.fillRect(monster.x + 4, monster.y - 12, 32, 5);
+
+            ctx.fillStyle = '#a3e4d7'; ctx.fillText('精靈小怪', monster.x + 4, monster.y - 16);
+
+            // 漂浮數字渲染
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y -= 1.2; ft.alpha -= 0.025;
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.fillStyle = ft.color;
+                ctx.font = `bold ${ft.fontSize}px sans-serif`;
+                ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+                if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        loadPlayer();
+        gameLoop();
+    </script>
+</body>
+</html>

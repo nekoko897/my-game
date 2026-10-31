@@ -1,0 +1,10 @@
+web_rpg_game/
+│
+├── backend/          # Python 伺服器端
+│   ├── main.py       # 遊戲主要的 API 與邏輯
+│   └── game_logic.py # 角色素質、戰鬥計算等
+│
+└── frontend/         # 網頁介面端
+    ├── index.html    # 遊戲主畫面排版
+    ├── style.css     # 介面樣式（深色主題、面板、血條）
+    └── script.js     # 與後端通訊、更新畫面的程式碼
