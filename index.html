@@ -201,13 +201,13 @@
         let isAutoHunting = false;
 
         function loadPlayer() {
-            fetch('http://127.0.0.1:8000/api/player')
+            fetch('https://my-rpg-backend-zg1f.onrender.com')
                 .then(res => res.json())
                 .then(data => renderUI(data));
         }
 
         function upgradeStat(statName) {
-            fetch('http://127.0.0.1:8000/api/upgrade_stat', {
+            fetch('https://my-rpg-backend-zg1f.onrender.com', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stat_name: statName })
@@ -222,7 +222,7 @@
         }
 
         function huntMonster() {
-            fetch('http://127.0.0.1:8000/api/hunt', {
+            fetch('https://my-rpg-backend-zg1f.onrender.com', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             })
