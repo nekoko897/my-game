@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
-app = FastAPI()
+app = FastAPI(title="修仙亂亂修 API")
 
+# 記得保留原本設定好的 CORS，確保前端能正常連線
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -11,6 +11,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/")
+def read_root():
+    return {"message": "歡迎來到《修仙亂亂修》伺服器！"}
 
 # 模擬角色資料，加入 max_hp 與 max_sp 上限
 player_data = {
