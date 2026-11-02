@@ -4,41 +4,39 @@
   <meta charset="UTF-8">
   <title>修仙亂亂修</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body, html { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body, html { width: 100%; height: 100%; overflow: hidden; background: #000; }
 
-    /* 封面首頁樣式 */
-    #start-screen {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: url('bg.jpg') no-repeat center center;
-      background-size: cover;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 10;
-    }
+  /* 封面首頁容器：鎖死 1920x1080 居中顯示 */
+  #start-screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: url('bg.jpg') no-repeat center center;
+    background-size: cover;
+    z-index: 10;
+  }
 
-    /* 透明開始按鈕（對應圖片上的「開始遊戲」位置） */
-    .start-btn {
-      position: absolute;
-      bottom: 12%;
-      left: 36%;
-      width: 14%;
-      height: 8%;
-      background: rgba(0, 0, 0, 0); /* 設為透明，完美貼合圖片按鈕 */
-      border: none;
-      cursor: pointer;
-    }
+  /* 針對 1920x1080 解析度精準定位的開始按鈕 */
+  .start-btn {
+    position: absolute;
+    /* 請根據圖片上「開始遊戲」按鈕的位置微調下方數值 */
+    bottom: 120px; 
+    left: 720px;   
+    width: 180px;
+    height: 60px;
+    background: rgba(255, 0, 0, 0.4); /* 暫時設為半透明紅色方便你對位，測試成功後可改回 rgba(0,0,0,0) */
+    border: 2px solid yellow; /* 暫時加上黃框 */
+    cursor: pointer;
+    z-index: 20;
+  }
 
-    /* 遊戲畫面 Canvas 樣式（初始隱藏） */
-    #game-canvas {
-      display: none;
-      width: 100vw;
-      height: 100vh;
-    }
-  </style>
+  #game-canvas {
+    display: none;
+    width: 100vw;
+    height: 100vh;
+  }
+</style>
 </head>
 <body>
 
