@@ -153,7 +153,30 @@
     ctx.font = '14px sans-serif';
     ctx.fillText('修仙者', player.x - 5, player.y - 8);
   }
+let lastSendTime = 0;
 
+function sendPositionToServer() {
+  const now = Date.now();
+  // 每 1000 毫秒 (1秒) 傳送一次座標
+  if (now - lastSendTime > 1000) {
+    lastSendTime = now;
+
+    fetch('http://127.0.0.1:8000/api/update_position', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ x: player.x, y: player.y })
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('座標同步成功:', data);
+    })
+    .catch(error => {
+      console.error('座標同步失敗:', error);
+    });
+  }
+}
   // 遊戲主迴圈
   function gameLoop() {
     update();
