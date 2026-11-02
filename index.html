@@ -49,22 +49,117 @@
   <canvas id="game-canvas"></canvas>
 
   <script>
-    function startGame() {
-      // 1. 隱藏首頁封面
-      document.getElementById('start-screen').style.display = 'none';
-      
-      // 2. 顯示遊戲畫面
-      const canvas = document.getElementById('game-canvas');
-      canvas.style.display = 'block';
+  let canvas, ctx;
+  let gameStarted = false;
 
-      // 3. 這裡放入你原本的遊戲初始化與繪製邏輯
-      initGame();
+  // 玩家角色物件
+  let player = {
+    x: 200,
+    y: 300,
+    width: 40,
+    height: 40,
+    speed: 4,
+    color: '#4A90E2' // 藍色代表玩家
+  };
+
+  // 波利怪物物件
+  let poring = {
+    x: 600,
+    y: 400,
+    width: 45,
+    height: 40,
+    color: '#FF69B4' // 粉紅色代表波利
+  };
+
+  // 記錄鍵盤按下狀態
+  let keys = {};
+
+  function startGame() {
+    // 1. 隱藏首頁封面
+    document.getElementById('start-screen').style.display = 'none';
+    
+    // 2. 顯示並初始化 Canvas 畫布
+    canvas = document.getElementById('game-canvas');
+    canvas.style.display = 'block';
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    ctx = canvas.getContext('2d');
+
+    gameStarted = true;
+
+    // 3. 監聽鍵盤事件
+    window.addEventListener('keydown', (e) => keys[e.key] = true);
+    window.addEventListener('keyup', (e) => keys[e.key] = false);
+
+    // 4. 啟動遊戲主迴圈
+    requestAnimationFrame(gameLoop);
+  }
+
+  // 更新遊戲物件位置
+  function update() {
+    if (!gameStarted) return;
+
+    // 玩家移動控制 (WASD 或 方向鍵)
+    if (keys['ArrowUp'] || keys['w'] || keys['W']) player.y -= player.speed;
+    if (keys['ArrowDown'] || keys['s'] || keys['S']) player.y += player.speed;
+    if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.x -= player.speed;
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) player.x += player.speed;
+
+    // 限制玩家不出畫面
+    if (player.x < 0) player.x = 0;
+    if (player.y < 0) player.y = 0;
+    if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+    if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+  }
+
+  // 繪製遊戲畫面
+  function draw() {
+    // 清空畫面（地圖背景色：草地綠或修仙風格深色）
+    ctx.fillStyle = '#1e2836';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 繪製地圖簡單格線（營造 2.5D 空間感）
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < canvas.width; i += 50) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, canvas.height);
+      ctx.stroke();
+    }
+    for (let j = 0; j < canvas.height; j += 50) {
+      ctx.beginPath();
+      ctx.moveTo(0, j);
+      ctx.lineTo(canvas.width, j);
+      ctx.stroke();
     }
 
-    function initGame() {
-      console.log("成功進入遊戲，開始與後端連線！");
-      // TODO: 載入你的遊戲 Canvas 渲染與 API 連線程式碼
-    }
-  </script>
+    // 繪製波利怪物
+    ctx.fillStyle = poring.color;
+    ctx.beginPath();
+    // 畫一個可愛的圓滾滾波利造型
+    ctx.ellipse(poring.x + poring.width/2, poring.y + poring.height/2, poring.width/2, poring.height/2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 波利眼睛
+    ctx.fillStyle = '#000';
+    ctx.fillRect(poring.x + 10, poring.y + 12, 5, 8);
+    ctx.fillRect(poring.x + 28, poring.y + 12, 5, 8);
+
+    // 繪製玩家角色
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    // 玩家名稱標籤
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px sans-serif';
+    ctx.fillText('修仙者', player.x - 5, player.y - 8);
+  }
+
+  // 遊戲主迴圈
+  function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+  }
+</script>
 </body>
 </html>
