@@ -19,17 +19,17 @@
 
   /* 針對 1920x1080 解析度精準定位的開始按鈕 */
   .start-btn {
-    position: absolute;
-    /* 請根據圖片上「開始遊戲」按鈕的位置微調下方數值 */
-    bottom: 120px; 
-    left: 720px;   
-    width: 180px;
-    height: 60px;
-    background: rgba(255, 0, 0, 0.4); /* 暫時設為半透明紅色方便你對位，測試成功後可改回 rgba(0,0,0,0) */
-    border: 2px solid yellow; /* 暫時加上黃框 */
-    cursor: pointer;
-    z-index: 20;
-  }
+  position: absolute;
+  /* 針對 1920x1080 畫面上的「開始遊戲」按鈕位置微調 */
+  bottom: 120px; /* 距離底部的高度 */
+  left: 230px;   /* 距離左側的距離（從原本的 720px 改到左邊） */
+  width: 160px;  /* 按鈕寬度 */
+  height: 60px;  /* 按鈕高度 */
+  background: rgba(255, 0, 0, 0.4); /* 半透明紅色方便你確認位置 */
+  border: 2px solid yellow; /* 黃框 */
+  cursor: pointer;
+  z-index: 20;
+}
 
   #game-canvas {
     display: none;
