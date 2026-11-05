@@ -1,188 +1,571 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
+<!doctype html>
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>修仙亂亂修</title>
-  <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body, html { width: 100%; height: 100%; overflow: hidden; background: #000; }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#14232b" />
+<meta name="color-scheme" content="dark" />
+<title>問道長生 · 修仙界</title>
+<meta name="description" content="一款修仙風格的遊戲介面：修煉、突破境界、施展功法，踏上長生大道。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet" />
+<style>
+  /* 墨青 · 宣紙 · 翡翠 · 鎏金 · 硃砂 */
+  :root {
+    --background: oklch(0.17 0.025 220);
+    --foreground: oklch(0.93 0.02 95);
+    --card: oklch(0.21 0.028 215);
+    --primary: oklch(0.76 0.11 165);
+    --secondary: oklch(0.25 0.028 215);
+    --muted-fg: oklch(0.72 0.02 200);
+    --accent: oklch(0.83 0.12 85);
+    --destructive: oklch(0.62 0.19 30);
+    --border: oklch(0.76 0.11 165 / 20%);
+    --radius: 6px;
+    --sans: 'Noto Sans TC', sans-serif;
+    --serif: 'Noto Serif TC', serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--background); color: var(--foreground); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  ul, ol { list-style: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .serif { font-family: var(--serif); }
+  .muted { color: var(--muted-fg); }
+  .xs { font-size: 12px; }
+  .num { font-variant-numeric: tabular-nums; }
 
-  /* 封面首頁容器：鎖死 1920x1080 居中顯示 */
-  #start-screen {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: url('bg.jpg') no-repeat center center;
-    background-size: cover;
-    z-index: 10;
+  .app { position: relative; min-height: 100dvh; overflow: hidden; }
+  .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .veil { position: absolute; inset: 0; background: color-mix(in oklch, var(--background) 55%, transparent); }
+  .shell { position: relative; max-width: 1280px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; gap: 16px; padding: 12px; }
+  .grid { flex: 1; min-height: 0; display: grid; gap: 16px; }
+  @media (min-width: 768px) { .shell { padding: 16px; } }
+  @media (min-width: 1024px) {
+    .shell { height: 100dvh; }
+    .grid { grid-template-columns: 200px 1fr 300px; }
   }
 
-  /* 針對 1920x1080 解析度精準定位的開始按鈕 */
-  .start-btn {
-  position: absolute;
-  /* 針對 1920x1080 畫面上的「開始遊戲」按鈕位置微調 */
-  bottom: 17px; /* 距離底部的高度 */
-  left: 440px;   /* 距離左側的距離（從原本的 720px 改到左邊） */
-  width: 330px;  /* 按鈕寬度 */
-  height: 95px;  /* 按鈕高度 */
-  background: rgba(0, 0, 0, 0); /* 恢復為完全透明 */
-  border: none;                  /* 移除黃框 */
-  cursor: pointer;
-  z-index: 20;
-}
-
-  #game-canvas {
-    display: none;
-    width: 100vw;
-    height: 100vh;
+  .panel {
+    background: color-mix(in oklch, var(--card) 80%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow:
+      inset 0 0 0 3px color-mix(in oklch, var(--background) 70%, transparent),
+      inset 0 0 0 4px color-mix(in oklch, var(--accent) 22%, transparent);
   }
+  .panel-title { font-family: var(--serif); font-size: 14px; font-weight: 700; letter-spacing: .4em; color: var(--accent); margin-bottom: 14px; }
+
+  /* Top bar */
+  .top { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+  @media (min-width: 768px) { .top { flex-direction: row; align-items: center; justify-content: space-between; gap: 24px; } }
+  .who { display: flex; align-items: center; gap: 12px; }
+  .avatar { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; border: 2px solid color-mix(in oklch, var(--accent) 60%, transparent); flex-shrink: 0; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .name-row { display: flex; align-items: baseline; gap: 8px; }
+  .name-row h1 { font-family: var(--serif); font-size: 20px; font-weight: 700; letter-spacing: .1em; }
+  .realm-line { font-family: var(--serif); font-size: 14px; color: var(--accent); }
+  .stats { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  @media (min-width: 768px) { .stats { max-width: 448px; } }
+  .stat { display: flex; align-items: center; gap: 8px; }
+  .stat-label { width: 32px; flex-shrink: 0; font-family: var(--serif); font-size: 12px; color: var(--muted-fg); }
+  .track { position: relative; flex: 1; height: 10px; overflow: hidden; border-radius: 999px; background: color-mix(in oklch, var(--background) 70%, transparent); box-shadow: 0 0 0 1px var(--border); }
+  .fill { height: 100%; border-radius: 999px; transition: width .5s; }
+  .stat-val { width: 64px; flex-shrink: 0; text-align: right; font-size: 12px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
+  .wallet { display: flex; align-items: center; gap: 16px; }
+  .wallet dl { display: flex; gap: 16px; font-size: 14px; }
+  .wallet dl > div { display: flex; align-items: center; gap: 6px; }
+  .wallet dt { display: flex; align-items: center; gap: 4px; color: var(--muted-fg); }
+  .wallet dd { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .icon { width: 16px; height: 16px; flex-shrink: 0; }
+  .icon-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius); border: 1px solid var(--border); color: var(--muted-fg); transition: color .2s, border-color .2s; }
+  .icon-btn:hover { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 60%, transparent); }
+
+  /* Side nav */
+  .nav { padding: 8px; }
+  .nav ul { display: flex; gap: 4px; overflow-x: auto; }
+  @media (min-width: 1024px) { .nav ul { flex-direction: column; } }
+  .nav li { flex-shrink: 0; }
+  .nav button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius); font-family: var(--serif); font-size: 14px; letter-spacing: .3em; color: var(--muted-fg); transition: background .2s, color .2s; }
+  .nav button:hover { background: var(--secondary); color: var(--foreground); }
+  .nav button[aria-current="page"] { background: color-mix(in oklch, var(--primary) 15%, transparent); color: var(--primary); box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 40%, transparent); }
+
+  /* Core */
+  main { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 16px 0; }
+  .core { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+  .orb { position: relative; width: 288px; height: 288px; display: flex; align-items: center; justify-content: center; }
+  @media (min-width: 640px) { .orb { width: 320px; height: 320px; } }
+  .orb svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .glow { position: absolute; inset: 24px; border-radius: 50%; background: color-mix(in oklch, var(--primary) 20%, transparent); filter: blur(40px); animation: breathe 4s ease-in-out infinite; }
+  .ready .glow { background: color-mix(in oklch, var(--accent) 30%, transparent); }
+  .orbit { animation: orbit 24s linear infinite; }
+  .secluded .orbit { animation-duration: 6s; }
+  .ring-progress { transform: rotate(-90deg); }
+  .ring-progress circle:last-child { transition: stroke-dashoffset .7s ease-out, stroke .3s; }
+  .core-text { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+  .core-label { font-size: 12px; letter-spacing: .4em; color: var(--muted-fg); }
+  .core-realm { font-family: var(--serif); font-size: 60px; line-height: 1.1; font-weight: 900; letter-spacing: .1em; }
+  .ready .core-realm { color: var(--accent); }
+  .core-layer { font-family: var(--serif); font-size: 18px; letter-spacing: .3em; color: var(--primary); }
+  .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+  .btn { min-width: 112px; padding: 10px 20px; border-radius: var(--radius); font-family: var(--serif); letter-spacing: .3em; transition: background .2s, opacity .2s, color .2s; }
+  .btn:disabled { opacity: .4; }
+  .btn-primary { border: 1px solid color-mix(in oklch, var(--primary) 50%, transparent); background: color-mix(in oklch, var(--primary) 15%, transparent); color: var(--primary); }
+  .btn-primary:not(:disabled):hover { background: color-mix(in oklch, var(--primary) 25%, transparent); }
+  .btn-gold { background: var(--accent); color: var(--background); font-weight: 700; }
+  .btn-gold:disabled { opacity: .3; }
+  .btn-gold:not(:disabled):hover { opacity: .9; }
+  .btn-gold small { margin-left: 8px; font-family: var(--sans); font-size: 12px; font-weight: 500; letter-spacing: 0; }
+  .btn-ghost { border: 1px solid var(--border); color: var(--muted-fg); }
+  .btn-ghost:hover { color: var(--foreground); }
+  .btn-ghost[aria-pressed="true"] { border-color: color-mix(in oklch, var(--accent) 60%, transparent); color: var(--accent); }
+
+  /* Right column */
+  .right { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .info { padding: 16px; }
+  .attr { display: flex; flex-direction: column; gap: 4px; }
+  .attr + .attr { margin-top: 12px; }
+  .attr-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .attr-head dt { font-family: var(--serif); font-size: 14px; }
+  .attr-head dd { font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; }
+  .mini-track { height: 4px; border-radius: 999px; overflow: hidden; background: color-mix(in oklch, var(--background) 70%, transparent); }
+  .mini-track div { height: 100%; background: color-mix(in oklch, var(--primary) 70%, transparent); }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in oklch, var(--background) 40%, transparent); padding: 12px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .col { display: flex; flex-direction: column; }
+  .bold { font-family: var(--serif); font-size: 14px; font-weight: 700; }
+  .seal { width: 32px; height: 32px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 3px; border: 1px solid var(--destructive); color: var(--destructive); font-family: var(--serif); }
+  .tech { display: flex; align-items: flex-start; gap: 12px; }
+  .small-btn { padding: 6px 12px; border-radius: var(--radius); border: 1px solid color-mix(in oklch, var(--primary) 50%, transparent); color: var(--primary); font-family: var(--serif); font-size: 12px; letter-spacing: .1em; }
+  .small-btn:not(:disabled):hover { background: color-mix(in oklch, var(--primary) 15%, transparent); }
+  .small-btn:disabled { opacity: .4; }
+  .sect-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .log-wrap { display: flex; flex-direction: column; height: 256px; min-height: 0; }
+  @media (min-width: 1024px) { .log-wrap { height: auto; flex: 1; } }
+  .log { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 16px; }
+  .log ol { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 14px; line-height: 1.65; }
+  .log li { border-left: 1px solid var(--border); padding-left: 12px; animation: log-in .3s ease-out; }
+  .tone-normal { color: color-mix(in oklch, var(--foreground) 80%, transparent); }
+  .tone-success { color: var(--primary); }
+  .tone-danger { color: var(--destructive); }
+  .tone-gold { color: var(--accent); }
+
+  /* Skill bar */
+  .skills { padding: 12px; }
+  .skills ul { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  @media (min-width: 640px) { .skills ul { grid-template-columns: repeat(4, 1fr); } }
+  .skill { position: relative; width: 100%; display: flex; align-items: center; gap: 12px; overflow: hidden; padding: 8px; text-align: left; border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in oklch, var(--background) 40%, transparent); transition: border-color .2s; }
+  .skill:not(:disabled):hover { border-color: color-mix(in oklch, var(--primary) 50%, transparent); }
+  .skill .seal { width: 40px; height: 40px; border-width: 2px; font-size: 18px; font-weight: 900; }
+  .skill:disabled .seal { opacity: .4; }
+  .skill:disabled .skill-text { opacity: .5; }
+  .skill-text { display: flex; flex-direction: column; min-width: 0; }
+  .skill-text .bold { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  kbd { font-family: var(--sans); }
+  .cd { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: color-mix(in oklch, var(--background) 70%, transparent); font-family: var(--serif); font-size: 20px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+  @keyframes breathe { 0%, 100% { opacity: .45; transform: scale(.97); } 50% { opacity: .9; transform: scale(1.02); } }
+  @keyframes orbit { to { transform: rotate(360deg); } }
+  @keyframes log-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .glow, .orbit, .log li { animation: none !important; } }
 </style>
 </head>
 <body>
+<div class="app">
+  <img class="bg" src="./img/scene-peaks.png" alt="" />
+  <div class="veil" aria-hidden="true"></div>
 
-  <!-- 首頁封面 -->
-  <div id="start-screen">
-    <button class="start-btn" onclick="startGame()"></button>
+  <div class="shell">
+    <header class="panel top">
+      <div class="who">
+        <div class="avatar"><img src="./img/cultivator.png" alt="角色頭像：雲逸" /></div>
+        <div class="col">
+          <div class="name-row">
+            <h1>雲逸</h1>
+            <span class="xs muted">青雲宗 · 內門弟子</span>
+          </div>
+          <p class="realm-line" id="realmLine"></p>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-label">氣血</span>
+          <div class="track" role="progressbar" aria-label="氣血" aria-valuemin="0" id="hpBar">
+            <div class="fill" style="background: var(--destructive)"></div>
+          </div>
+          <span class="stat-val" id="hpVal"></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">靈力</span>
+          <div class="track" role="progressbar" aria-label="靈力" aria-valuemin="0" id="mpBar">
+            <div class="fill" style="background: var(--primary)"></div>
+          </div>
+          <span class="stat-val" id="mpVal"></span>
+        </div>
+      </div>
+
+      <div class="wallet">
+        <dl>
+          <div>
+            <dt><svg class="icon" style="color: var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>靈石</dt>
+            <dd id="stones"></dd>
+          </div>
+          <div>
+            <dt><svg class="icon" style="color: var(--accent)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>仙玉</dt>
+            <dd id="jade"></dd>
+          </div>
+        </dl>
+        <button type="button" class="icon-btn" aria-label="設定">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <aside>
+        <nav class="panel nav" aria-label="遊戲選單"><ul id="nav"></ul></nav>
+      </aside>
+
+      <main>
+        <section class="core" id="core" aria-labelledby="core-title">
+          <h2 id="core-title" class="sr-only">修為</h2>
+          <div class="orb">
+            <div class="glow" aria-hidden="true"></div>
+            <svg class="orbit" viewBox="0 0 300 300" aria-hidden="true">
+              <circle cx="150" cy="150" r="142" fill="none" stroke="var(--accent)" stroke-opacity=".35" stroke-width="1" stroke-dasharray="2 10" />
+              <circle cx="150" cy="150" r="134" fill="none" stroke="var(--accent)" stroke-opacity=".2" stroke-width="1" />
+            </svg>
+            <svg class="ring-progress" viewBox="0 0 300 300" aria-hidden="true">
+              <circle cx="150" cy="150" r="120" fill="none" stroke="var(--background)" stroke-opacity=".7" stroke-width="10" />
+              <circle id="ring" cx="150" cy="150" r="120" fill="none" stroke="var(--primary)" stroke-width="10" stroke-linecap="round" />
+            </svg>
+            <div class="core-text">
+              <span class="core-label">當前境界</span>
+              <span class="core-realm" id="coreRealm"></span>
+              <span class="core-layer" id="coreLayer"></span>
+              <span class="num muted" style="margin-top:4px;font-size:14px" id="coreXp" aria-live="polite"></span>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="btn btn-primary" id="btnCultivate">運功</button>
+            <button type="button" class="btn btn-gold" id="btnBreak">突破<small id="chance"></small></button>
+            <button type="button" class="btn btn-ghost" id="btnSeclude" aria-pressed="false">閉關</button>
+          </div>
+          <p class="xs muted" id="coreHint"></p>
+        </section>
+      </main>
+
+      <aside class="right">
+        <section class="panel info" aria-labelledby="info-title">
+          <h2 class="panel-title" id="info-title"></h2>
+          <div id="infoBody"></div>
+        </section>
+        <div class="log-wrap">
+          <section class="panel log" aria-labelledby="log-title">
+            <h2 class="panel-title" id="log-title" style="margin-bottom:12px">修仙日誌</h2>
+            <ol id="log" aria-live="polite"></ol>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel skills" aria-label="功法快捷欄"><ul id="skills"></ul></section>
   </div>
+</div>
 
-  <!-- 遊戲畫布 -->
-  <canvas id="game-canvas"></canvas>
+<script>
+  const REALMS = ['煉氣', '築基', '金丹', '元嬰', '化神', '渡劫', '大乘']
+  const NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九']
+  const MAX_LAYER = 9, MAX_HP = 260, MAX_MP = 120, CULTIVATE_COST = 5
+  const CIRC = 2 * Math.PI * 120
 
-  <script>
-  let canvas, ctx;
-  let gameStarted = false;
+  const SKILLS = [
+    { id: 'flame', name: '赤焰訣', element: '火', cost: 12, cooldown: 3, description: '凝聚丹火，焚盡妖邪' },
+    { id: 'wind', name: '御風術', element: '風', cost: 8, cooldown: 2, description: '踏風而行，身輕如燕' },
+    { id: 'thunder', name: '九霄雷引', element: '雷', cost: 25, cooldown: 6, description: '引動天雷，威震八方' },
+    { id: 'water', name: '玄水護體', element: '水', cost: 15, cooldown: 5, description: '玄水環身，萬法不侵' },
+  ]
+  const ATTRIBUTES = [
+    { label: '根骨', value: 78, hint: '影響氣血上限' },
+    { label: '悟性', value: 91, hint: '影響修煉速度' },
+    { label: '神識', value: 64, hint: '影響法術威力' },
+    { label: '氣運', value: 52, hint: '影響突破機率' },
+  ]
+  const ICON = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`
+  const NAV = [
+    { id: 'character', label: '角色', icon: ICON('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>') },
+    { id: 'techniques', label: '功法', icon: ICON('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>') },
+    { id: 'artifacts', label: '法寶', icon: ICON('<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/>') },
+    { id: 'pills', label: '丹藥', icon: ICON('<path d="M10 2v7.53a2 2 0 0 1-.21.9L4.72 20.55A1 1 0 0 0 5.62 22h12.76a1 1 0 0 0 .9-1.45l-5.07-10.12a2 2 0 0 1-.21-.9V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>') },
+    { id: 'sect', label: '宗門', icon: ICON('<path d="M10 5V3"/><path d="M14 5V3"/><path d="M15 21v-3a3 3 0 0 0-6 0v3"/><path d="M18 3v8"/><path d="M18 5H6"/><path d="M22 11H2"/><path d="M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9"/><path d="M6 3v8"/>') },
+    { id: 'realm', label: '秘境', icon: ICON('<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>') },
+  ]
+  const PILLS = { qi: { name: '回氣丹', effect: '恢復 40 點靈力' }, foundation: { name: '培元丹', effect: '增加 30% 當前層修為' } }
+  const ARTIFACTS = [
+    { name: '青霜劍', grade: '靈器 · 上品', note: '劍氣森寒，可斬妖邪' },
+    { name: '紫金葫蘆', grade: '法器 · 中品', note: '可納百川之水' },
+    { name: '玄龜甲', grade: '靈器 · 下品', note: '護主之寶，抵禦重擊' },
+  ]
+  const SECT = [['宗門', '青雲宗'], ['職位', '內門弟子'], ['貢獻', '1,280'], ['師尊', '玄真子']]
+  const SECRET_REALMS = [
+    { name: '落霞谷', req: '煉氣期可入', open: true },
+    { name: '萬妖山脈', req: '築基期可入', open: true },
+    { name: '太虛幻境', req: '金丹期可入', open: false },
+  ]
 
-  // 玩家角色物件
-  let player = {
-    x: 200,
-    y: 300,
-    width: 40,
-    height: 40,
-    speed: 4,
-    color: '#4A90E2' // 藍色代表玩家
-  };
-
-  // 波利怪物物件
-  let poring = {
-    x: 600,
-    y: 400,
-    width: 45,
-    height: 40,
-    color: '#FF69B4' // 粉紅色代表波利
-  };
-
-  // 記錄鍵盤按下狀態
-  let keys = {};
-
-  function startGame() {
-    // 1. 隱藏首頁封面
-    document.getElementById('start-screen').style.display = 'none';
-    
-    // 2. 顯示並初始化 Canvas 畫布
-    canvas = document.getElementById('game-canvas');
-    canvas.style.display = 'block';
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    ctx = canvas.getContext('2d');
-
-    gameStarted = true;
-
-    // 3. 監聽鍵盤事件
-    window.addEventListener('keydown', (e) => keys[e.key] = true);
-    window.addEventListener('keyup', (e) => keys[e.key] = false);
-
-    // 4. 啟動遊戲主迴圈
-    requestAnimationFrame(gameLoop);
+  const state = {
+    realm: 1, layer: 3, xp: 120, hp: 220, mp: 86,
+    stones: 12860, jade: 36, secluded: false,
+    cooldowns: {}, pills: { qi: 5, foundation: 2 }, nav: 'character',
   }
 
-  // 更新遊戲物件位置
-  function update() {
-    if (!gameStarted) return;
-
-    // 玩家移動控制 (WASD 或 方向鍵)
-    if (keys['ArrowUp'] || keys['w'] || keys['W']) player.y -= player.speed;
-    if (keys['ArrowDown'] || keys['s'] || keys['S']) player.y += player.speed;
-    if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.x -= player.speed;
-    if (keys['ArrowRight'] || keys['d'] || keys['D']) player.x += player.speed;
-
-    // 限制玩家不出畫面
-    if (player.x < 0) player.x = 0;
-    if (player.y < 0) player.y = 0;
-    if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-    if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+  const $ = (id) => document.getElementById(id)
+  const required = () => Math.round(100 * Math.pow(1.6, state.realm) * (1 + state.layer * 0.25))
+  const chance = () => {
+    const base = state.layer === MAX_LAYER ? 0.55 - state.realm * 0.05 : 0.92 - state.layer * 0.03
+    return Math.max(0.2, Math.min(0.95, base))
   }
 
-  // 繪製遊戲畫面
-  function draw() {
-    // 清空畫面（地圖背景色：草地綠或修仙風格深色）
-    ctx.fillStyle = '#1e2836';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  function addLog(text, tone = 'normal') {
+    const li = document.createElement('li')
+    li.className = 'tone-' + tone
+    li.textContent = text
+    const log = $('log')
+    log.prepend(li)
+    while (log.children.length > 40) log.lastChild.remove()
+  }
 
-    // 繪製地圖簡單格線（營造 2.5D 空間感）
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < canvas.width; i += 50) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, canvas.height);
-      ctx.stroke();
+  function setBar(id, valId, value, max) {
+    const bar = $(id)
+    bar.firstElementChild.style.width = Math.max(0, Math.min(100, (value / max) * 100)) + '%'
+    bar.setAttribute('aria-valuemax', max)
+    bar.setAttribute('aria-valuenow', Math.round(value))
+    $(valId).textContent = `${Math.round(value)}/${max}`
+  }
+
+  function renderNav() {
+    $('nav').innerHTML = NAV.map((n) => `
+      <li><button type="button" data-nav="${n.id}" ${n.id === state.nav ? 'aria-current="page"' : ''}>${n.icon}${n.label}</button></li>`).join('')
+  }
+
+  function renderInfo() {
+    $('info-title').textContent = NAV.find((n) => n.id === state.nav).label
+    let html = ''
+    switch (state.nav) {
+      case 'character':
+        html = '<dl>' + ATTRIBUTES.map((a) => `
+          <div class="attr">
+            <div class="attr-head"><dt>${a.label}</dt><dd>${a.value}</dd></div>
+            <div class="mini-track" aria-hidden="true"><div style="width:${a.value}%"></div></div>
+            <p class="xs muted">${a.hint}</p>
+          </div>`).join('') + '</dl>'
+        break
+      case 'techniques':
+        html = '<ul class="stack">' + SKILLS.map((s) => `
+          <li class="tech">
+            <span class="seal" aria-hidden="true">${s.element}</span>
+            <div class="col"><span class="bold">${s.name}</span><span class="xs muted" style="line-height:1.6">${s.description} · 冷卻 ${s.cooldown} 息</span></div>
+          </li>`).join('') + '</ul>'
+        break
+      case 'artifacts':
+        html = '<ul class="stack">' + ARTIFACTS.map((a) => `
+          <li class="card">
+            <div class="row" style="align-items:baseline"><span class="bold">${a.name}</span><span class="xs" style="color:var(--accent)">${a.grade}</span></div>
+            <p class="xs muted" style="margin-top:4px">${a.note}</p>
+          </li>`).join('') + '</ul>'
+        break
+      case 'pills':
+        html = '<ul class="stack">' + Object.keys(PILLS).map((id) => `
+          <li class="card row">
+            <div class="col">
+              <span class="bold">${PILLS[id].name} <span class="xs muted" style="font-family:var(--sans);font-weight:400">× ${state.pills[id]}</span></span>
+              <span class="xs muted">${PILLS[id].effect}</span>
+            </div>
+            <button type="button" class="small-btn" data-pill="${id}" ${state.pills[id] <= 0 ? 'disabled' : ''}>服用</button>
+          </li>`).join('') + '</ul>'
+        break
+      case 'sect':
+        html = '<dl class="sect-grid">' + SECT.map(([k, v]) => `
+          <div class="card"><dt class="xs muted">${k}</dt><dd class="bold">${v}</dd></div>`).join('') + '</dl>'
+        break
+      case 'realm':
+        html = '<ul class="stack">' + SECRET_REALMS.map((r) => `
+          <li class="card row">
+            <div class="col"><span class="bold">${r.name}</span><span class="xs muted">${r.req}</span></div>
+            <span class="xs" style="color:${r.open ? 'var(--primary)' : 'var(--muted-fg)'}">${r.open ? '可探索' : '未解鎖'}</span>
+          </li>`).join('') + '</ul>'
+        break
     }
-    for (let j = 0; j < canvas.height; j += 50) {
-      ctx.beginPath();
-      ctx.moveTo(0, j);
-      ctx.lineTo(canvas.width, j);
-      ctx.stroke();
+    $('infoBody').innerHTML = html
+  }
+
+  function renderSkills() {
+    $('skills').innerHTML = SKILLS.map((s, i) => {
+      const cd = state.cooldowns[s.id] || 0
+      const disabled = cd > 0 || state.mp < s.cost
+      return `
+        <li><button type="button" class="skill" data-skill="${i}" ${disabled ? 'disabled' : ''}
+            aria-label="${s.name}，消耗 ${s.cost} 靈力${cd > 0 ? `，冷卻 ${cd} 秒` : ''}">
+          <span class="seal" aria-hidden="true">${s.element}</span>
+          <span class="skill-text"><span class="bold">${s.name}</span><span class="xs muted">${s.cost} 靈力 · <kbd>${i + 1}</kbd></span></span>
+          ${cd > 0 ? `<span class="cd" aria-hidden="true">${cd}</span>` : ''}
+        </button></li>`
+    }).join('')
+  }
+
+  function render() {
+    const req = required()
+    const ready = state.xp >= req
+    const progress = Math.min(1, state.xp / req)
+
+    $('realmLine').textContent = `${REALMS[state.realm]}期 · 第${NUM[state.layer - 1]}層`
+    setBar('hpBar', 'hpVal', state.hp, MAX_HP)
+    setBar('mpBar', 'mpVal', state.mp, MAX_MP)
+    $('stones').textContent = state.stones.toLocaleString()
+    $('jade').textContent = state.jade.toLocaleString()
+
+    const core = $('core')
+    core.classList.toggle('ready', ready)
+    core.classList.toggle('secluded', state.secluded)
+    const ring = $('ring')
+    ring.setAttribute('stroke-dasharray', CIRC)
+    ring.setAttribute('stroke-dashoffset', CIRC * (1 - progress))
+    ring.setAttribute('stroke', ready ? 'var(--accent)' : 'var(--primary)')
+    $('coreRealm').textContent = REALMS[state.realm]
+    $('coreLayer').textContent = `第${NUM[state.layer - 1]}層`
+    $('coreXp').textContent = `修為 ${Math.floor(state.xp)} / ${req}`
+    $('chance').textContent = Math.round(chance() * 100) + '%'
+
+    $('btnCultivate').disabled = state.mp < CULTIVATE_COST || ready
+    $('btnBreak').disabled = !ready
+    const sec = $('btnSeclude')
+    sec.textContent = state.secluded ? '出關' : '閉關'
+    sec.setAttribute('aria-pressed', state.secluded)
+    $('coreHint').textContent = state.secluded ? '閉關中 · 每息自動吸納天地靈氣' : '運功消耗 5 點靈力，修為圓滿方可突破'
+
+    renderSkills()
+    if (state.nav === 'pills') renderInfo()
+  }
+
+  function cultivate() {
+    const req = required()
+    if (state.mp < CULTIVATE_COST || state.xp >= req) return
+    const gain = Math.round(req * (0.06 + Math.random() * 0.06))
+    state.mp -= CULTIVATE_COST
+    state.xp = Math.min(req, state.xp + gain)
+    if (Math.random() < 0.35) addLog(`運轉周天，吸納天地靈氣，修為增加 ${gain}。`)
+    render()
+  }
+
+  function breakthrough() {
+    if (state.xp < required()) return
+    if (Math.random() < chance()) {
+      state.xp = 0
+      if (state.layer < MAX_LAYER) {
+        addLog(`突破成功！晉入${REALMS[state.realm]}期第${NUM[state.layer]}層。`, 'success')
+        state.layer++
+      } else if (state.realm < REALMS.length - 1) {
+        state.realm++
+        state.layer = 1
+        addLog(`天降異象，霞光萬道！你成功踏入${REALMS[state.realm]}期！`, 'gold')
+      } else {
+        addLog('你已臻大乘圓滿，只待飛升之日。', 'gold')
+      }
+    } else {
+      state.xp = Math.floor(state.xp * 0.6)
+      state.hp = Math.max(1, state.hp - 40)
+      addLog('衝擊瓶頸失敗，靈氣逆衝經脈，氣血受損。', 'danger')
     }
-
-    // 繪製波利怪物
-    ctx.fillStyle = poring.color;
-    ctx.beginPath();
-    // 畫一個可愛的圓滾滾波利造型
-    ctx.ellipse(poring.x + poring.width/2, poring.y + poring.height/2, poring.width/2, poring.height/2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // 波利眼睛
-    ctx.fillStyle = '#000';
-    ctx.fillRect(poring.x + 10, poring.y + 12, 5, 8);
-    ctx.fillRect(poring.x + 28, poring.y + 12, 5, 8);
-
-    // 繪製玩家角色
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-    // 玩家名稱標籤
-    ctx.fillStyle = '#fff';
-    ctx.font = '14px sans-serif';
-    ctx.fillText('修仙者', player.x - 5, player.y - 8);
+    render()
   }
-let lastSendTime = 0;
 
-function sendPositionToServer() {
-  const now = Date.now();
-  // 每 1000 毫秒 (1秒) 傳送一次座標
-  if (now - lastSendTime > 1000) {
-    lastSendTime = now;
+  function toggleSeclusion() {
+    state.secluded = !state.secluded
+    addLog(state.secluded ? '你封閉洞府，開始閉關苦修。' : '你推開石門，結束閉關。', state.secluded ? 'normal' : 'gold')
+    render()
+  }
 
-    fetch('http://127.0.0.1:8000/api/update_position', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ x: player.x, y: player.y })
-    })
-    .then(response => response.json())
-    .then(data => {
-      console.log('座標同步成功:', data);
-    })
-    .catch(error => {
-      console.error('座標同步失敗:', error);
-    });
+  function castSkill(skill) {
+    if ((state.cooldowns[skill.id] || 0) > 0 || state.mp < skill.cost) return
+    state.mp -= skill.cost
+    state.cooldowns[skill.id] = skill.cooldown
+    addLog(`施展「${skill.name}」—— ${skill.description}。`, 'success')
+    render()
   }
-}
-  // 遊戲主迴圈
-  function gameLoop() {
-    update();
-    draw();
-    requestAnimationFrame(gameLoop);
+
+  function usePill(id) {
+    if (state.pills[id] <= 0) return
+    state.pills[id]--
+    if (id === 'qi') {
+      state.mp = Math.min(MAX_MP, state.mp + 40)
+      addLog('服下回氣丹，丹田靈力充盈。', 'success')
+    } else {
+      const req = required()
+      state.xp = Math.min(req, state.xp + req * 0.3)
+      addLog('服下培元丹，藥力化開，修為大進。', 'gold')
+    }
+    render()
   }
+
+  function tick() {
+    state.mp = Math.min(MAX_MP, state.mp + (state.secluded ? 1 : 2))
+    state.hp = Math.min(MAX_HP, state.hp + 1)
+    for (const k of Object.keys(state.cooldowns)) {
+      if (state.cooldowns[k] > 1) state.cooldowns[k]--
+      else delete state.cooldowns[k]
+    }
+    if (state.secluded) {
+      const req = required()
+      if (state.xp >= req) {
+        state.secluded = false
+        addLog('修為已至圓滿，你緩緩出關，準備衝擊瓶頸。', 'gold')
+      } else {
+        state.xp = Math.min(req, state.xp + req * 0.03)
+        state.stones = Math.max(0, state.stones - 2)
+      }
+    }
+    render()
+  }
+
+  $('btnCultivate').addEventListener('click', cultivate)
+  $('btnBreak').addEventListener('click', breakthrough)
+  $('btnSeclude').addEventListener('click', toggleSeclusion)
+  $('nav').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-nav]')
+    if (!btn) return
+    state.nav = btn.dataset.nav
+    renderNav()
+    renderInfo()
+  })
+  $('infoBody').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-pill]')
+    if (btn) usePill(btn.dataset.pill)
+  })
+  $('skills').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-skill]')
+    if (btn) castSkill(SKILLS[Number(btn.dataset.skill)])
+  })
+  window.addEventListener('keydown', (e) => {
+    if (e.target.closest('input, textarea, [contenteditable="true"]')) return
+    const i = Number(e.key) - 1
+    if (i >= 0 && i < SKILLS.length) castSkill(SKILLS[i])
+  })
+
+  addLog('你於青雲峰洞府中盤膝而坐，靈氣緩緩流轉。')
+  addLog('師尊玄真子傳音：「修行之道，貴在持之以恆。」', 'gold')
+  renderNav()
+  renderInfo()
+  render()
+  setInterval(tick, 1000)
 </script>
 </body>
 </html>
