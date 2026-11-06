@@ -1,0 +1,59 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: sans-serif;
+}
+
+/* 首頁滿版背景 */
+.start-screen {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background-image: url('bg.jpg');
+    background-size: cover;        /* 自動縮放填滿螢幕 */
+    background-position: center;   /* 居中顯示 */
+    background-repeat: no-repeat;
+}
+
+/* 通用透明點擊區樣式 */
+.clickable-area {
+    position: absolute;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    outline: none;
+    /* 開發測試階段若想確認位置，可將上一行的 background 改為 rgba(255, 0, 0, 0.4) */
+}
+
+.clickable-area:hover {
+    /* 滑鼠懸停效果：加上微微發光的特效 */
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+    border-radius: 8px;
+}
+
+.clickable-area:active {
+    transform: scale(0.98);
+}
+
+/* 「開始遊戲」按鈕精確定位 */
+#btn-start {
+    bottom: 1%;
+    left: 22.8%;
+    width: 17%;
+    height: 12%;
+}
+
+/* 「設定」按鈕精確定位 */
+#btn-settings {
+    bottom: 1%;
+    right: 22.5%;
+    width: 17%;
+    height: 12%;
+}

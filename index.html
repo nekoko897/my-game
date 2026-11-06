@@ -27,7 +27,7 @@
     --serif: 'Noto Serif TC', serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: var(--background); color: var(--foreground); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  html, body { background: var(--background); color: var(--foreground); font-family: var(--sans); -webkit-font-smoothing: antialiased; width: 100%; height: 100%; overflow: hidden; }
   button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
   button:disabled { cursor: not-allowed; }
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -37,6 +37,33 @@
   .muted { color: var(--muted-fg); }
   .xs { font-size: 12px; }
   .num { font-variant-numeric: tabular-nums; }
+
+  /* 畫面切換控制 */
+  .screen { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hidden { display: none !important; }
+
+  /* 首頁封面樣式 */
+  #start-screen {
+    background-image: url('bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: 10;
+  }
+  .clickable-area {
+    position: absolute;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    outline: none;
+  }
+  .clickable-area:hover {
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+    border-radius: 8px;
+  }
+  /* 圖片上的按鈕精確位置（可依你的圖片位置微調百分比） */
+  #btn-start { bottom: 7.5%; left: 22.5%; width: 17%; height: 9%; }
+  #btn-settings-home { bottom: 7.5%; right: 22.5%; width: 17%; height: 9%; }
 
   .app { position: relative; min-height: 100dvh; overflow: hidden; }
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -178,107 +205,117 @@
 </style>
 </head>
 <body>
-<div class="app">
-  <img class="bg" src="./img/scene-peaks.png" alt="" />
-  <div class="veil" aria-hidden="true"></div>
 
-  <div class="shell">
-    <header class="panel top">
-      <div class="who">
-        <div class="avatar"><img src="./img/cultivator.png" alt="角色頭像：雲逸" /></div>
-        <div class="col">
-          <div class="name-row">
-            <h1>雲逸</h1>
-            <span class="xs muted">青雲宗 · 內門弟子</span>
-          </div>
-          <p class="realm-line" id="realmLine"></p>
-        </div>
-      </div>
+<!-- 1. 遊戲首頁畫面（封面） -->
+<div id="start-screen" class="screen">
+  <button id="btn-start" class="clickable-area" onclick="enterGame()" aria-label="開始遊戲"></button>
+  <button id="btn-settings-home" class="clickable-area" onclick="alert('開啟設定選單')" aria-label="設定"></button>
+</div>
 
-      <div class="stats">
-        <div class="stat">
-          <span class="stat-label">氣血</span>
-          <div class="track" role="progressbar" aria-label="氣血" aria-valuemin="0" id="hpBar">
-            <div class="fill" style="background: var(--destructive)"></div>
-          </div>
-          <span class="stat-val" id="hpVal"></span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">靈力</span>
-          <div class="track" role="progressbar" aria-label="靈力" aria-valuemin="0" id="mpBar">
-            <div class="fill" style="background: var(--primary)"></div>
-          </div>
-          <span class="stat-val" id="mpVal"></span>
-        </div>
-      </div>
+<!-- 2. 遊戲主畫面（預設隱藏 .hidden） -->
+<div id="game-screen" class="screen hidden">
+  <div class="app">
+    <img class="bg" src="./img/scene-peaks.png" alt="" />
+    <div class="veil" aria-hidden="true"></div>
 
-      <div class="wallet">
-        <dl>
-          <div>
-            <dt><svg class="icon" style="color: var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>靈石</dt>
-            <dd id="stones"></dd>
-          </div>
-          <div>
-            <dt><svg class="icon" style="color: var(--accent)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>仙玉</dt>
-            <dd id="jade"></dd>
-          </div>
-        </dl>
-        <button type="button" class="icon-btn" aria-label="設定">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-      </div>
-    </header>
-
-    <div class="grid">
-      <aside>
-        <nav class="panel nav" aria-label="遊戲選單"><ul id="nav"></ul></nav>
-      </aside>
-
-      <main>
-        <section class="core" id="core" aria-labelledby="core-title">
-          <h2 id="core-title" class="sr-only">修為</h2>
-          <div class="orb">
-            <div class="glow" aria-hidden="true"></div>
-            <svg class="orbit" viewBox="0 0 300 300" aria-hidden="true">
-              <circle cx="150" cy="150" r="142" fill="none" stroke="var(--accent)" stroke-opacity=".35" stroke-width="1" stroke-dasharray="2 10" />
-              <circle cx="150" cy="150" r="134" fill="none" stroke="var(--accent)" stroke-opacity=".2" stroke-width="1" />
-            </svg>
-            <svg class="ring-progress" viewBox="0 0 300 300" aria-hidden="true">
-              <circle cx="150" cy="150" r="120" fill="none" stroke="var(--background)" stroke-opacity=".7" stroke-width="10" />
-              <circle id="ring" cx="150" cy="150" r="120" fill="none" stroke="var(--primary)" stroke-width="10" stroke-linecap="round" />
-            </svg>
-            <div class="core-text">
-              <span class="core-label">當前境界</span>
-              <span class="core-realm" id="coreRealm"></span>
-              <span class="core-layer" id="coreLayer"></span>
-              <span class="num muted" style="margin-top:4px;font-size:14px" id="coreXp" aria-live="polite"></span>
+    <div class="shell">
+      <header class="panel top">
+        <div class="who">
+          <div class="avatar"><img src="./img/cultivator.png" alt="角色頭像：雲逸" /></div>
+          <div class="col">
+            <div class="name-row">
+              <h1>雲逸</h1>
+              <span class="xs muted">青雲宗 · 內門弟子</span>
             </div>
+            <p class="realm-line" id="realmLine"></p>
           </div>
-
-          <div class="actions">
-            <button type="button" class="btn btn-primary" id="btnCultivate">運功</button>
-            <button type="button" class="btn btn-gold" id="btnBreak">突破<small id="chance"></small></button>
-            <button type="button" class="btn btn-ghost" id="btnSeclude" aria-pressed="false">閉關</button>
-          </div>
-          <p class="xs muted" id="coreHint"></p>
-        </section>
-      </main>
-
-      <aside class="right">
-        <section class="panel info" aria-labelledby="info-title">
-          <h2 class="panel-title" id="info-title"></h2>
-          <div id="infoBody"></div>
-        </section>
-        <div class="log-wrap">
-          <section class="panel log" aria-labelledby="log-title">
-            <h2 class="panel-title" id="log-title" style="margin-bottom:12px">修仙日誌</h2>
-            <ol id="log" aria-live="polite"></ol>
-          </section>
         </div>
-      </aside>
-    </div>
 
-    <section class="panel skills" aria-label="功法快捷欄"><ul id="skills"></ul></section>
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-label">氣血</span>
+            <div class="track" role="progressbar" aria-label="氣血" aria-valuemin="0" id="hpBar">
+              <div class="fill" style="background: var(--destructive)"></div>
+            </div>
+            <span class="stat-val" id="hpVal"></span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">靈力</span>
+            <div class="track" role="progressbar" aria-label="靈力" aria-valuemin="0" id="mpBar">
+              <div class="fill" style="background: var(--primary)"></div>
+            </div>
+            <span class="stat-val" id="mpVal"></span>
+          </div>
+        </div>
+
+        <div class="wallet">
+          <dl>
+            <div>
+              <dt><svg class="icon" style="color: var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>靈石</dt>
+              <dd id="stones"></dd>
+            </div>
+            <div>
+              <dt><svg class="icon" style="color: var(--accent)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>仙玉</dt>
+              <dd id="jade"></dd>
+            </div>
+          </dl>
+          <button type="button" class="icon-btn" aria-label="設定">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="grid">
+        <aside>
+          <nav class="panel nav" aria-label="遊戲選單"><ul id="nav"></ul></nav>
+        </aside>
+
+        <main>
+          <section class="core" id="core" aria-labelledby="core-title">
+            <h2 id="core-title" class="sr-only">修為</h2>
+            <div class="orb">
+              <div class="glow" aria-hidden="true"></div>
+              <svg class="orbit" viewBox="0 0 300 300" aria-hidden="true">
+                <circle cx="150" cy="150" r="142" fill="none" stroke="var(--accent)" stroke-opacity=".35" stroke-width="1" stroke-dasharray="2 10" />
+                <circle cx="150" cy="150" r="134" fill="none" stroke="var(--accent)" stroke-opacity=".2" stroke-width="1" />
+              </svg>
+              <svg class="ring-progress" viewBox="0 0 300 300" aria-hidden="true">
+                <circle cx="150" cy="150" r="120" fill="none" stroke="var(--background)" stroke-opacity=".7" stroke-width="10" />
+                <circle id="ring" cx="150" cy="150" r="120" fill="none" stroke="var(--primary)" stroke-width="10" stroke-linecap="round" />
+              </svg>
+              <div class="core-text">
+                <span class="core-label">當前境界</span>
+                <span class="core-realm" id="coreRealm"></span>
+                <span class="core-layer" id="coreLayer"></span>
+                <span class="num muted" style="margin-top:4px;font-size:14px" id="coreXp" aria-live="polite"></span>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button type="button" class="btn btn-primary" id="btnCultivate">運功</button>
+              <button type="button" class="btn btn-gold" id="btnBreak">突破<small id="chance"></small></button>
+              <button type="button" class="btn btn-ghost" id="btnSeclude" aria-pressed="false">閉關</button>
+            </div>
+            <p class="xs muted" id="coreHint"></p>
+          </section>
+        </main>
+
+        <aside class="right">
+          <section class="panel info" aria-labelledby="info-title">
+            <h2 class="panel-title" id="info-title"></h2>
+            <div id="infoBody"></div>
+          </section>
+          <div class="log-wrap">
+            <section class="panel log" aria-labelledby="log-title">
+              <h2 class="panel-title" id="log-title" style="margin-bottom:12px">修仙日誌</h2>
+              <ol id="log" aria-live="polite"></ol>
+            </section>
+          </div>
+        </aside>
+      </div>
+
+      <section class="panel skills" aria-label="功法快捷欄"><ul id="skills"></ul></section>
+    </div>
   </div>
 </div>
 
@@ -333,6 +370,17 @@
   const chance = () => {
     const base = state.layer === MAX_LAYER ? 0.55 - state.realm * 0.05 : 0.92 - state.layer * 0.03
     return Math.max(0.2, Math.min(0.95, base))
+  }
+
+  // 點擊開始遊戲切換畫面
+  function enterGame() {
+    $('start-screen').classList.add('hidden');
+    $('game-screen').classList.remove('hidden');
+    addLog('你於青雲峰洞府中盤膝而坐，靈氣緩緩流轉。');
+    addLog('師尊玄真子傳音：「修行之道，貴在持之以恆。」', 'gold');
+    renderNav();
+    renderInfo();
+    render();
   }
 
   function addLog(text, tone = 'normal') {
@@ -517,6 +565,9 @@
   }
 
   function tick() {
+    // 只有在遊戲畫面顯示時才自動運轉
+    if ($('game-screen').classList.contains('hidden')) return;
+
     state.mp = Math.min(MAX_MP, state.mp + (state.secluded ? 1 : 2))
     state.hp = Math.min(MAX_HP, state.hp + 1)
     for (const k of Object.keys(state.cooldowns)) {
@@ -560,11 +611,6 @@
     if (i >= 0 && i < SKILLS.length) castSkill(SKILLS[i])
   })
 
-  addLog('你於青雲峰洞府中盤膝而坐，靈氣緩緩流轉。')
-  addLog('師尊玄真子傳音：「修行之道，貴在持之以恆。」', 'gold')
-  renderNav()
-  renderInfo()
-  render()
   setInterval(tick, 1000)
 </script>
 </body>
