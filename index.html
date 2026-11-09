@@ -104,13 +104,13 @@
   .track { position: relative; flex: 1; height: 10px; overflow: hidden; border-radius: 999px; background: color-mix(in oklch, var(--background) 70%, transparent); box-shadow: 0 0 0 1px var(--border); }
   .fill { height: 100%; border-radius: 999px; transition: width .5s; }
   .stat-val { width: 64px; flex-shrink: 0; text-align: right; font-size: 12px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
-  .wallet { display: flex; align-items: center; gap: 16px; }
+  .wallet { display: flex; align-items: center; gap: 12px; }
   .wallet dl { display: flex; gap: 16px; font-size: 14px; }
   .wallet dl > div { display: flex; align-items: center; gap: 6px; }
   .wallet dt { display: flex; align-items: center; gap: 4px; color: var(--muted-fg); }
   .wallet dd { font-weight: 500; font-variant-numeric: tabular-nums; }
   .icon { width: 16px; height: 16px; flex-shrink: 0; }
-  .icon-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius); border: 1px solid var(--border); color: var(--muted-fg); transition: color .2s, border-color .2s; }
+  .icon-btn { width: 36px; height: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: var(--radius); border: 1px solid var(--border); color: var(--muted-fg); transition: color .2s, border-color .2s; }
   .icon-btn:hover { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 60%, transparent); }
 
   /* Side nav */
@@ -192,9 +192,15 @@
   .battle-log { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; padding-right: 4px; }
   .battle-log li { border-left: 1px solid var(--border); padding-left: 8px; line-height: 1.5; }
 
-  /* 交易所 */
+  /* 交易所 / 拍賣場輸入框 */
   .exchange-input { flex: 1; background: color-mix(in oklch, var(--background) 60%, transparent); border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 10px; color: var(--foreground); font: inherit; min-width: 0; }
   .exchange-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  select.exchange-input { cursor: pointer; }
+
+  /* 宗門選擇卡片 */
+  .sect-card { cursor: pointer; transition: border-color .2s, background .2s; }
+  .sect-card:hover { border-color: color-mix(in oklch, var(--primary) 50%, transparent); }
+  .sect-card.selected { border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: color-mix(in oklch, var(--accent) 8%, transparent); }
 
   .log-wrap { display: flex; flex-direction: column; height: 256px; min-height: 0; }
   @media (min-width: 1024px) { .log-wrap { height: auto; flex: 1; } }
@@ -247,7 +253,7 @@
           <div class="col">
             <div class="name-row">
               <h1>雲逸</h1>
-              <span class="xs muted">青雲宗 · 內門弟子</span>
+              <span class="xs muted" id="sectBadge">青雲宗 · 內門弟子</span>
             </div>
             <p class="realm-line" id="realmLine"></p>
           </div>
@@ -281,6 +287,12 @@
               <dd id="jade"></dd>
             </div>
           </dl>
+          <button type="button" class="icon-btn" id="btnSave" aria-label="儲存進度" title="儲存進度">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7H7v7"/><path d="M7 3v4h8"/></svg>
+          </button>
+          <button type="button" class="icon-btn" id="btnLoad" aria-label="讀取進度" title="讀取進度">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          </button>
           <button type="button" class="icon-btn" aria-label="設定">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -342,17 +354,33 @@
 </div>
 
 <script>
+  /* =========================================================
+   * 遊戲基礎數值設定
+   * 要調整境界層數上限／氣血・靈力上限／運功消耗，改這裡即可。
+   * ========================================================= */
   const REALMS = ['煉氣', '築基', '金丹', '元嬰', '化神', '渡劫', '大乘']
   const NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九']
   const MAX_LAYER = 9, MAX_HP = 260, MAX_MP = 120, CULTIVATE_COST = 5
   const CIRC = 2 * Math.PI * 120
 
+  /* =========================================================
+   * 功法列表（快捷欄）
+   * 新增一筆就會多一個功法按鈕。欄位：
+   *   id         唯一識別字串
+   *   name       功法名稱
+   *   element    顯示在圖示圓圈裡的文字（通常是一個字）
+   *   cost       消耗靈力
+   *   cooldown   冷卻秒數
+   *   description 說明文字
+   * ========================================================= */
   const SKILLS = [
     { id: 'flame', name: '赤焰訣', element: '火', cost: 12, cooldown: 3, description: '凝聚丹火，焚盡妖邪' },
     { id: 'wind', name: '御風術', element: '風', cost: 8, cooldown: 2, description: '踏風而行，身輕如燕' },
     { id: 'thunder', name: '九霄雷引', element: '雷', cost: 25, cooldown: 6, description: '引動天雷，威震八方' },
     { id: 'water', name: '玄水護體', element: '水', cost: 15, cooldown: 5, description: '玄水環身，萬法不侵' },
   ]
+
+  /* 角色屬性（僅顯示用，value 建議填 0-100 之間） */
   const ATTRIBUTES = [
     { label: '根骨', value: 78, hint: '影響氣血上限' },
     { label: '悟性', value: 91, hint: '影響修煉速度' },
@@ -360,6 +388,8 @@
     { label: '氣運', value: 52, hint: '影響突破機率' },
   ]
   const ICON = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`
+
+  /* 左側導覽列：要新增分頁，就在這裡加一筆，並在 renderInfo() 的 switch 裡加對應 case */
   const NAV = [
     { id: 'character', label: '角色', icon: ICON('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>') },
     { id: 'techniques', label: '功法', icon: ICON('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>') },
@@ -370,7 +400,22 @@
     { id: 'sect', label: '宗門', icon: ICON('<path d="M10 5V3"/><path d="M14 5V3"/><path d="M15 21v-3a3 3 0 0 0-6 0v3"/><path d="M18 3v8"/><path d="M18 5H6"/><path d="M22 11H2"/><path d="M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9"/><path d="M6 3v8"/>') },
   ]
 
-  // 物品總覽：丹藥、材料皆在此定義，背包／交易所／拍賣場共用
+  /* =========================================================
+   * 道具總覽：背包／交易所／拍賣場共用這份清單
+   * 新增道具只要在這個物件裡加一筆資料，key 就是道具 id。欄位：
+   *   name     名稱
+   *   icon     圖示（直接用一個 emoji）
+   *   type     'pill' 丹藥 或 'material' 材料（目前只影響分類，非必填邏輯）
+   *   rarity   稀有度：'普通' / '精良' / '稀有' / '史詩'（會決定文字顏色）
+   *   sell     出售價格（靈石），背包、交易所出售都會用這個數字
+   *   buy      購買價格（選填）：有填才會出現在「交易所」的仙品鋪
+   *   currency 購買幣別（選填）：'jade' 用仙玉購買，不填預設用靈石
+   *   effect   使用效果（選填）：沒有 effect 代表此道具不能使用、只能出售
+   *            { type: 'restoreMp', value: 40 }        → 使用後恢復 40 點靈力
+   *            { type: 'addXpPercent', value: 0.3 }    → 使用後增加目前層數 30% 修為
+   *   desc     說明文字
+   * 注意：SHOP_ITEMS 清單中的道具（可在交易所直接買到的）無法在拍賣場上架。
+   * ========================================================= */
   const ITEMS = {
     qi: { name: '回氣丹', icon: '💊', type: 'pill', rarity: '普通', sell: 15, buy: 40, currency: 'stones', effect: { type: 'restoreMp', value: 40 }, desc: '恢復 40 點靈力' },
     foundation: { name: '培元丹', icon: '🧪', type: 'pill', rarity: '精良', sell: 60, buy: 150, currency: 'stones', effect: { type: 'addXpPercent', value: 0.3 }, desc: '增加 30% 當前層修為' },
@@ -379,17 +424,37 @@
     demonCore: { name: '妖丹', icon: '🔴', type: 'material', rarity: '精良', sell: 35, desc: '妖獸體內凝結的靈力結晶，煉丹煉器皆可用' },
     jadeSlip: { name: '破損玉簡', icon: '📜', type: 'material', rarity: '稀有', sell: 80, desc: '殘缺的功法玉簡，或許藏有秘密' },
     thunderCrystal: { name: '雷晶', icon: '⚡', type: 'material', rarity: '史詩', sell: 220, desc: '蘊含天雷之力的罕見晶石' },
+    // ↑ 在這裡繼續加新道具，例如：
+    // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
   }
+
+  /* 交易所「仙品鋪」要賣什麼，就把 ITEMS 裡有設定 buy 價格的道具 id 填進這個陣列 */
   const SHOP_ITEMS = ['qi', 'foundation']
+
+  /* NPC 拍賣會從這個池子隨機挑選物品與起標價（base），可自行增減項目或調整價格 */
   const AUCTION_POOL = [
     { item: 'thunderCrystal', base: 150 },
     { item: 'jadeSlip', base: 60 },
     { item: 'demonCore', base: 25 },
     { item: 'foundation', base: 90 },
   ]
+  /* 拍賣場搶標的 NPC 名字，可自由增減 */
   const BIDDERS = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙', '鐵戟羅漢']
 
-  // 秘境／狩獵地點：依境界解鎖，每個地點有數隻妖獸可挑戰
+  /* =========================================================
+   * 秘境／狩獵地點：依境界解鎖
+   * 新增地點：在陣列中加入一個物件。欄位：
+   *   id、name、icon  地點識別、名稱、圖示
+   *   reqRealm        需要的境界，對應 REALMS 陣列的索引（0=煉氣期即可進入，1=築基期…以此類推）
+   *   desc            地點說明
+   *   monsters        此地點可挑戰的怪物陣列，每筆欄位：
+   *     id、name、icon      怪物識別、名稱、圖示
+   *     hp                  氣血
+   *     atkMin / atkMax     攻擊力區間
+   *     exp                 擊敗後獲得的修為（經驗）
+   *     loot                掉落表，陣列每筆為
+   *                         { item: 道具id(需存在於 ITEMS), chance: 掉落機率(0~1), min, max: 掉落數量範圍 }
+   * ========================================================= */
   const LOCATIONS = [
     {
       id: 'luoxiagu', name: '落霞谷', icon: '🍂', reqRealm: 0,
@@ -417,22 +482,44 @@
         { id: 'kraken', name: '深淵章鬼', icon: '🐙', hp: 560, atkMin: 24, atkMax: 38, exp: 150, loot: [{ item: 'jadeSlip', chance: 0.35, min: 1, max: 2 }] },
       ],
     },
+    // ↑ 在這裡繼續加新地點，記得 reqRealm 對應 REALMS 的索引
   ]
 
+  /* 已裝備法寶（目前僅顯示用，未串接戰鬥加成） */
   const ARTIFACTS = [
     { name: '青霜劍', grade: '靈器 · 上品', note: '劍氣森寒，可斬妖邪' },
     { name: '紫金葫蘆', grade: '法器 · 中品', note: '可納百川之水' },
     { name: '玄龜甲', grade: '靈器 · 下品', note: '護主之寶，抵禦重擊' },
   ]
-  const SECT = [['宗門', '青雲宗'], ['職位', '內門弟子'], ['貢獻', '1,280'], ['師尊', '玄真子']]
 
+  /* =========================================================
+   * 宗門列表：玩家可在「宗門」分頁點選加入
+   * 新增宗門只要在陣列中加入一筆資料，欄位：
+   *   id      唯一識別字串
+   *   name    宗門名稱
+   *   master  師尊名稱
+   *   desc    宗門介紹
+   *   bonus   特色說明（目前僅顯示用文字，未串接實際數值加成）
+   * ========================================================= */
+  const SECTS = [
+    { id: 'qingyun', name: '青雲宗', master: '玄真子', desc: '正道劍修聖地，劍法凌厲，弟子眾多。', bonus: '劍法攻擊 +10%' },
+    { id: 'wandu', name: '萬毒門', master: '毒仙子', desc: '精於毒術與煉丹之道，手段詭譎難防。', bonus: '煉丹成功率 +15%' },
+    { id: 'tianji', name: '天機閣', master: '天機老人', desc: '擅長陣法推演與秘寶鍛造，藏寶無數。', bonus: '法寶掉落率 +10%' },
+    { id: 'xuanyin', name: '玄陰宗', master: '寒月真人', desc: '修習陰寒功法，根基深厚，防禦無雙。', bonus: '氣血上限 +10%' },
+    // ↑ 在這裡繼續加新宗門
+  ]
+
+  /* =========================================================
+   * 玩家初始數值：開新遊戲、或找不到存檔時使用的起始狀態
+   * ========================================================= */
   const state = {
     realm: 1, layer: 3, xp: 120, hp: 220, mp: 86,
     stones: 12860, jade: 36, secluded: false,
     cooldowns: {}, nav: 'character',
     inventory: { qi: 5, foundation: 2, spiritGrass: 3 },
+    sect: 'qingyun', contribution: 1280,
     selectedLocation: null, battle: null,
-    auctions: [],
+    auctions: [], playerListings: [],
   }
 
   const $ = (id) => document.getElementById(id)
@@ -460,15 +547,63 @@
     return { id, item: pick.item, qty: randomInt(1, 2), currentBid: base, highestBidder: null, timeLeft: randomInt(45, 90), increment: Math.max(5, Math.round(base * 0.12)) }
   }
 
-  // 初始化三個拍賣攤位（需在 randomInt / createAuctionListing 定義之後執行）
+  // 初始化三個 NPC 拍賣攤位（需在 randomInt / createAuctionListing 定義之後執行）
   state.auctions = ['a1', 'a2', 'a3'].map(createAuctionListing)
+
+  /* =========================================================
+   * 存檔／讀檔：使用瀏覽器 localStorage
+   * 想調整要保存哪些欄位，改 saveGame() 裡 data 物件的內容即可
+   * ========================================================= */
+  const SAVE_KEY = 'xiuxian-save-v1'
+  function saveGame(silent) {
+    const data = {
+      realm: state.realm, layer: state.layer, xp: state.xp, hp: state.hp, mp: state.mp,
+      stones: state.stones, jade: state.jade,
+      inventory: state.inventory, sect: state.sect, contribution: state.contribution,
+    }
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data))
+      if (!silent) addLog('已儲存目前進度。', 'gold')
+    } catch (e) {
+      if (!silent) addLog('儲存失敗，瀏覽器可能不支援本機儲存。', 'danger')
+    }
+  }
+  function loadGame(silent) {
+    let raw
+    try {
+      raw = localStorage.getItem(SAVE_KEY)
+    } catch (e) {
+      raw = null
+    }
+    if (!raw) {
+      if (!silent) { addLog('尚未找到任何存檔。', 'danger'); render() }
+      return false
+    }
+    try {
+      const data = JSON.parse(raw)
+      Object.assign(state, data)
+      state.selectedLocation = null
+      state.battle = null
+      if (!silent) addLog('已讀取存檔進度。', 'gold')
+      renderNav(); renderInfo(); render()
+      return true
+    } catch (e) {
+      if (!silent) { addLog('讀取存檔失敗，存檔資料可能已損毀。', 'danger'); render() }
+      return false
+    }
+  }
 
   // 點擊開始遊戲切換畫面
   function enterGame() {
     $('start-screen').classList.add('hidden');
     $('game-screen').classList.remove('hidden');
-    addLog('你於青雲峰洞府中盤膝而坐，靈氣緩緩流轉。');
-    addLog('師尊玄真子傳音：「修行之道，貴在持之以恆。」', 'gold');
+    const loaded = loadGame(true)
+    if (loaded) {
+      addLog('靈氣流轉，你繼續先前的修行進度。', 'gold')
+    } else {
+      addLog('你於青雲峰洞府中盤膝而坐，靈氣緩緩流轉。');
+      addLog('師尊玄真子傳音：「修行之道，貴在持之以恆。」', 'gold');
+    }
     renderNav();
     renderInfo();
     render();
@@ -528,8 +663,7 @@
         html = renderAuction()
         break
       case 'sect':
-        html = '<dl class="sect-grid">' + SECT.map(([k, v]) => `
-          <div class="card"><dt class="xs muted">${k}</dt><dd class="bold">${v}</dd></div>`).join('') + '</dl>'
+        html = renderSect()
         break
     }
     $('infoBody').innerHTML = html
@@ -675,7 +809,7 @@
   }
 
   function renderAuction() {
-    const cards = state.auctions.map((a) => {
+    const npcCards = state.auctions.map((a) => {
       const def = ITEMS[a.item]
       const mine = a.highestBidder === 'player'
       const target = a.highestBidder ? a.currentBid + a.increment : a.currentBid
@@ -697,7 +831,66 @@
           </div>
         </li>`
     }).join('')
-    return `<ul class="stack">${cards}</ul>`
+
+    // 可上架拍賣的物品：排除 SHOP_ITEMS（交易所買得到的丹藥無法上架）
+    const eligible = Object.entries(state.inventory).filter(([id, q]) => q > 0 && !SHOP_ITEMS.includes(id))
+    const options = eligible.length
+      ? eligible.map(([id, q]) => `<option value="${id}">${ITEMS[id].icon} ${ITEMS[id].name}（持有 ${q}）</option>`).join('')
+      : `<option value="">（目前沒有可上架的物品）</option>`
+
+    const myListings = state.playerListings.length
+      ? state.playerListings.map((l) => {
+          const def = ITEMS[l.item]
+          return `
+            <li class="card">
+              <div class="row" style="align-items:flex-start">
+                <div class="cluster">
+                  <div class="item-icon">${def.icon}</div>
+                  <div class="col">
+                    <span class="bold">${def.name} <span class="xs muted">× ${l.qty}</span></span>
+                    <span class="xs muted">${l.highestBidder ? `目前出價者：${l.highestBidder}` : '尚無人出價'}</span>
+                  </div>
+                </div>
+                <span class="xs muted num" style="white-space:nowrap">剩餘 ${l.timeLeft}s</span>
+              </div>
+              <p class="xs muted" style="margin-top:8px">起標 ${l.startPrice} 靈石 · 目前 <span class="bold num" style="color:var(--accent)">${l.currentBid}</span> 靈石</p>
+            </li>`
+        }).join('')
+      : '<li class="xs muted">尚未上架任何物品</li>'
+
+    return `
+      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">各方拍賣</h3>
+      <ul class="stack" style="margin-bottom:18px">${npcCards}</ul>
+      <div class="card" style="margin-bottom:18px">
+        <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:10px">上架我的物品（交易所販售的丹藥無法上架）</h3>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <select id="listItemSelect" class="exchange-input" style="flex:2;min-width:140px">${options}</select>
+          <input id="listPrice" class="exchange-input" type="number" min="1" placeholder="起標靈石" style="flex:1;min-width:90px" />
+          <button type="button" class="small-btn" data-list-item>上架</button>
+        </div>
+      </div>
+      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">我的拍賣中</h3>
+      <ul class="stack">${myListings}</ul>`
+  }
+
+  function renderSect() {
+    const cards = SECTS.map((s) => `
+      <li class="card sect-card ${state.sect === s.id ? 'selected' : ''}" data-sect="${s.id}">
+        <div class="row" style="align-items:flex-start">
+          <div class="col">
+            <span class="bold">${s.name}</span>
+            <span class="xs muted" style="margin-top:4px">${s.desc}</span>
+            <span class="xs" style="color:var(--accent);margin-top:4px">${s.bonus}</span>
+          </div>
+          <span class="xs" style="color:${state.sect === s.id ? 'var(--primary)' : 'var(--muted-fg)'};white-space:nowrap">${state.sect === s.id ? '目前宗門' : '點擊加入'}</span>
+        </div>
+      </li>`).join('')
+    const current = SECTS.find((s) => s.id === state.sect) || SECTS[0]
+    const info = [['宗門', current.name], ['職位', '內門弟子'], ['貢獻', state.contribution.toLocaleString()], ['師尊', current.master]]
+    return `
+      <ul class="stack" style="margin-bottom:18px">${cards}</ul>
+      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">宗門資料</h3>
+      <dl class="sect-grid">${info.map(([k, v]) => `<div class="card"><dt class="xs muted">${k}</dt><dd class="bold">${v}</dd></div>`).join('')}</dl>`
   }
 
   function renderSkills() {
@@ -719,6 +912,8 @@
     const ready = state.xp >= req
     const progress = Math.min(1, state.xp / req)
 
+    const currentSect = SECTS.find((s) => s.id === state.sect) || SECTS[0]
+    $('sectBadge').textContent = `${currentSect.name} · 內門弟子`
     $('realmLine').textContent = `${REALMS[state.realm]}期 · 第${NUM[state.layer - 1]}層`
     setBar('hpBar', 'hpVal', state.hp, MAX_HP)
     setBar('mpBar', 'mpVal', state.mp, MAX_MP)
@@ -745,6 +940,7 @@
     $('coreHint').textContent = state.secluded ? '閉關中 · 每息自動吸納天地靈氣' : '運功消耗 5 點靈力，修為圓滿方可突破'
 
     renderSkills()
+    // 拍賣場／戰鬥中的畫面需要每秒即時更新，其餘分頁（背包、交易所…）的刷新由各自的操作函式自行呼叫 renderInfo()
     if (state.nav === 'auction' || (state.nav === 'realm' && state.battle)) renderInfo()
   }
 
@@ -809,6 +1005,7 @@
       addLog(`服下「${def.name}」，${def.desc}。`, 'gold')
     }
     render()
+    if (state.nav === 'bag' || state.nav === 'market') renderInfo()
   }
 
   function sellItem(id) {
@@ -820,6 +1017,7 @@
     state.stones += def.sell
     addLog(`售出「${def.name}」，獲得 ${def.sell} 靈石。`)
     render()
+    if (state.nav === 'bag' || state.nav === 'market' || state.nav === 'auction') renderInfo()
   }
 
   function buyItem(id) {
@@ -829,12 +1027,14 @@
     if (state[wallet] < def.buy) {
       addLog(`${wallet === 'jade' ? '仙玉' : '靈石'}不足，無法購買「${def.name}」。`, 'danger')
       render()
+      if (state.nav === 'market') renderInfo()
       return
     }
     state[wallet] -= def.buy
     addItem(id, 1)
     addLog(`花費 ${def.buy} ${wallet === 'jade' ? '仙玉' : '靈石'}，購得「${def.name}」。`, 'gold')
     render()
+    if (state.nav === 'bag' || state.nav === 'market') renderInfo()
   }
 
   function exchangeCurrency(amount) {
@@ -843,18 +1043,21 @@
     if (jadeGain <= 0) {
       addLog('靈石數量不足以兌換仙玉。', 'danger')
       render()
+      if (state.nav === 'market') renderInfo()
       return
     }
     const cost = jadeGain * rate
     if (state.stones < cost) {
       addLog('靈石不足，無法完成兌換。', 'danger')
       render()
+      if (state.nav === 'market') renderInfo()
       return
     }
     state.stones -= cost
     state.jade += jadeGain
     addLog(`以 ${cost} 靈石兌換 ${jadeGain} 仙玉。`, 'gold')
     render()
+    if (state.nav === 'market') renderInfo()
   }
 
   function enterLocation(id) {
@@ -893,6 +1096,7 @@
     battleLog(`「${state.battle.monster.name}」反擊，你受到 ${mdmg} 點傷害。`)
     if (state.hp <= 0) return defeat()
     render()
+    renderInfo()
   }
   function victory() {
     const m = state.battle.monster
@@ -904,17 +1108,20 @@
     addLog(`擊敗「${m.name}」，獲得 ${m.exp} 點修為${lootText}。`, 'success')
     state.battle = null
     render()
+    renderInfo()
   }
   function defeat() {
     addLog(`不敵「${state.battle.monster.name}」，你身受重傷，狼狽撤退。`, 'danger')
     state.hp = Math.max(1, Math.round(MAX_HP * 0.2))
     state.battle = null
     render()
+    renderInfo()
   }
   function fleeBattle() {
     addLog(`你從「${state.battle.monster.name}」身邊脫身而逃。`)
     state.battle = null
     render()
+    renderInfo()
   }
 
   function npcBidAuction(a) {
@@ -949,6 +1156,38 @@
     }
   }
 
+  // 玩家上架物品到拍賣場：交易所有在賣的道具（SHOP_ITEMS）不能上架
+  function listPlayerItem() {
+    const select = $('listItemSelect')
+    const priceInput = $('listPrice')
+    const itemId = select && select.value
+    const price = Math.max(0, Math.floor(Number(priceInput && priceInput.value) || 0))
+    if (!itemId) { addLog('沒有可上架的物品。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
+    if (SHOP_ITEMS.includes(itemId)) { addLog('交易所販售的道具無法上架拍賣場。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
+    if ((state.inventory[itemId] || 0) <= 0) { addLog('物品數量不足，無法上架。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
+    if (price <= 0) { addLog('請輸入有效的起標價格。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
+    state.inventory[itemId] -= 1
+    if (state.inventory[itemId] <= 0) delete state.inventory[itemId]
+    state.playerListings.push({
+      id: 'p' + Date.now() + Math.random().toString(16).slice(2, 6),
+      item: itemId, qty: 1, startPrice: price, currentBid: price,
+      highestBidder: null, timeLeft: randomInt(60, 120),
+    })
+    addLog(`將「${ITEMS[itemId].name}」送上拍賣場，起標 ${price} 靈石。`, 'gold')
+    render()
+    renderInfo()
+  }
+
+  function selectSect(id) {
+    if (state.sect === id) return
+    const s = SECTS.find((x) => x.id === id)
+    if (!s) return
+    state.sect = id
+    addLog(`你拜入「${s.name}」，正式成為門下弟子。`, 'gold')
+    render()
+    renderInfo()
+  }
+
   function tick() {
     // 只有在遊戲畫面顯示時才自動運轉
     if ($('game-screen').classList.contains('hidden')) return;
@@ -970,6 +1209,7 @@
       }
     }
 
+    // NPC 拍賣攤位倒數與搶標
     state.auctions.forEach((a) => {
       if (a.timeLeft <= 0) return
       a.timeLeft--
@@ -981,12 +1221,37 @@
       }
     })
 
+    // 玩家自己上架的拍賣物品：倒數、NPC 隨機搶標、結標後結算
+    state.playerListings = state.playerListings.filter((l) => {
+      if (l.timeLeft > 0) {
+        l.timeLeft--
+        if (Math.random() < 0.12) {
+          const bidder = BIDDERS[randomInt(0, BIDDERS.length - 1)]
+          const inc = Math.max(3, Math.round(l.currentBid * 0.1))
+          l.currentBid += inc
+          l.highestBidder = bidder
+        }
+      }
+      if (l.timeLeft > 0) return true
+      if (l.highestBidder) {
+        state.stones += l.currentBid
+        addLog(`你上架的「${ITEMS[l.item].name}」被${l.highestBidder}以 ${l.currentBid} 靈石標走，所得已入帳。`, 'gold')
+      } else {
+        addItem(l.item, l.qty)
+        addLog(`你上架的「${ITEMS[l.item].name}」流拍，已退回背包。`)
+      }
+      return false
+    })
+
+    saveGame(true) // 每秒自動存檔（靜默，不顯示訊息）
     render()
   }
 
   $('btnCultivate').addEventListener('click', cultivate)
   $('btnBreak').addEventListener('click', breakthrough)
   $('btnSeclude').addEventListener('click', toggleSeclusion)
+  $('btnSave').addEventListener('click', () => saveGame(false))
+  $('btnLoad').addEventListener('click', () => loadGame(false))
   $('nav').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-nav]')
     if (!btn) return
@@ -1007,6 +1272,8 @@
       const amt = Math.max(0, Math.floor(Number(input && input.value) || 0))
       return exchangeCurrency(amt)
     }
+    const listBtn = e.target.closest('[data-list-item]')
+    if (listBtn) return listPlayerItem()
     const locBtn = e.target.closest('[data-location]')
     if (locBtn) return enterLocation(locBtn.dataset.location)
     const backBtn = e.target.closest('[data-back-location]')
@@ -1024,6 +1291,8 @@
     if (fleeBtn) return fleeBattle()
     const bidBtn = e.target.closest('[data-bid]')
     if (bidBtn) return playerBid(bidBtn.dataset.bid)
+    const sectEl = e.target.closest('[data-sect]')
+    if (sectEl) return selectSect(sectEl.dataset.sect)
   })
   $('skills').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-skill]')
@@ -1034,6 +1303,7 @@
     const i = Number(e.key) - 1
     if (i >= 0 && i < SKILLS.length) castSkill(SKILLS[i])
   })
+  window.addEventListener('beforeunload', () => saveGame(true))
 
   setInterval(tick, 1000)
 </script>
