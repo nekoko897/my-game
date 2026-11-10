@@ -831,7 +831,7 @@
     btn.disabled = true; btn.textContent = '連線中…'
     const r = await api('login', { name: $('loginName').value, password: $('loginPw').value })
     btn.disabled = false; btn.textContent = '連線登入'
-    if (!r.ok || !r.token) { err.textContent = r.error || '登入失敗'; return }
+    if (r.error || !r.token) { err.textContent = r.error || '登入失敗'; return }
     net.token = r.token; net.name = r.name
     if (r.save) Object.assign(state, r.save)
     state.selectedLocation = null; state.battle = null
