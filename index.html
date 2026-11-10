@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#14232b" />
 <meta name="color-scheme" content="dark" />
 <title>問道長生 · 修仙界</title>
-<meta name="description" content="一款修仙風格的遊戲介面：修煉、突破境界、施展功法，踏上長生大道。" />
+<meta name="description" content="修仙風格的 RPG：在地圖上探索、擊殺妖獸、掉寶升級、突破境界。" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet" />
@@ -41,6 +41,7 @@
   /* 畫面切換控制 */
   .screen { position: absolute; inset: 0; width: 100%; height: 100%; }
   .hidden { display: none !important; }
+  #game-screen { overflow-y: auto; }
 
   /* 首頁封面樣式 */
   #start-screen {
@@ -50,17 +51,8 @@
     background-repeat: no-repeat;
     z-index: 10;
   }
-  .clickable-area {
-    position: absolute;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    outline: none;
-  }
-  .clickable-area:hover {
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
-    border-radius: 8px;
-  }
+  .clickable-area { position: absolute; background: transparent; border: none; cursor: pointer; outline: none; }
+  .clickable-area:hover { box-shadow: 0 0 15px rgba(255, 255, 255, 0.6); border-radius: 8px; }
   /* 圖片上的按鈕精確位置（可依你的圖片位置微調百分比） */
   #btn-start { bottom: 1%; left: 22.8%; width: 17%; height: 12%; }
   #btn-settings-home { bottom: 1%; right: 22.8%; width: 17%; height: 12%; }
@@ -68,12 +60,12 @@
   .app { position: relative; min-height: 100dvh; overflow: hidden; }
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .veil { position: absolute; inset: 0; background: color-mix(in oklch, var(--background) 55%, transparent); }
-  .shell { position: relative; max-width: 1280px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; gap: 16px; padding: 12px; }
+  .shell { position: relative; max-width: 1360px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; gap: 16px; padding: 12px; }
   .grid { flex: 1; min-height: 0; display: grid; gap: 16px; }
   @media (min-width: 768px) { .shell { padding: 16px; } }
   @media (min-width: 1024px) {
     .shell { height: 100dvh; }
-    .grid { grid-template-columns: 200px 1fr 300px; }
+    .grid { grid-template-columns: 180px 1fr 300px; }
   }
 
   .panel {
@@ -102,7 +94,7 @@
   .stat { display: flex; align-items: center; gap: 8px; }
   .stat-label { width: 32px; flex-shrink: 0; font-family: var(--serif); font-size: 12px; color: var(--muted-fg); }
   .track { position: relative; flex: 1; height: 10px; overflow: hidden; border-radius: 999px; background: color-mix(in oklch, var(--background) 70%, transparent); box-shadow: 0 0 0 1px var(--border); }
-  .fill { height: 100%; border-radius: 999px; transition: width .5s; }
+  .fill { height: 100%; border-radius: 999px; transition: width .2s; }
   .stat-val { width: 64px; flex-shrink: 0; text-align: right; font-size: 12px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
   .wallet { display: flex; align-items: center; gap: 12px; }
   .wallet dl { display: flex; gap: 16px; font-size: 14px; }
@@ -122,25 +114,20 @@
   .nav button:hover { background: var(--secondary); color: var(--foreground); }
   .nav button[aria-current="page"] { background: color-mix(in oklch, var(--primary) 15%, transparent); color: var(--primary); box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 40%, transparent); }
 
-  /* Core */
-  main { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 16px 0; }
-  .core { display: flex; flex-direction: column; align-items: center; gap: 24px; }
-  .orb { position: relative; width: 288px; height: 288px; display: flex; align-items: center; justify-content: center; }
-  @media (min-width: 640px) { .orb { width: 320px; height: 320px; } }
-  .orb svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .glow { position: absolute; inset: 24px; border-radius: 50%; background: color-mix(in oklch, var(--primary) 20%, transparent); filter: blur(40px); animation: breathe 4s ease-in-out infinite; }
-  .ready .glow { background: color-mix(in oklch, var(--accent) 30%, transparent); }
-  .orbit { animation: orbit 24s linear infinite; }
-  .secluded .orbit { animation-duration: 6s; }
-  .ring-progress { transform: rotate(-90deg); }
-  .ring-progress circle:last-child { transition: stroke-dashoffset .7s ease-out, stroke .3s; }
-  .core-text { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
-  .core-label { font-size: 12px; letter-spacing: .4em; color: var(--muted-fg); }
-  .core-realm { font-family: var(--serif); font-size: 60px; line-height: 1.1; font-weight: 900; letter-spacing: .1em; }
-  .ready .core-realm { color: var(--accent); }
-  .core-layer { font-family: var(--serif); font-size: 18px; letter-spacing: .3em; color: var(--primary); }
+  /* 中央：遊戲地圖舞台 */
+  main { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+  .stage { position: relative; height: 56vh; min-height: 300px; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--border); background: #070b0e; touch-action: none; }
+  @media (min-width: 1024px) { .stage { flex: 1; height: auto; } }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .stage-title { position: absolute; left: 10px; top: 10px; padding: 6px 12px; pointer-events: none; display: flex; align-items: baseline; gap: 8px; }
+  .stage-title .bold { font-size: 15px; }
+  .stage-hint { position: absolute; left: 10px; right: 10px; bottom: 8px; font-size: 11px; color: rgba(255,255,255,.7); text-shadow: 0 1px 3px #000; pointer-events: none; }
+
+  .ctrl { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .xp-row { display: flex; align-items: center; gap: 10px; }
+  .xp-row .stat-label { width: auto; }
   .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
-  .btn { min-width: 112px; padding: 10px 20px; border-radius: var(--radius); font-family: var(--serif); letter-spacing: .3em; transition: background .2s, opacity .2s, color .2s; }
+  .btn { min-width: 96px; padding: 8px 18px; border-radius: var(--radius); font-family: var(--serif); letter-spacing: .3em; transition: background .2s, opacity .2s, color .2s; }
   .btn:disabled { opacity: .4; }
   .btn-primary { border: 1px solid color-mix(in oklch, var(--primary) 50%, transparent); background: color-mix(in oklch, var(--primary) 15%, transparent); color: var(--primary); }
   .btn-primary:not(:disabled):hover { background: color-mix(in oklch, var(--primary) 25%, transparent); }
@@ -149,12 +136,13 @@
   .btn-gold:not(:disabled):hover { opacity: .9; }
   .btn-gold small { margin-left: 8px; font-family: var(--sans); font-size: 12px; font-weight: 500; letter-spacing: 0; }
   .btn-ghost { border: 1px solid var(--border); color: var(--muted-fg); }
-  .btn-ghost:hover { color: var(--foreground); }
+  .btn-ghost:hover:not(:disabled) { color: var(--foreground); }
   .btn-ghost[aria-pressed="true"] { border-color: color-mix(in oklch, var(--accent) 60%, transparent); color: var(--accent); }
 
   /* Right column */
   .right { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
   .info { padding: 16px; overflow-y: auto; }
+  @media (min-width: 1024px) { .info { flex: 1.3; min-height: 0; } }
   .attr { display: flex; flex-direction: column; gap: 4px; }
   .attr + .attr { margin-top: 12px; }
   .attr-head { display: flex; align-items: baseline; justify-content: space-between; }
@@ -179,18 +167,7 @@
   .item-list { display: flex; flex-direction: column; gap: 10px; }
   .item-card { display: flex; gap: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in oklch, var(--background) 40%, transparent); padding: 10px; }
   .item-icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--radius); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 20px; background: color-mix(in oklch, var(--background) 60%, transparent); }
-
-  /* 秘境 / 狩獵地點 */
-  .location-card { cursor: pointer; transition: border-color .2s, background .2s; }
-  .location-card:not(.locked):hover { border-color: color-mix(in oklch, var(--primary) 50%, transparent); background: color-mix(in oklch, var(--primary) 8%, transparent); }
-  .location-card.locked { opacity: .55; cursor: not-allowed; }
-  .monster-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px solid var(--border); background: color-mix(in oklch, var(--background) 60%, transparent); flex-shrink: 0; }
-
-  /* 戰鬥 */
-  .battle-row { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 8px 0; }
-  .combatant { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-  .battle-log { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; padding-right: 4px; }
-  .battle-log li { border-left: 1px solid var(--border); padding-left: 8px; line-height: 1.5; }
+  .monster-chip { display: inline-flex; align-items: center; gap: 2px; margin: 2px 8px 0 0; }
 
   /* 交易所 / 拍賣場輸入框 */
   .exchange-input { flex: 1; background: color-mix(in oklch, var(--background) 60%, transparent); border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 10px; color: var(--foreground); font: inherit; min-width: 0; }
@@ -202,10 +179,10 @@
   .sect-card:hover { border-color: color-mix(in oklch, var(--primary) 50%, transparent); }
   .sect-card.selected { border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: color-mix(in oklch, var(--accent) 8%, transparent); }
 
-  .log-wrap { display: flex; flex-direction: column; height: 256px; min-height: 0; }
+  .log-wrap { display: flex; flex-direction: column; height: 220px; min-height: 0; }
   @media (min-width: 1024px) { .log-wrap { height: auto; flex: 1; } }
   .log { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 16px; }
-  .log ol { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 14px; line-height: 1.65; }
+  .log ol { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 13px; line-height: 1.6; }
   .log li { border-left: 1px solid var(--border); padding-left: 12px; animation: log-in .3s ease-out; }
   .tone-normal { color: color-mix(in oklch, var(--foreground) 80%, transparent); }
   .tone-success { color: var(--primary); }
@@ -226,10 +203,8 @@
   kbd { font-family: var(--sans); }
   .cd { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: color-mix(in oklch, var(--background) 70%, transparent); font-family: var(--serif); font-size: 20px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
 
-  @keyframes breathe { 0%, 100% { opacity: .45; transform: scale(.97); } 50% { opacity: .9; transform: scale(1.02); } }
-  @keyframes orbit { to { transform: rotate(360deg); } }
   @keyframes log-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) { .glow, .orbit, .log li { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .log li { animation: none !important; } }
 </style>
 </head>
 <body>
@@ -293,9 +268,6 @@
           <button type="button" class="icon-btn" id="btnLoad" aria-label="讀取進度" title="讀取進度">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
           </button>
-          <button type="button" class="icon-btn" aria-label="設定">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
         </div>
       </header>
 
@@ -305,32 +277,23 @@
         </aside>
 
         <main>
-          <section class="core" id="core" aria-labelledby="core-title">
-            <h2 id="core-title" class="sr-only">修為</h2>
-            <div class="orb">
-              <div class="glow" aria-hidden="true"></div>
-              <svg class="orbit" viewBox="0 0 300 300" aria-hidden="true">
-                <circle cx="150" cy="150" r="142" fill="none" stroke="var(--accent)" stroke-opacity=".35" stroke-width="1" stroke-dasharray="2 10" />
-                <circle cx="150" cy="150" r="134" fill="none" stroke="var(--accent)" stroke-opacity=".2" stroke-width="1" />
-              </svg>
-              <svg class="ring-progress" viewBox="0 0 300 300" aria-hidden="true">
-                <circle cx="150" cy="150" r="120" fill="none" stroke="var(--background)" stroke-opacity=".7" stroke-width="10" />
-                <circle id="ring" cx="150" cy="150" r="120" fill="none" stroke="var(--primary)" stroke-width="10" stroke-linecap="round" />
-              </svg>
-              <div class="core-text">
-                <span class="core-label">當前境界</span>
-                <span class="core-realm" id="coreRealm"></span>
-                <span class="core-layer" id="coreLayer"></span>
-                <span class="num muted" style="margin-top:4px;font-size:14px" id="coreXp" aria-live="polite"></span>
-              </div>
+          <section class="stage" id="stage" aria-label="遊戲地圖">
+            <canvas id="game"></canvas>
+            <div class="stage-title panel"><span class="bold" id="mapName"></span><span class="xs muted" id="mapSub"></span></div>
+            <p class="stage-hint">WASD／方向鍵移動 · 空白鍵攻擊 · 1–4 功法 · E 互動 · Q 打坐 · Z 回春丹 · X 回氣丹 · 滑鼠點地面移動、點怪物攻擊</p>
+          </section>
+          <section class="panel ctrl" aria-label="修為與操作">
+            <div class="xp-row">
+              <span class="stat-label">修為</span>
+              <div class="track" role="progressbar" aria-label="修為" aria-valuemin="0" id="xpBar"><div class="fill" style="background: var(--accent)"></div></div>
+              <span class="stat-val" id="xpVal" style="width:96px"></span>
             </div>
-
             <div class="actions">
-              <button type="button" class="btn btn-primary" id="btnCultivate">運功</button>
+              <button type="button" class="btn btn-primary" id="btnAttack">攻擊</button>
               <button type="button" class="btn btn-gold" id="btnBreak">突破<small id="chance"></small></button>
-              <button type="button" class="btn btn-ghost" id="btnSeclude" aria-pressed="false">閉關</button>
+              <button type="button" class="btn btn-ghost" id="btnSit" aria-pressed="false">打坐</button>
+              <button type="button" class="btn btn-ghost" id="btnHome">回城</button>
             </div>
-            <p class="xs muted" id="coreHint"></p>
           </section>
         </main>
 
@@ -354,958 +317,1623 @@
 </div>
 
 <script>
-  /* =========================================================
-   * 遊戲基礎數值設定
-   * 要調整境界層數上限／氣血・靈力上限／運功消耗，改這裡即可。
-   * ========================================================= */
-  const REALMS = ['煉氣', '築基', '金丹', '元嬰', '化神', '渡劫', '大乘']
-  const NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九']
-  const MAX_LAYER = 9, MAX_HP = 260, MAX_MP = 120, CULTIVATE_COST = 5
-  const CIRC = 2 * Math.PI * 120
+/* ==========================================================================
+ *  問道長生 · 修仙 RPG
+ *  ──────────────────────────────────────────────────────────────────────
+ *  檔案結構（想改哪裡，直接搜尋下面的標題）：
+ *   一、基礎數值設定      ← 移動速度、攻擊距離、死亡懲罰、各種常數
+ *   二、功法 SKILLS       ← 新增／修改功法與效果
+ *   三、道具 ITEMS        ← 新增／修改道具、商店、拍賣池
+ *   四、宗門 SECTS        ← 新增／修改宗門與加成
+ *   五、怪物 MONSTERS     ← 新增／修改怪物（血量、攻擊、掉落…）
+ *   六、地形 TILES        ← 新增地形字元（地圖用的「圖例」）
+ *   七、地圖 MAPS         ← ★ 新增地圖關卡主要改這裡 ★
+ *   八、以下是遊戲程式（一般不用改）
+ * ========================================================================== */
 
-  /* =========================================================
-   * 功法列表（快捷欄）
-   * 新增一筆就會多一個功法按鈕。欄位：
-   *   id         唯一識別字串
-   *   name       功法名稱
-   *   element    顯示在圖示圓圈裡的文字（通常是一個字）
-   *   cost       消耗靈力
-   *   cooldown   冷卻秒數
-   *   description 說明文字
-   * ========================================================= */
-  const SKILLS = [
-    { id: 'flame', name: '赤焰訣', element: '火', cost: 12, cooldown: 3, description: '凝聚丹火，焚盡妖邪' },
-    { id: 'wind', name: '御風術', element: '風', cost: 8, cooldown: 2, description: '踏風而行，身輕如燕' },
-    { id: 'thunder', name: '九霄雷引', element: '雷', cost: 25, cooldown: 6, description: '引動天雷，威震八方' },
-    { id: 'water', name: '玄水護體', element: '水', cost: 15, cooldown: 5, description: '玄水環身，萬法不侵' },
-  ]
 
-  /* 角色屬性（僅顯示用，value 建議填 0-100 之間） */
-  const ATTRIBUTES = [
-    { label: '根骨', value: 78, hint: '影響氣血上限' },
-    { label: '悟性', value: 91, hint: '影響修煉速度' },
-    { label: '神識', value: 64, hint: '影響法術威力' },
-    { label: '氣運', value: 52, hint: '影響突破機率' },
-  ]
-  const ICON = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`
+/* ==========================================================================
+ * 一、基礎數值設定
+ * ========================================================================== */
+const REALMS = ['煉氣', '築基', '金丹', '元嬰', '化神', '渡劫', '大乘']   // 境界名稱（陣列索引 = 境界編號，地圖的 reqRealm 對應這裡）
+const NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九']          // 層數的中文數字
+const MAX_LAYER = 9              // 每個境界有幾層
+const MAX_HP = 260               // 基礎氣血上限（煉氣期）
+const MAX_MP = 120               // 基礎靈力上限（煉氣期）
+const HP_PER_REALM = 60          // 每提升 1 個境界，氣血上限增加多少
+const MP_PER_REALM = 20          // 每提升 1 個境界，靈力上限增加多少
 
-  /* 左側導覽列：要新增分頁，就在這裡加一筆，並在 renderInfo() 的 switch 裡加對應 case */
-  const NAV = [
-    { id: 'character', label: '角色', icon: ICON('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>') },
-    { id: 'techniques', label: '功法', icon: ICON('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>') },
-    { id: 'bag', label: '背包', icon: ICON('<path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect x="2" y="7" width="20" height="14" rx="2"/>') },
-    { id: 'realm', label: '秘境', icon: ICON('<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>') },
-    { id: 'market', label: '交易所', icon: ICON('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>') },
-    { id: 'auction', label: '拍賣場', icon: ICON('<path d="m14.5 12.5-8 8a2.12 2.12 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/>') },
-    { id: 'sect', label: '宗門', icon: ICON('<path d="M10 5V3"/><path d="M14 5V3"/><path d="M15 21v-3a3 3 0 0 0-6 0v3"/><path d="M18 3v8"/><path d="M18 5H6"/><path d="M22 11H2"/><path d="M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9"/><path d="M6 3v8"/>') },
-  ]
+const TILE = 40                  // 每個地圖格子的像素大小（一般不用改）
+const PLAYER_RADIUS = 12         // 角色碰撞半徑（越小越容易鑽過窄路）
+const PLAYER_SPEED = 170         // 角色移動速度（像素／秒）
+const PLAYER_ATTACK_RANGE = 70   // 普通攻擊距離（像素）
+const PLAYER_ATTACK_COOLDOWN = 0.5   // 普通攻擊間隔（秒）
+const CRIT_CHANCE = 0.1          // 暴擊機率（0.1 = 10%）
+const CRIT_MULTIPLIER = 1.5      // 暴擊傷害倍率
 
-  /* =========================================================
-   * 道具總覽：背包／交易所／拍賣場共用這份清單
-   * 新增道具只要在這個物件裡加一筆資料，key 就是道具 id。欄位：
-   *   name     名稱
-   *   icon     圖示（直接用一個 emoji）
-   *   type     'pill' 丹藥 或 'material' 材料（目前只影響分類，非必填邏輯）
-   *   rarity   稀有度：'普通' / '精良' / '稀有' / '史詩'（會決定文字顏色）
-   *   sell     出售價格（靈石），背包、交易所出售都會用這個數字
-   *   buy      購買價格（選填）：有填才會出現在「交易所」的仙品鋪
-   *   currency 購買幣別（選填）：'jade' 用仙玉購買，不填預設用靈石
-   *   effect   使用效果（選填）：沒有 effect 代表此道具不能使用、只能出售
-   *            { type: 'restoreMp', value: 40 }        → 使用後恢復 40 點靈力
-   *            { type: 'addXpPercent', value: 0.3 }    → 使用後增加目前層數 30% 修為
-   *   desc     說明文字
-   * 注意：SHOP_ITEMS 清單中的道具（可在交易所直接買到的）無法在拍賣場上架。
-   * ========================================================= */
-  const ITEMS = {
-    qi: { name: '回氣丹', icon: '💊', type: 'pill', rarity: '普通', sell: 15, buy: 40, currency: 'stones', effect: { type: 'restoreMp', value: 40 }, desc: '恢復 40 點靈力' },
-    foundation: { name: '培元丹', icon: '🧪', type: 'pill', rarity: '精良', sell: 60, buy: 150, currency: 'stones', effect: { type: 'addXpPercent', value: 0.3 }, desc: '增加 30% 當前層修為' },
-    spiritGrass: { name: '靈草', icon: '🌿', type: 'material', rarity: '普通', sell: 8, desc: '生長於靈氣濃郁之地的草藥，煉丹常用材料' },
-    beastHide: { name: '靈獸皮', icon: '🦴', type: 'material', rarity: '普通', sell: 12, desc: '堅韌的靈獸毛皮，可用於製作法袍' },
-    demonCore: { name: '妖丹', icon: '🔴', type: 'material', rarity: '精良', sell: 35, desc: '妖獸體內凝結的靈力結晶，煉丹煉器皆可用' },
-    jadeSlip: { name: '破損玉簡', icon: '📜', type: 'material', rarity: '稀有', sell: 80, desc: '殘缺的功法玉簡，或許藏有秘密' },
-    thunderCrystal: { name: '雷晶', icon: '⚡', type: 'material', rarity: '史詩', sell: 220, desc: '蘊含天雷之力的罕見晶石' },
-    // ↑ 在這裡繼續加新道具，例如：
-    // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
-  }
+const DEATH_XP_LOSS = 0.1        // 死亡時損失目前修為的比例（0.1 = 10%，設 0 則無懲罰）
+const RETURN_COOLDOWN = 20       // 「回城」按鈕冷卻秒數
+const HEAL_NPC_COST = 20         // 醫者 NPC 治療一次要花的靈石
+const START_MAP = 'village'      // 新遊戲／死亡後出現的地圖（必須存在於 MAPS）
 
-  /* 交易所「仙品鋪」要賣什麼，就把 ITEMS 裡有設定 buy 價格的道具 id 填進這個陣列 */
-  const SHOP_ITEMS = ['qi', 'foundation']
+const QUICK_HP_ITEM = 'heal'     // 按 Z 快速使用的道具 id（回復氣血）
+const QUICK_MP_ITEM = 'qi'       // 按 X 快速使用的道具 id（回復靈力）
 
-  /* NPC 拍賣會從這個池子隨機挑選物品與起標價（base），可自行增減項目或調整價格 */
-  const AUCTION_POOL = [
-    { item: 'thunderCrystal', base: 150 },
-    { item: 'jadeSlip', base: 60 },
-    { item: 'demonCore', base: 25 },
-    { item: 'foundation', base: 90 },
-  ]
-  /* 拍賣場搶標的 NPC 名字，可自由增減 */
-  const BIDDERS = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙', '鐵戟羅漢']
+const AUCTION_FEE = 0.05         // 玩家拍賣成交時，系統抽成比例（0.05 = 5%）
+const PLAYER_AUCTION_MAX_RATIO = 2   // 玩家上架的物品，出價超過「商店出售價 × 此倍率」就不會有人再加價
+const AUTOSAVE_SECONDS = 5       // 自動存檔間隔（秒）
 
-  /* =========================================================
-   * 秘境／狩獵地點：依境界解鎖
-   * 新增地點：在陣列中加入一個物件。欄位：
-   *   id、name、icon  地點識別、名稱、圖示
-   *   reqRealm        需要的境界，對應 REALMS 陣列的索引（0=煉氣期即可進入，1=築基期…以此類推）
-   *   desc            地點說明
-   *   monsters        此地點可挑戰的怪物陣列，每筆欄位：
-   *     id、name、icon      怪物識別、名稱、圖示
-   *     hp                  氣血
-   *     atkMin / atkMax     攻擊力區間
-   *     exp                 擊敗後獲得的修為（經驗）
-   *     loot                掉落表，陣列每筆為
-   *                         { item: 道具id(需存在於 ITEMS), chance: 掉落機率(0~1), min, max: 掉落數量範圍 }
-   * ========================================================= */
-  const LOCATIONS = [
-    {
-      id: 'luoxiagu', name: '落霞谷', icon: '🍂', reqRealm: 0,
-      desc: '妖獸出沒的荒谷，適合煉氣期弟子歷練身手。',
-      monsters: [
-        { id: 'wolf', name: '赤血狼', icon: '🐺', hp: 60, atkMin: 4, atkMax: 9, exp: 18, loot: [{ item: 'beastHide', chance: 0.6, min: 1, max: 2 }, { item: 'spiritGrass', chance: 0.4, min: 1, max: 1 }] },
-        { id: 'bat', name: '夜魘蝠', icon: '🦇', hp: 45, atkMin: 3, atkMax: 7, exp: 14, loot: [{ item: 'spiritGrass', chance: 0.5, min: 1, max: 2 }] },
-        { id: 'boar', name: '鐵甲野豬', icon: '🐗', hp: 90, atkMin: 6, atkMax: 12, exp: 28, loot: [{ item: 'beastHide', chance: 0.7, min: 1, max: 3 }, { item: 'demonCore', chance: 0.15, min: 1, max: 1 }] },
-      ],
-    },
-    {
-      id: 'wanyao', name: '萬妖山脈', icon: '🏔️', reqRealm: 1,
-      desc: '妖氣濃郁的連綿山脈，築基期以上弟子方能全身而退。',
-      monsters: [
-        { id: 'tiger', name: '玄紋妖虎', icon: '🐯', hp: 160, atkMin: 12, atkMax: 20, exp: 55, loot: [{ item: 'demonCore', chance: 0.4, min: 1, max: 2 }, { item: 'beastHide', chance: 0.5, min: 1, max: 2 }] },
-        { id: 'serpent', name: '赤焰蛟', icon: '🐍', hp: 220, atkMin: 16, atkMax: 26, exp: 75, loot: [{ item: 'demonCore', chance: 0.45, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.1, min: 1, max: 1 }] },
-        { id: 'golem', name: '岩甲傀儡', icon: '🗿', hp: 300, atkMin: 10, atkMax: 18, exp: 65, loot: [{ item: 'thunderCrystal', chance: 0.08, min: 1, max: 1 }, { item: 'beastHide', chance: 0.6, min: 2, max: 4 }] },
-      ],
-    },
-    {
-      id: 'taixu', name: '太虛幻境', icon: '🌌', reqRealm: 2,
-      desc: '虛實交錯的秘境，金丹期以上方可窺其堂奧。',
-      monsters: [
-        { id: 'phoenix', name: '赤羽幻鳳', icon: '🐦', hp: 480, atkMin: 28, atkMax: 42, exp: 160, loot: [{ item: 'thunderCrystal', chance: 0.25, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.3, min: 1, max: 1 }] },
-        { id: 'kraken', name: '深淵章鬼', icon: '🐙', hp: 560, atkMin: 24, atkMax: 38, exp: 150, loot: [{ item: 'jadeSlip', chance: 0.35, min: 1, max: 2 }] },
-      ],
-    },
-    // ↑ 在這裡繼續加新地點，記得 reqRealm 對應 REALMS 的索引
-  ]
 
-  /* 已裝備法寶（目前僅顯示用，未串接戰鬥加成） */
-  const ARTIFACTS = [
-    { name: '青霜劍', grade: '靈器 · 上品', note: '劍氣森寒，可斬妖邪' },
-    { name: '紫金葫蘆', grade: '法器 · 中品', note: '可納百川之水' },
-    { name: '玄龜甲', grade: '靈器 · 下品', note: '護主之寶，抵禦重擊' },
-  ]
+/* ==========================================================================
+ * 二、功法 SKILLS（快捷欄，按鍵 1~4 施放）
+ * 新增一筆就會多一個功法按鈕（按鍵依序為 1、2、3…）。
+ *   id         唯一識別字串
+ *   name       功法名稱
+ *   element    顯示在圖示裡的文字（通常一個字）
+ *   cost       消耗靈力
+ *   cooldown   冷卻秒數
+ *   color      施放時的特效顏色
+ *   description 說明文字
+ *   effect     功法效果，type 可選下列四種：
+ *     { type:'projectile', dmgMul:1.8, speed:460, range:300, radius:10 }
+ *         → 朝最近的怪物（沒有就朝面向方向）發射法術彈；dmgMul = 攻擊力倍率、speed = 飛行速度、range = 射程、radius = 判定半徑
+ *     { type:'dash', distance:140, invincible:0.35 }
+ *         → 朝面向方向衝刺 distance 像素，期間無敵 invincible 秒
+ *     { type:'aoe', radius:140, dmgMul:2.6 }
+ *         → 以自己為中心，對範圍 radius 內所有怪物造成傷害
+ *     { type:'shield', value:60, perRealm:25, duration:8 }
+ *         → 生成護盾吸收傷害：value + 境界編號 × perRealm，持續 duration 秒
+ * ========================================================================== */
+const SKILLS = [
+  { id: 'flame', name: '赤焰訣', element: '火', cost: 12, cooldown: 3, color: '#ff7043', description: '凝聚丹火，射出火球灼燒前方敵人',
+    effect: { type: 'projectile', dmgMul: 1.8, speed: 460, range: 300, radius: 10 } },
+  { id: 'wind', name: '御風術', element: '風', cost: 8, cooldown: 2, color: '#80deea', description: '御風疾行，向前瞬移並短暫無敵',
+    effect: { type: 'dash', distance: 140, invincible: 0.35 } },
+  { id: 'thunder', name: '九霄雷引', element: '雷', cost: 25, cooldown: 6, color: '#ffee58', description: '引動天雷，震擊周身所有敵人',
+    effect: { type: 'aoe', radius: 140, dmgMul: 2.6 } },
+  { id: 'water', name: '玄水護體', element: '水', cost: 15, cooldown: 5, color: '#64b5f6', description: '玄水環身，吸收一定量的傷害',
+    effect: { type: 'shield', value: 60, perRealm: 25, duration: 8 } },
+  // ↑ 在這裡繼續加新功法（注意快捷鍵只支援 1~9）
+]
 
-  /* =========================================================
-   * 宗門列表：玩家可在「宗門」分頁點選加入
-   * 新增宗門只要在陣列中加入一筆資料，欄位：
-   *   id      唯一識別字串
-   *   name    宗門名稱
-   *   master  師尊名稱
-   *   desc    宗門介紹
-   *   bonus   特色說明（目前僅顯示用文字，未串接實際數值加成）
-   * ========================================================= */
-  const SECTS = [
-    { id: 'qingyun', name: '青雲宗', master: '玄真子', desc: '正道劍修聖地，劍法凌厲，弟子眾多。', bonus: '劍法攻擊 +10%' },
-    { id: 'wandu', name: '萬毒門', master: '毒仙子', desc: '精於毒術與煉丹之道，手段詭譎難防。', bonus: '煉丹成功率 +15%' },
-    { id: 'tianji', name: '天機閣', master: '天機老人', desc: '擅長陣法推演與秘寶鍛造，藏寶無數。', bonus: '法寶掉落率 +10%' },
-    { id: 'xuanyin', name: '玄陰宗', master: '寒月真人', desc: '修習陰寒功法，根基深厚，防禦無雙。', bonus: '氣血上限 +10%' },
-    // ↑ 在這裡繼續加新宗門
-  ]
+/* 角色屬性（目前僅顯示用，value 建議 0~100） */
+const ATTRIBUTES = [
+  { label: '根骨', value: 78, hint: '體魄根基' },
+  { label: '悟性', value: 91, hint: '修行領悟' },
+  { label: '神識', value: 64, hint: '法術感知' },
+  { label: '氣運', value: 52, hint: '機緣運勢' },
+]
 
-  /* =========================================================
-   * 玩家初始數值：開新遊戲、或找不到存檔時使用的起始狀態
-   * ========================================================= */
-  const state = {
-    realm: 1, layer: 3, xp: 120, hp: 220, mp: 86,
-    stones: 12860, jade: 36, secluded: false,
-    cooldowns: {}, nav: 'character',
-    inventory: { qi: 5, foundation: 2, spiritGrass: 3 },
-    sect: 'qingyun', contribution: 1280,
-    selectedLocation: null, battle: null,
-    auctions: [], playerListings: [],
-  }
+const ICON = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`
+/* 左側導覽列：要新增分頁，就在這裡加一筆，並在 renderInfo() 的 switch 裡加對應 case */
+const NAV = [
+  { id: 'character', label: '角色', icon: ICON('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>') },
+  { id: 'techniques', label: '功法', icon: ICON('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>') },
+  { id: 'bag', label: '背包', icon: ICON('<path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect x="2" y="7" width="20" height="14" rx="2"/>') },
+  { id: 'world', label: '地圖', icon: ICON('<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>') },
+  { id: 'market', label: '交易所', icon: ICON('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>') },
+  { id: 'auction', label: '拍賣場', icon: ICON('<path d="m14.5 12.5-8 8a2.12 2.12 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/>') },
+  { id: 'sect', label: '宗門', icon: ICON('<path d="M10 5V3"/><path d="M14 5V3"/><path d="M15 21v-3a3 3 0 0 0-6 0v3"/><path d="M18 3v8"/><path d="M18 5H6"/><path d="M22 11H2"/><path d="M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9"/><path d="M6 3v8"/>') },
+]
 
-  const $ = (id) => document.getElementById(id)
-  const required = () => Math.round(100 * Math.pow(1.6, state.realm) * (1 + state.layer * 0.25))
-  const chance = () => {
-    const base = state.layer === MAX_LAYER ? 0.55 - state.realm * 0.05 : 0.92 - state.layer * 0.03
-    return Math.max(0.2, Math.min(0.95, base))
-  }
-  const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
-  const rarityColor = (r) => ({ '普通': 'var(--muted-fg)', '精良': 'var(--primary)', '稀有': 'var(--accent)', '史詩': 'var(--destructive)' }[r] || 'var(--muted-fg)')
 
-  function addItem(id, qty = 1) {
-    state.inventory[id] = (state.inventory[id] || 0) + qty
-  }
-  function rollLoot(monster) {
-    const loot = []
-    for (const entry of monster.loot) {
-      if (Math.random() < entry.chance) loot.push({ item: entry.item, qty: randomInt(entry.min, entry.max) })
+/* ==========================================================================
+ * 三、道具 ITEMS：背包／交易所／拍賣場／怪物掉落共用這份清單
+ * 新增道具只要在這個物件裡加一筆，key 就是道具 id。欄位：
+ *   name     名稱
+ *   icon     圖示（直接用一個 emoji）
+ *   type     'pill' 丹藥 或 'material' 材料（目前只影響分類）
+ *   rarity   稀有度：'普通' / '精良' / '稀有' / '史詩'（決定文字顏色）
+ *   sell     出售價格（靈石）
+ *   buy      購買價格（選填）：有填，並且 id 也寫進下面的 SHOP_ITEMS，才會在交易所販售
+ *   currency 購買幣別（選填）：'jade' 用仙玉，不填預設用靈石
+ *   effect   使用效果（選填）：沒有 effect 代表不能使用、只能出售
+ *            { type:'restoreHp', value:100 }       → 使用後恢復 100 點氣血
+ *            { type:'restoreMp', value:40 }        → 使用後恢復 40 點靈力
+ *            { type:'addXpPercent', value:0.3 }    → 使用後增加目前這層 30% 的修為
+ *   desc     說明文字
+ * 注意：SHOP_ITEMS 清單中的道具（交易所買得到的）不能由玩家拿去拍賣。
+ * ========================================================================== */
+const ITEMS = {
+  heal: { name: '回春丹', icon: '🍶', type: 'pill', rarity: '普通', sell: 12, buy: 30, currency: 'stones', effect: { type: 'restoreHp', value: 100 }, desc: '恢復 100 點氣血（快捷鍵 Z）' },
+  qi: { name: '回氣丹', icon: '💊', type: 'pill', rarity: '普通', sell: 15, buy: 40, currency: 'stones', effect: { type: 'restoreMp', value: 40 }, desc: '恢復 40 點靈力（快捷鍵 X）' },
+  foundation: { name: '培元丹', icon: '🧪', type: 'pill', rarity: '精良', sell: 60, buy: 150, currency: 'stones', effect: { type: 'addXpPercent', value: 0.3 }, desc: '增加 30% 當前層修為' },
+  spiritGrass: { name: '靈草', icon: '🌿', type: 'material', rarity: '普通', sell: 8, desc: '生長於靈氣濃郁之地的草藥，煉丹常用材料' },
+  beastHide: { name: '靈獸皮', icon: '🦴', type: 'material', rarity: '普通', sell: 12, desc: '堅韌的靈獸毛皮，可用於製作法袍' },
+  demonCore: { name: '妖丹', icon: '🔴', type: 'material', rarity: '精良', sell: 35, desc: '妖獸體內凝結的靈力結晶，煉丹煉器皆可用' },
+  jadeSlip: { name: '破損玉簡', icon: '📜', type: 'material', rarity: '稀有', sell: 80, desc: '殘缺的功法玉簡，或許藏有秘密' },
+  thunderCrystal: { name: '雷晶', icon: '⚡', type: 'material', rarity: '史詩', sell: 220, desc: '蘊含天雷之力的罕見晶石' },
+  // ↑ 在這裡繼續加新道具，例如：
+  // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
+}
+
+/* 交易所「仙品鋪」要賣什麼：把 ITEMS 裡有設定 buy 價格的道具 id 填進這個陣列 */
+const SHOP_ITEMS = ['heal', 'qi', 'foundation']
+
+/* NPC 拍賣會從這個池子隨機挑選物品與起標價（base），可自行增減項目或調整價格 */
+const AUCTION_POOL = [
+  { item: 'thunderCrystal', base: 150 },
+  { item: 'jadeSlip', base: 60 },
+  { item: 'demonCore', base: 25 },
+  { item: 'foundation', base: 90 },
+]
+/* 拍賣場搶標的 NPC 名字，可自由增減 */
+const BIDDERS = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙', '鐵戟羅漢']
+
+/* 已裝備法寶（目前僅顯示用，未串接戰鬥加成） */
+const ARTIFACTS = [
+  { name: '青霜劍', grade: '靈器 · 上品', note: '劍氣森寒，可斬妖邪' },
+  { name: '紫金葫蘆', grade: '法器 · 中品', note: '可納百川之水' },
+  { name: '玄龜甲', grade: '靈器 · 下品', note: '護主之寶，抵禦重擊' },
+]
+
+
+/* ==========================================================================
+ * 四、宗門 SECTS：玩家可在「宗門」分頁（或找宗門長老 NPC）點選加入，可隨時切換
+ * 新增宗門只要在陣列中加入一筆，欄位：
+ *   id      唯一識別字串
+ *   name    宗門名稱
+ *   master  師尊名稱
+ *   desc    宗門介紹
+ *   bonus   顯示在畫面上的加成說明文字
+ *   mods    真正生效的加成（可同時寫多個，不需要的就不寫）：
+ *             atkMul   攻擊力倍率      （1.1 = +10%）
+ *             maxHpMul 氣血上限倍率    （1.1 = +10%）
+ *             dropMul  掉寶機率倍率    （1.15 = +15%）
+ *             killMp   每擊殺一隻怪回復多少靈力
+ * ========================================================================== */
+const SECTS = [
+  { id: 'qingyun', name: '青雲宗', master: '玄真子', desc: '正道劍修聖地，劍法凌厲，弟子眾多。', bonus: '劍氣凌厲：攻擊力 +10%', mods: { atkMul: 1.1 } },
+  { id: 'wandu', name: '萬毒門', master: '毒仙子', desc: '精於毒術與煉丹之道，手段詭譎難防。', bonus: '毒功噬靈：擊殺妖獸時回復 6 點靈力', mods: { killMp: 6 } },
+  { id: 'tianji', name: '天機閣', master: '天機老人', desc: '擅長陣法推演與秘寶鍛造，藏寶無數。', bonus: '機緣天定：妖獸掉寶機率 +15%', mods: { dropMul: 1.15 } },
+  { id: 'xuanyin', name: '玄陰宗', master: '寒月真人', desc: '修習陰寒功法，根基深厚，防禦無雙。', bonus: '玄陰護體：氣血上限 +10%', mods: { maxHpMul: 1.1 } },
+  // ↑ 在這裡繼續加新宗門
+]
+
+
+/* ==========================================================================
+ * 五、怪物 MONSTERS：地圖的 spawns 用 id 來引用這裡的怪物
+ * 新增怪物只要在這個物件裡加一筆，key 就是怪物 id。欄位：
+ *   name        名稱
+ *   icon        畫面上顯示的 emoji
+ *   hp          氣血
+ *   atkMin/atkMax 攻擊力區間（會再扣掉玩家「境界編號 × 2」的減傷）
+ *   exp         擊敗後獲得的修為
+ *   stones      擊敗後掉落的靈石 [最少, 最多]
+ *   speed       追擊移動速度（像素／秒），玩家是 170
+ *   aggro       仇恨距離：玩家進入這個距離（像素）怪物就會追過來
+ *   range       怪物攻擊距離（像素，選填，預設 32）
+ *   atkCd       怪物攻擊間隔（秒，選填，預設 1.1）
+ *   size        圖示與碰撞大小倍率（選填，預設 1；BOSS 通常 1.5 以上）
+ *   respawn     被擊殺後幾秒重生（選填，預設 20）
+ *   boss        true 代表是 BOSS：永遠顯示名字與血條、擊殺時有特別訊息
+ *   leash       最遠追離出生點多少像素（選填，預設 420），超過就放棄回家
+ *   loot        掉落表，每筆 { item:道具id(需存在於 ITEMS), chance:機率(0~1), min:最少, max:最多 }
+ * ========================================================================== */
+const MONSTERS = {
+  // ── 落霞谷 ──
+  wolf: { name: '赤血狼', icon: '🐺', hp: 60, atkMin: 4, atkMax: 9, exp: 18, stones: [3, 8], speed: 95, aggro: 150, size: 1, respawn: 15,
+    loot: [{ item: 'beastHide', chance: 0.6, min: 1, max: 2 }, { item: 'spiritGrass', chance: 0.4, min: 1, max: 1 }] },
+  bat: { name: '夜魘蝠', icon: '🦇', hp: 45, atkMin: 3, atkMax: 7, exp: 14, stones: [2, 6], speed: 120, aggro: 170, size: 0.85, respawn: 15,
+    loot: [{ item: 'spiritGrass', chance: 0.5, min: 1, max: 2 }] },
+  boar: { name: '鐵甲野豬', icon: '🐗', hp: 90, atkMin: 6, atkMax: 12, exp: 28, stones: [5, 12], speed: 85, aggro: 130, size: 1.15, respawn: 20,
+    loot: [{ item: 'beastHide', chance: 0.7, min: 1, max: 3 }, { item: 'demonCore', chance: 0.15, min: 1, max: 1 }] },
+  // ── 萬妖山脈 ──
+  tiger: { name: '玄紋妖虎', icon: '🐯', hp: 160, atkMin: 12, atkMax: 20, exp: 55, stones: [10, 22], speed: 105, aggro: 180, size: 1.2, respawn: 25,
+    loot: [{ item: 'demonCore', chance: 0.4, min: 1, max: 2 }, { item: 'beastHide', chance: 0.5, min: 1, max: 2 }] },
+  serpent: { name: '赤焰蛟', icon: '🐍', hp: 220, atkMin: 16, atkMax: 26, exp: 75, stones: [14, 30], speed: 90, aggro: 170, size: 1.2, respawn: 25,
+    loot: [{ item: 'demonCore', chance: 0.45, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.1, min: 1, max: 1 }] },
+  golem: { name: '岩甲傀儡', icon: '🗿', hp: 300, atkMin: 10, atkMax: 18, exp: 65, stones: [12, 26], speed: 60, aggro: 130, size: 1.25, respawn: 30,
+    loot: [{ item: 'thunderCrystal', chance: 0.08, min: 1, max: 1 }, { item: 'beastHide', chance: 0.6, min: 2, max: 4 }] },
+  tigerKing: { name: '虎王·烈風', icon: '🐅', hp: 900, atkMin: 16, atkMax: 26, exp: 400, stones: [120, 200], speed: 115, aggro: 220, atkCd: 1.3, size: 1.7, respawn: 120, boss: true,
+    loot: [{ item: 'demonCore', chance: 1, min: 2, max: 4 }, { item: 'thunderCrystal', chance: 0.5, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.6, min: 1, max: 1 }] },
+  // ── 太虛幻境 ──
+  phoenix: { name: '赤羽幻鳳', icon: '🐦', hp: 480, atkMin: 28, atkMax: 42, exp: 160, stones: [30, 60], speed: 110, aggro: 200, atkCd: 1.3, size: 1.3, respawn: 30,
+    loot: [{ item: 'thunderCrystal', chance: 0.25, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.3, min: 1, max: 1 }] },
+  kraken: { name: '深淵章鬼', icon: '🐙', hp: 560, atkMin: 24, atkMax: 38, exp: 150, stones: [30, 60], speed: 70, aggro: 160, atkCd: 1.2, size: 1.3, respawn: 30,
+    loot: [{ item: 'jadeSlip', chance: 0.35, min: 1, max: 2 }] },
+  voidLord: { name: '虛空魔君', icon: '👹', hp: 2200, atkMin: 36, atkMax: 56, exp: 1000, stones: [400, 700], speed: 100, aggro: 240, atkCd: 1.5, size: 1.9, respawn: 180, boss: true,
+    loot: [{ item: 'thunderCrystal', chance: 0.9, min: 2, max: 4 }, { item: 'jadeSlip', chance: 0.8, min: 1, max: 3 }] },
+  // ↑ 在這裡繼續加新怪物，再到 MAPS 的 spawns 裡引用它的 id
+}
+
+
+/* ==========================================================================
+ * 六、地形 TILES：地圖用的「圖例」，每個字元代表一種地形
+ *   name      地形名稱（僅供參考）
+ *   color/alt 底色與交錯的備用色（讓地面有一點紋理）
+ *   solid     true = 不可通行（牆、樹、水…）；不寫 = 可以走
+ *   deco      疊在地形上的 emoji 裝飾（選填）；decoSize = 裝飾大小（像素）
+ *   water     true = 畫出水波紋動畫（選填）
+ *   glow      發光顏色（選填，虛空裂縫用）
+ * 要新增地形：加一個新字元（注意不要和已有的重複），然後就能在地圖字串裡使用它。
+ * ========================================================================== */
+const TILES = {
+  '.': { name: '泥土路', color: '#7b6a50', alt: '#736247' },
+  ',': { name: '草地', color: '#41703c', alt: '#3b6736' },
+  '=': { name: '石板路', color: '#8d9096', alt: '#83868d' },
+  '#': { name: '岩壁', color: '#2a3037', alt: '#242a30', solid: true },
+  'T': { name: '樹木', color: '#41703c', alt: '#3b6736', solid: true, deco: '🌲', decoSize: 38 },
+  '~': { name: '水域', color: '#2d6585', alt: '#296079', solid: true, water: true },
+  'W': { name: '房屋', color: '#7a5640', alt: '#6e4c38', solid: true, deco: '🏠', decoSize: 38 },
+  'f': { name: '花叢', color: '#41703c', alt: '#3b6736', deco: '🌸', decoSize: 18 },
+  'v': { name: '虛空地磚', color: '#2c2655', alt: '#272150' },
+  'x': { name: '虛空裂縫', color: '#0a0716', alt: '#0d0a1c', solid: true, glow: '#7c4dff' },
+  // ↑ 在這裡繼續加新地形，例如：
+  // 's': { name: '沙地', color: '#c9b27c', alt: '#bfa772' },
+}
+
+
+/* ==========================================================================
+ * 七、地圖 MAPS  ★ 新增地圖關卡主要改這裡 ★
+ *
+ * 【新增一張地圖的步驟】
+ *   1. 複製下面任何一張地圖（整個 { ... } 區塊），改一個新的 key（例如 'bingyuan'）。
+ *   2. 用 tiles 畫地形：每一行字串是一排格子，每個字元是一格（見上面 TILES 圖例）。
+ *      每一行長度必須一致；最外圈建議用 '#'（岩壁）圍起來避免走出地圖。
+ *   3. 用 portals 設定傳送點，並到「相連的那張地圖」也加一個回來的傳送點。
+ *   4. 用 spawns 設定怪物，用 npcs 設定 NPC。
+ *   5. 存檔重新整理；若有設定錯誤，遊戲開始時日誌會用紅字提示哪裡有問題。
+ *
+ * 【座標說明】全部用「格子座標」：x = 第幾個字元（從 0 算起）、y = 第幾行（從 0 算起）。
+ *   tiles 上方的數字尺標與每行結尾的 // 數字，就是用來數座標的。
+ *
+ * 【地圖欄位】
+ *   name        地圖名稱
+ *   icon        地圖圖示 emoji
+ *   desc        地圖說明（顯示在「地圖」分頁）
+ *   reqRealm    進入所需境界編號（對應 REALMS：0 = 煉氣、1 = 築基、2 = 金丹…）
+ *   town        true = 城鎮：才能使用交易所／拍賣場／出售物品；野外請設 false 或不寫
+ *   spawn       預設出生點 { x, y }（死亡回城、傳送落點找不到時使用，必須是可走的格子）
+ *   tiles       地形（ASCII 字串陣列）
+ *   portals     傳送點陣列，每筆：
+ *                 { x, y, to:'目標地圖id', tx, ty, label:'顯示名稱' }
+ *                 x,y = 本地圖的傳送點格子；tx,ty = 到了目標地圖後落腳的格子（不要落在傳送點上）
+ *   npcs        NPC 陣列，每筆：
+ *                 { name, icon, x, y, action, say }
+ *                 action 可選：'market' 開交易所｜'auction' 開拍賣場｜'sect' 開宗門｜
+ *                              'heal' 付靈石回滿血｜'talk' 只說話（用 lines:['台詞1','台詞2'] 隨機說）
+ *   spawns      刷怪區域陣列，每筆：
+ *                 { monster:'怪物id', count:數量, x1, y1, x2, y2 }
+ *                 在 (x1,y1)~(x2,y2) 這個矩形範圍內的可走格子隨機刷出 count 隻；
+ *                 死掉後依該怪物的 respawn 秒數在同一區域重生。傳送點與 NPC 附近 4 格內不會刷怪。
+ * ========================================================================== */
+const MAPS = {
+
+  /* ───────────── 青雲村：新手城鎮（可交易、拍賣、改宗門） ───────────── */
+  village: {
+    name: '青雲村', icon: '🏘️', reqRealm: 0, town: true,
+    desc: '青雲宗山腳下的城鎮，有藥鋪、拍賣行與宗門長老。城內不會有妖獸出沒。',
+    spawn: { x: 12, y: 9 },
+    tiles: /*TILES:village*/ null,
+    portals: [
+      { x: 24, y: 9, to: 'luoxiagu', tx: 2, ty: 13, label: '落霞谷' },
+    ],
+    npcs: [
+      { name: '陳藥師', icon: '🧙', x: 15, y: 5, action: 'market', say: '「丹藥靈草，應有盡有，道友請看。」' },
+      { name: '金算盤', icon: '🤵', x: 20, y: 5, action: 'auction', say: '「今日拍品件件珍稀，道友不妨一試。」' },
+      { name: '宗門長老', icon: '👴', x: 4, y: 5, action: 'sect', say: '「天下宗門各有所長，道友想拜入哪一家？」' },
+      { name: '醫者·妙手', icon: '🧝', x: 14, y: 9, action: 'heal' },
+      { name: '村民', icon: '👨', x: 5, y: 9, action: 'talk', lines: ['落霞谷近來狼群出沒，出村要小心。', '聽說萬妖山脈深處有一頭虎王，無人能敵。', '多帶些回春丹在身上，總不會錯。'] },
+    ],
+    spawns: [],
+  },
+
+  /* ───────────── 落霞谷：煉氣期新手練功區 ───────────── */
+  luoxiagu: {
+    name: '落霞谷', icon: '🍂', reqRealm: 0,
+    desc: '妖獸出沒的荒谷，適合煉氣期弟子歷練身手。向東可通往萬妖山脈。',
+    spawn: { x: 2, y: 13 },
+    tiles: /*TILES:luoxiagu*/ null,
+    portals: [
+      { x: 1, y: 13, to: 'village', tx: 22, ty: 9, label: '青雲村' },
+      { x: 38, y: 13, to: 'wanyao', tx: 2, ty: 15, label: '萬妖山脈' },
+    ],
+    npcs: [],
+    spawns: [
+      { monster: 'wolf', count: 7, x1: 3, y1: 2, x2: 36, y2: 23 },
+      { monster: 'bat', count: 6, x1: 3, y1: 2, x2: 36, y2: 23 },
+      { monster: 'boar', count: 4, x1: 8, y1: 2, x2: 36, y2: 23 },
+    ],
+  },
+
+  /* ───────────── 萬妖山脈：築基期以上，有 BOSS 虎王 ───────────── */
+  wanyao: {
+    name: '萬妖山脈', icon: '🏔️', reqRealm: 1,
+    desc: '妖氣濃郁的連綿山脈，築基期以上弟子方能全身而退。東南方盤踞著 BOSS「虎王·烈風」。',
+    spawn: { x: 2, y: 15 },
+    tiles: /*TILES:wanyao*/ null,
+    portals: [
+      { x: 1, y: 15, to: 'luoxiagu', tx: 37, ty: 13, label: '落霞谷' },
+      { x: 44, y: 4, to: 'taixu', tx: 2, ty: 14, label: '太虛幻境' },
+    ],
+    npcs: [],
+    spawns: [
+      { monster: 'tiger', count: 6, x1: 4, y1: 2, x2: 43, y2: 27 },
+      { monster: 'serpent', count: 5, x1: 4, y1: 2, x2: 43, y2: 27 },
+      { monster: 'golem', count: 4, x1: 4, y1: 2, x2: 43, y2: 27 },
+      { monster: 'tigerKing', count: 1, x1: 35, y1: 19, x2: 41, y2: 25 },
+    ],
+  },
+
+  /* ───────────── 太虛幻境：金丹期以上，有 BOSS 虛空魔君 ───────────── */
+  taixu: {
+    name: '太虛幻境', icon: '🌌', reqRealm: 2,
+    desc: '虛實交錯的秘境，金丹期以上方可窺其堂奧。深處盤踞著 BOSS「虛空魔君」。',
+    spawn: { x: 2, y: 14 },
+    tiles: /*TILES:taixu*/ null,
+    portals: [
+      { x: 1, y: 14, to: 'wanyao', tx: 43, ty: 5, label: '萬妖山脈' },
+    ],
+    npcs: [],
+    spawns: [
+      { monster: 'phoenix', count: 5, x1: 4, y1: 2, x2: 37, y2: 25 },
+      { monster: 'kraken', count: 5, x1: 4, y1: 2, x2: 37, y2: 25 },
+      { monster: 'voidLord', count: 1, x1: 31, y1: 12, x2: 36, y2: 16 },
+    ],
+  },
+
+  // ↑ 在這裡繼續加新地圖，例如：
+  // bingyuan: { name:'冰原', icon:'❄️', reqRealm:3, desc:'…', spawn:{x:2,y:2}, tiles:[ '####', '#..#', '####' ], portals:[], npcs:[], spawns:[] },
+}
+
+
+/* ==========================================================================
+ * 八、以下是遊戲程式（一般不用改）
+ * ========================================================================== */
+
+/* ---------- 玩家資料（新遊戲的初始數值；有存檔時會被存檔覆蓋） ---------- */
+const state = {
+  realm: 1, layer: 3, xp: 120, hp: 220, mp: 86,   // 境界編號、層數、修為、氣血、靈力
+  stones: 12860, jade: 36,                          // 靈石、仙玉
+  cooldowns: {}, nav: 'character',
+  inventory: { heal: 5, qi: 5, foundation: 2, spiritGrass: 3 },   // 初始背包：道具id → 數量
+  sect: 'qingyun', contribution: 1280,
+  auctions: [], playerListings: [],
+}
+
+/* 即時運作中的資料（不會存檔） */
+const player = { x: 0, y: 0, face: { x: 1, y: 0 }, atkCd: 0, iframes: 0, shield: 0, shieldT: 0, target: null, sitting: false, portalLock: true, portalMsgCd: 0, returnCd: 0, stuckT: 0 }
+let world = null           // 目前所在的地圖（loadMap 建立）
+let started = false        // 是否已按下開始遊戲
+let pendingDeath = null    // 本幀被擊倒時記錄是誰
+let hoverMonster = null, hoverNpc = null
+const keys = {}
+
+const $ = (id) => document.getElementById(id)
+const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
+const rarityColor = (r) => ({ '普通': 'var(--muted-fg)', '精良': 'var(--primary)', '稀有': 'var(--accent)', '史詩': 'var(--destructive)' }[r] || 'var(--muted-fg)')
+const required = () => Math.round(100 * Math.pow(1.6, state.realm) * (1 + state.layer * 0.25))
+const chance = () => {
+  const base = state.layer === MAX_LAYER ? 0.55 - state.realm * 0.05 : 0.92 - state.layer * 0.03
+  return Math.max(0.2, Math.min(0.95, base))
+}
+const currentSect = () => SECTS.find((s) => s.id === state.sect) || SECTS[0]
+const sectMods = () => Object.assign({ atkMul: 1, maxHpMul: 1, dropMul: 1, killMp: 0 }, currentSect().mods)
+const maxHp = () => Math.round((MAX_HP + state.realm * HP_PER_REALM) * sectMods().maxHpMul)
+const maxMp = () => MAX_MP + state.realm * MP_PER_REALM
+const startMapId = () => (MAPS[START_MAP] ? START_MAP : Object.keys(MAPS)[0])
+const canTrade = () => !!(world && world.def.town)
+
+function playerAtkRange() {
+  const base = (8 + state.realm * 10 + state.layer * 2) * sectMods().atkMul
+  const v = Math.round(base * 0.3)
+  return [Math.max(1, Math.round(base - v)), Math.round(base + v)]
+}
+function rollPlayerDamage(mul = 1) {
+  const [lo, hi] = playerAtkRange()
+  let dmg = randomInt(lo, hi) * mul
+  const crit = Math.random() < CRIT_CHANCE
+  if (crit) dmg *= CRIT_MULTIPLIER
+  return { dmg: Math.max(1, Math.round(dmg)), crit }
+}
+
+function addItem(id, qty = 1) { state.inventory[id] = (state.inventory[id] || 0) + qty }
+
+function createAuctionListing(id) {
+  const pick = AUCTION_POOL[randomInt(0, AUCTION_POOL.length - 1)]
+  const base = Math.max(10, pick.base + randomInt(-5, 15))
+  return { id, item: pick.item, qty: randomInt(1, 2), currentBid: base, highestBidder: null, timeLeft: randomInt(45, 90), increment: Math.max(5, Math.round(base * 0.12)) }
+}
+state.auctions = ['a1', 'a2', 'a3'].map(createAuctionListing)
+
+
+/* ---------- 資料檢查：新增地圖／怪物／道具設定錯誤時，開始遊戲會在日誌用紅字提示 ---------- */
+function validateGameData() {
+  const w = []
+  const EFFECTS = ['restoreHp', 'restoreMp', 'addXpPercent']
+  const ACTIONS = ['market', 'auction', 'sect', 'heal', 'talk']
+  if (!MAPS[START_MAP]) w.push(`START_MAP「${START_MAP}」不存在於 MAPS`)
+  for (const [id, it] of Object.entries(ITEMS)) if (it.effect && !EFFECTS.includes(it.effect.type)) w.push(`道具「${id}」的 effect.type「${it.effect.type}」不存在`)
+  for (const id of SHOP_ITEMS) if (!ITEMS[id] || !ITEMS[id].buy) w.push(`SHOP_ITEMS 的「${id}」不存在，或沒有設定 buy 價格`)
+  for (const a of AUCTION_POOL) if (!ITEMS[a.item]) w.push(`AUCTION_POOL 的道具「${a.item}」不存在於 ITEMS`)
+  if (!ITEMS[QUICK_HP_ITEM]) w.push(`QUICK_HP_ITEM「${QUICK_HP_ITEM}」不存在於 ITEMS`)
+  if (!ITEMS[QUICK_MP_ITEM]) w.push(`QUICK_MP_ITEM「${QUICK_MP_ITEM}」不存在於 ITEMS`)
+  for (const [id, m] of Object.entries(MONSTERS)) for (const l of m.loot || []) if (!ITEMS[l.item]) w.push(`怪物「${id}」的掉落道具「${l.item}」不存在於 ITEMS`)
+  for (const [id, m] of Object.entries(MAPS)) {
+    const tag = `地圖「${id}」`
+    if (!Array.isArray(m.tiles) || !m.tiles.length) { w.push(`${tag}沒有 tiles`); continue }
+    const width = m.tiles[0].length
+    m.tiles.forEach((r, y) => {
+      if (r.length !== width) w.push(`${tag}第 ${y} 行長度 ${r.length}，與第 0 行（${width}）不同`)
+      for (const ch of r) if (!TILES[ch]) { w.push(`${tag}第 ${y} 行有未定義的地形字元「${ch}」`); break }
+    })
+    const walkable = (x, y) => { const ch = m.tiles[y] && m.tiles[y][x]; return ch !== undefined && TILES[ch] && !TILES[ch].solid }
+    const inMap = (x, y) => y >= 0 && y < m.tiles.length && x >= 0 && x < width
+    if (!m.spawn || !walkable(m.spawn.x, m.spawn.y)) w.push(`${tag}的 spawn 不是可走的格子`)
+    if ((m.reqRealm || 0) >= REALMS.length) w.push(`${tag}的 reqRealm 超出 REALMS 範圍`)
+    for (const p of m.portals || []) {
+      if (!walkable(p.x, p.y)) w.push(`${tag}的傳送點 (${p.x},${p.y}) 不是可走的格子`)
+      const dest = MAPS[p.to]
+      if (!dest) { w.push(`${tag}的傳送點 (${p.x},${p.y}) 目標地圖「${p.to}」不存在`); continue }
+      const dch = dest.tiles && dest.tiles[p.ty] && dest.tiles[p.ty][p.tx]
+      if (dch === undefined || !TILES[dch] || TILES[dch].solid) w.push(`${tag}的傳送點 (${p.x},${p.y}) 落點 (${p.tx},${p.ty}) 在「${p.to}」不是可走的格子`)
     }
-    return loot
+    for (const n of m.npcs || []) {
+      if (!walkable(n.x, n.y)) w.push(`${tag}的 NPC「${n.name}」(${n.x},${n.y}) 不在可走的格子上`)
+      if (!ACTIONS.includes(n.action)) w.push(`${tag}的 NPC「${n.name}」action「${n.action}」不存在`)
+    }
+    for (const s of m.spawns || []) {
+      if (!MONSTERS[s.monster]) w.push(`${tag}的刷怪區用了不存在的怪物「${s.monster}」`)
+      if (!inMap(s.x1, s.y1) || !inMap(s.x2, s.y2)) w.push(`${tag}的「${s.monster}」刷怪範圍超出地圖`)
+    }
   }
-  function createAuctionListing(id) {
-    const pick = AUCTION_POOL[randomInt(0, AUCTION_POOL.length - 1)]
-    const base = Math.max(10, pick.base + randomInt(-5, 15))
-    return { id, item: pick.item, qty: randomInt(1, 2), currentBid: base, highestBidder: null, timeLeft: randomInt(45, 90), increment: Math.max(5, Math.round(base * 0.12)) }
-  }
+  return w
+}
 
-  // 初始化三個 NPC 拍賣攤位（需在 randomInt / createAuctionListing 定義之後執行）
-  state.auctions = ['a1', 'a2', 'a3'].map(createAuctionListing)
 
-  /* =========================================================
-   * 存檔／讀檔：使用瀏覽器 localStorage
-   * 想調整要保存哪些欄位，改 saveGame() 裡 data 物件的內容即可
-   * ========================================================= */
-  const SAVE_KEY = 'xiuxian-save-v1'
-  function saveGame(silent) {
-    const data = {
-      realm: state.realm, layer: state.layer, xp: state.xp, hp: state.hp, mp: state.mp,
-      stones: state.stones, jade: state.jade,
-      inventory: state.inventory, sect: state.sect, contribution: state.contribution,
+/* ---------- 存檔／讀檔（localStorage） ---------- */
+const SAVE_KEY = 'xiuxian-save-v2'
+const OLD_SAVE_KEY = 'xiuxian-save-v1'
+function saveGame(silent) {
+  if (!started || !world) return
+  const data = {
+    realm: state.realm, layer: state.layer, xp: state.xp, hp: state.hp, mp: state.mp,
+    stones: state.stones, jade: state.jade, inventory: state.inventory,
+    sect: state.sect, contribution: state.contribution,
+    auctions: state.auctions, playerListings: state.playerListings,
+    mapId: world.id, px: Math.round(player.x), py: Math.round(player.y),
+  }
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data))
+    if (!silent) addLog('已儲存目前進度。', 'gold')
+  } catch (e) {
+    if (!silent) addLog('儲存失敗，瀏覽器可能不支援本機儲存。', 'danger')
+  }
+}
+function validAuction(a) {
+  return a && ITEMS[a.item] && Number.isFinite(a.currentBid) && Number.isFinite(a.timeLeft) && Number.isFinite(a.qty) && Number.isFinite(a.increment)
+}
+function applySave(d) {
+  const num = (v, dflt, min, max) => (Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : dflt)
+  state.realm = Math.floor(num(d.realm, state.realm, 0, REALMS.length - 1))
+  state.layer = Math.floor(num(d.layer, state.layer, 1, MAX_LAYER))
+  state.sect = SECTS.some((s) => s.id === d.sect) ? d.sect : SECTS[0].id
+  state.xp = num(d.xp, 0, 0, 1e12)
+  state.hp = num(d.hp, maxHp(), 1, maxHp())
+  state.mp = num(d.mp, maxMp(), 0, maxMp())
+  state.stones = Math.floor(num(d.stones, 0, 0, 1e12))
+  state.jade = Math.floor(num(d.jade, 0, 0, 1e12))
+  state.contribution = Math.floor(num(d.contribution, 0, 0, 1e12))
+  state.inventory = {}
+  for (const [id, q] of Object.entries(d.inventory || {})) if (ITEMS[id] && Number.isFinite(q) && q > 0) state.inventory[id] = Math.floor(q)   // 已從 ITEMS 刪除的道具會被丟棄
+  if (Array.isArray(d.auctions)) {
+    state.auctions = ['a1', 'a2', 'a3'].map((id, i) => (validAuction(d.auctions[i]) ? Object.assign({}, d.auctions[i], { id }) : createAuctionListing(id)))
+  }
+  state.playerListings = (Array.isArray(d.playerListings) ? d.playerListings : []).filter((l) => l && ITEMS[l.item] && Number.isFinite(l.currentBid) && Number.isFinite(l.timeLeft))
+    .map((l) => ({ id: String(l.id || 'p' + Math.random()), item: l.item, qty: Math.max(1, Math.floor(l.qty || 1)), startPrice: l.startPrice || l.currentBid, currentBid: l.currentBid, highestBidder: l.highestBidder || null, timeLeft: l.timeLeft }))
+  state.cooldowns = {}
+  const mapId = MAPS[d.mapId] ? d.mapId : startMapId()
+  loadMap(mapId, Number.isFinite(d.px) && Number.isFinite(d.py) ? { x: d.px, y: d.py } : {})
+  player.shield = 0
+}
+function loadGame(silent) {
+  let raw = null
+  try { raw = localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_SAVE_KEY) } catch (e) { raw = null }
+  if (!raw) {
+    if (!silent) addLog('尚未找到任何存檔。', 'danger')
+    return false
+  }
+  try {
+    applySave(JSON.parse(raw))
+    if (!silent) addLog('已讀取存檔進度。', 'gold')
+    if (started) { renderNav(); renderInfo(); renderHud() }
+    return true
+  } catch (e) {
+    console.error(e)
+    if (!silent) addLog('讀取存檔失敗，存檔資料可能已損毀。', 'danger')
+    return false
+  }
+}
+
+
+/* ---------- 地圖載入 ---------- */
+function solidTile(tx, ty) {
+  if (!world || tx < 0 || ty < 0 || tx >= world.w || ty >= world.h) return true
+  return !!world.grid[ty][tx].solid
+}
+function solidPx(x, y) { return solidTile(Math.floor(x / TILE), Math.floor(y / TILE)) }
+function blocked(x, y, r) { return solidPx(x - r, y - r) || solidPx(x + r, y - r) || solidPx(x - r, y + r) || solidPx(x + r, y + r) }
+function moveEntity(e, dx, dy, r) {
+  if (dx && !blocked(e.x + dx, e.y, r)) e.x += dx
+  if (dy && !blocked(e.x, e.y + dy, r)) e.y += dy
+}
+function findWalkableNear(tx, ty) {
+  for (let rad = 0; rad <= 10; rad++)
+    for (let dy = -rad; dy <= rad; dy++)
+      for (let dx = -rad; dx <= rad; dx++)
+        if (Math.max(Math.abs(dx), Math.abs(dy)) === rad && !solidTile(tx + dx, ty + dy)) return { x: tx + dx, y: ty + dy }
+  for (let y = 0; y < world.h; y++) for (let x = 0; x < world.w; x++) if (!solidTile(x, y)) return { x, y }
+  return { x: 1, y: 1 }
+}
+function nearTile(list, tx, ty, d) { return list.some((o) => Math.abs(o.x - tx) <= d && Math.abs(o.y - ty) <= d) }
+
+function makeMonster(id, zi, x, y) {
+  const d = MONSTERS[id]
+  return { id, def: d, zi, x, y, homeX: x, homeY: y, hp: d.hp, maxHp: d.hp, r: 11 * (d.size || 1), state: 'idle', atkCd: Math.random(), flash: 0, wanderT: Math.random() * 3, tx: x, ty: y, provoked: false, dead: false }
+}
+function spawnZoneMonster(zi) {
+  const z = world.def.spawns[zi]
+  if (!z || !MONSTERS[z.monster]) return null
+  for (let tries = 0; tries < 80; tries++) {
+    const tx = randomInt(Math.min(z.x1, z.x2), Math.max(z.x1, z.x2)), ty = randomInt(Math.min(z.y1, z.y2), Math.max(z.y1, z.y2))
+    if (solidTile(tx, ty) || nearTile(world.portals, tx, ty, 4) || nearTile(world.npcs, tx, ty, 4)) continue
+    const x = (tx + 0.5) * TILE, y = (ty + 0.5) * TILE
+    if (tries < 60 && Math.hypot(x - player.x, y - player.y) < 200) continue   // 盡量不要刷在玩家身上
+    return makeMonster(z.monster, zi, x, y)
+  }
+  return null
+}
+function buildMini() {
+  const s = Math.max(2, Math.min(4, Math.floor(190 / world.w)))
+  const c = document.createElement('canvas')
+  c.width = world.w * s; c.height = world.h * s
+  const g = c.getContext('2d')
+  for (let y = 0; y < world.h; y++) for (let x = 0; x < world.w; x++) { g.fillStyle = world.grid[y][x].color; g.fillRect(x * s, y * s, s, s) }
+  world.mini = { c, s }
+}
+/* opt 可帶 { tx, ty }（格子座標）或 { x, y }（像素座標） */
+function loadMap(id, opt = {}) {
+  if (!MAPS[id]) id = startMapId()
+  const def = MAPS[id]
+  const rows = Array.isArray(def.tiles) ? def.tiles : []
+  const h = Math.max(1, rows.length), w = Math.max(1, ...rows.map((r) => r.length))
+  const grid = []
+  for (let y = 0; y < h; y++) {
+    const line = []
+    for (let x = 0; x < w; x++) {
+      const ch = rows[y] && rows[y][x] !== undefined ? rows[y][x] : '#'
+      line.push(TILES[ch] || TILES['.'])
     }
-    try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(data))
-      if (!silent) addLog('已儲存目前進度。', 'gold')
-    } catch (e) {
-      if (!silent) addLog('儲存失敗，瀏覽器可能不支援本機儲存。', 'danger')
+    grid.push(line)
+  }
+  world = {
+    id, def, w, h, grid, time: 0, fade: 1, mini: null, banner: 2.6,
+    monsters: [], respawns: [], projectiles: [], effects: [],
+    npcs: (def.npcs || []).map((n) => Object.assign({}, n, { tx: n.x, ty: n.y, x: (n.x + 0.5) * TILE, y: (n.y + 0.5) * TILE })),
+    portals: (def.portals || []).map((p) => Object.assign({}, p)),
+  }
+  let px, py
+  if (Number.isFinite(opt.x) && Number.isFinite(opt.y) && !blocked(opt.x, opt.y, PLAYER_RADIUS)) { px = opt.x; py = opt.y }
+  else {
+    const t = findWalkableNear(opt.tx !== undefined ? opt.tx : (def.spawn ? def.spawn.x : 1), opt.ty !== undefined ? opt.ty : (def.spawn ? def.spawn.y : 1))
+    px = (t.x + 0.5) * TILE; py = (t.y + 0.5) * TILE
+  }
+  Object.assign(player, { x: px, y: py, target: null, sitting: false, portalLock: true, atkCd: 0, iframes: 0, stuckT: 0 })
+  ;(def.spawns || []).forEach((z, zi) => { for (let i = 0; i < (z.count || 1); i++) { const m = spawnZoneMonster(zi); if (m) world.monsters.push(m) } })
+  buildMini()
+  if (started) {
+    renderHud()
+    if (['bag', 'market', 'auction', 'world'].includes(state.nav)) renderInfo()   // 城鎮／野外切換時，重新整理需要判斷是否在城鎮的分頁
+  }
+}
+
+
+/* ---------- 特效 ---------- */
+function floatText(x, y, text, color, size = 14) { world.effects.push({ type: 'text', x, y, text, color, size, life: 1, max: 1 }) }
+function ringFx(x, y, r, color, life = 0.35) { world.effects.push({ type: 'ring', x, y, r, color, life, max: life }) }
+
+
+/* ---------- 戰鬥 ---------- */
+function damageMonster(m, dmg, crit, color) {
+  if (m.dead) return
+  m.hp -= dmg; m.flash = 0.12; m.provoked = true
+  if (m.state !== 'chase') m.state = 'chase'
+  floatText(m.x, m.y - m.r - 10, (crit ? '暴擊 ' : '') + dmg, crit ? '#ffb74d' : (color || '#ffffff'), crit ? 20 : 15)
+  if (m.hp <= 0) killMonster(m)
+}
+function killMonster(m) {
+  m.dead = true
+  const d = m.def, mods = sectMods()
+  world.respawns.push({ zi: m.zi, t: d.respawn !== undefined ? d.respawn : 20 })
+  const req = required(), before = state.xp
+  state.xp = Math.min(req, state.xp + d.exp)
+  const st = d.stones || [0, 0]
+  const stones = st[1] > 0 ? randomInt(st[0], st[1]) : 0
+  state.stones += stones
+  const loot = []
+  for (const e of d.loot || []) {
+    if (ITEMS[e.item] && Math.random() < Math.min(1, e.chance * mods.dropMul)) { const q = randomInt(e.min, e.max); addItem(e.item, q); loot.push({ item: e.item, qty: q }) }
+  }
+  if (mods.killMp) state.mp = Math.min(maxMp(), state.mp + mods.killMp)
+  floatText(m.x, m.y - 30, `+${d.exp} 修為`, '#ffd54f', 14)
+  if (stones) floatText(m.x + 30, m.y - 14, `+${stones} 靈石`, '#80cbc4', 13)
+  loot.forEach((l, i) => floatText(m.x, m.y - 48 - i * 16, `${ITEMS[l.item].icon} ${ITEMS[l.item].name} ×${l.qty}`, '#b2ff59', 13))
+  ringFx(m.x, m.y, 40 * (d.size || 1), '#ffd54f', 0.4)
+  const lootText = loot.length ? `，拾取 ${loot.map((l) => `${ITEMS[l.item].name}×${l.qty}`).join('、')}` : ''
+  addLog(`${d.boss ? '【BOSS】' : ''}擊敗「${d.name}」，修為 +${d.exp}，靈石 +${stones}${lootText}。`, d.boss ? 'gold' : 'success')
+  if (state.xp >= req && before < req) addLog('修為已圓滿，可以嘗試突破了！', 'gold')
+  if (player.target && player.target.m === m) player.target = null
+  if (state.nav === 'bag') renderInfo()
+  renderHud()
+}
+function damagePlayer(raw, m) {
+  if (player.iframes > 0 || pendingDeath) return
+  player.sitting = false
+  let dmg = Math.max(1, raw - state.realm * 2)
+  if (player.shield > 0) {
+    const absorb = Math.min(player.shield, dmg)
+    player.shield -= absorb; dmg -= absorb
+    floatText(player.x + 14, player.y - 30, `吸收 ${absorb}`, '#64b5f6', 13)
+  }
+  if (dmg > 0) {
+    state.hp -= dmg
+    floatText(player.x, player.y - 28, `-${dmg}`, '#ff5252', 18)
+    ringFx(player.x, player.y, 22, '#ff5252', 0.2)
+  }
+  if (state.hp <= 0) { state.hp = 0; pendingDeath = m.def.name }
+}
+function playerDie(by) {
+  const loss = Math.floor(state.xp * DEATH_XP_LOSS)
+  state.xp -= loss
+  state.hp = Math.max(1, Math.round(maxHp() * 0.3))
+  const id = startMapId()
+  addLog(`你被「${by}」擊倒，修為損失 ${loss}，被傳送回${MAPS[id].name}。`, 'danger')
+  loadMap(id, { tx: MAPS[id].spawn.x, ty: MAPS[id].spawn.y })
+  saveGame(true)
+}
+
+function playerAttack(pref) {
+  if (!world || player.atkCd > 0) return
+  player.sitting = false
+  let m = pref && !pref.dead && Math.hypot(pref.x - player.x, pref.y - player.y) - pref.r <= PLAYER_ATTACK_RANGE ? pref : null
+  if (!m) {
+    let best = Infinity
+    for (const n of world.monsters) {
+      if (n.dead) continue
+      const d = Math.hypot(n.x - player.x, n.y - player.y) - n.r
+      if (d <= PLAYER_ATTACK_RANGE && d < best) { best = d; m = n }
     }
   }
-  function loadGame(silent) {
-    let raw
-    try {
-      raw = localStorage.getItem(SAVE_KEY)
-    } catch (e) {
-      raw = null
+  if (m) { const dx = m.x - player.x, dy = m.y - player.y, d = Math.hypot(dx, dy) || 1; player.face = { x: dx / d, y: dy / d } }
+  player.atkCd = PLAYER_ATTACK_COOLDOWN
+  world.effects.push({ type: 'slash', x: player.x, y: player.y, ang: Math.atan2(player.face.y, player.face.x), life: 0.18, max: 0.18 })
+  if (m) { const r = rollPlayerDamage(1); damageMonster(m, r.dmg, r.crit) }
+}
+function nearestMonster(range) {
+  let best = null, bd = range
+  for (const n of world.monsters) { if (n.dead) continue; const d = Math.hypot(n.x - player.x, n.y - player.y); if (d < bd) { bd = d; best = n } }
+  return best
+}
+function castSkill(skill) {
+  if (!world || !skill || (state.cooldowns[skill.id] || 0) > 0 || state.mp < skill.cost) return
+  const fx = skill.effect || {}
+  player.sitting = false
+  state.mp -= skill.cost
+  state.cooldowns[skill.id] = skill.cooldown
+  floatText(player.x, player.y - 40, skill.name, skill.color || '#fff', 15)
+  switch (fx.type) {
+    case 'projectile': {
+      const t = nearestMonster(360)
+      if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; player.face = { x: dx / d, y: dy / d } }
+      const sp = fx.speed || 450
+      world.projectiles.push({ x: player.x, y: player.y, vx: player.face.x * sp, vy: player.face.y * sp, speed: sp, dist: 0, range: fx.range || 300, r: fx.radius || 10, dmgMul: fx.dmgMul || 1.5, color: skill.color || '#ff7043' })
+      break
     }
-    if (!raw) {
-      if (!silent) { addLog('尚未找到任何存檔。', 'danger'); render() }
-      return false
+    case 'dash': {
+      const steps = Math.ceil((fx.distance || 120) / 8)
+      for (let i = 0; i < steps; i++) { const nx = player.x + player.face.x * 8, ny = player.y + player.face.y * 8; if (blocked(nx, ny, PLAYER_RADIUS)) break; player.x = nx; player.y = ny }
+      player.iframes = Math.max(player.iframes, fx.invincible || 0.3)
+      ringFx(player.x, player.y, 30, skill.color || '#80deea', 0.3)
+      break
     }
-    try {
-      const data = JSON.parse(raw)
-      Object.assign(state, data)
-      state.selectedLocation = null
-      state.battle = null
-      if (!silent) addLog('已讀取存檔進度。', 'gold')
-      renderNav(); renderInfo(); render()
-      return true
-    } catch (e) {
-      if (!silent) { addLog('讀取存檔失敗，存檔資料可能已損毀。', 'danger'); render() }
-      return false
+    case 'aoe': {
+      const rad = fx.radius || 120
+      ringFx(player.x, player.y, rad, skill.color || '#ffee58', 0.45)
+      for (const m of world.monsters.slice()) {
+        if (m.dead || Math.hypot(m.x - player.x, m.y - player.y) > rad + m.r) continue
+        const r = rollPlayerDamage(fx.dmgMul || 2); damageMonster(m, r.dmg, r.crit, skill.color)
+      }
+      break
     }
+    case 'shield':
+      player.shield = (fx.value || 50) + state.realm * (fx.perRealm || 0)
+      player.shieldT = fx.duration || 8
+      ringFx(player.x, player.y, 34, skill.color || '#64b5f6', 0.4)
+      break
   }
+  renderHud()
+}
 
-  // 點擊開始遊戲切換畫面
-  function enterGame() {
-    $('start-screen').classList.add('hidden');
-    $('game-screen').classList.remove('hidden');
-    const loaded = loadGame(true)
-    if (loaded) {
-      addLog('靈氣流轉，你繼續先前的修行進度。', 'gold')
+
+/* ---------- 每幀更新 ---------- */
+function stepToward(m, ux, uy, step) { moveEntity(m, ux * step, uy * step, m.r * 0.8) }
+function updateMonster(m, dt) {
+  if (m.dead) return
+  const d = m.def
+  m.atkCd = Math.max(0, m.atkCd - dt); m.flash = Math.max(0, m.flash - dt)
+  const speed = d.speed !== undefined ? d.speed : 90
+  const dxp = player.x - m.x, dyp = player.y - m.y, dp = Math.hypot(dxp, dyp) || 0.001
+  const dHome = Math.hypot(m.x - m.homeX, m.y - m.homeY)
+  const aggro = d.aggro !== undefined ? d.aggro : 150, leash = d.leash !== undefined ? d.leash : 420
+  const wantChase = !pendingDeath && dHome <= leash && (dp <= aggro || (m.provoked && dp <= aggro * 3))
+  if (m.state === 'return') {
+    const hx = m.homeX - m.x, hy = m.homeY - m.y, hd = Math.hypot(hx, hy)
+    if (hd < 8) { m.state = 'idle'; m.hp = m.maxHp; m.provoked = false }
+    else stepToward(m, hx / hd, hy / hd, speed * 1.6 * dt)
+  } else if (wantChase) {
+    m.state = 'chase'
+    const reach = (d.range !== undefined ? d.range : 32) + PLAYER_RADIUS
+    if (dp > reach) stepToward(m, dxp / dp, dyp / dp, speed * dt)
+    else if (m.atkCd <= 0) { m.atkCd = d.atkCd !== undefined ? d.atkCd : 1.1; damagePlayer(randomInt(d.atkMin, d.atkMax), m) }
+  } else if (m.state === 'chase') {
+    m.state = 'return'; m.provoked = false
+  } else {
+    m.wanderT -= dt
+    if (m.wanderT <= 0) { const a = Math.random() * Math.PI * 2, r = Math.random() * 90; m.tx = m.homeX + Math.cos(a) * r; m.ty = m.homeY + Math.sin(a) * r; m.wanderT = 2 + Math.random() * 3 }
+    const wx = m.tx - m.x, wy = m.ty - m.y, wd = Math.hypot(wx, wy)
+    if (wd > 4) stepToward(m, wx / wd, wy / wd, speed * 0.35 * dt)
+  }
+}
+function separateMonsters() {
+  const L = world.monsters
+  for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+    const a = L[i], b = L[j]
+    if (a.dead || b.dead) continue
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), min = (a.r + b.r) * 0.9
+    if (d < min && d > 0.01) { const push = (min - d) / 2, ux = dx / d, uy = dy / d; moveEntity(a, -ux * push, -uy * push, a.r * 0.8); moveEntity(b, ux * push, uy * push, b.r * 0.8) }
+  }
+}
+function updatePlayer(dt) {
+  const ix = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0)
+  const iy = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0)
+  let mvx = 0, mvy = 0
+  if (ix || iy) {
+    const l = Math.hypot(ix, iy); mvx = ix / l; mvy = iy / l
+    player.target = null; player.sitting = false
+  } else if (player.target) {
+    const t = player.target
+    if (t.type === 'monster') {
+      if (t.m.dead) player.target = null
+      else {
+        const dx = t.m.x - player.x, dy = t.m.y - player.y, d = Math.hypot(dx, dy) || 1
+        if (d - t.m.r > PLAYER_ATTACK_RANGE * 0.8) { mvx = dx / d; mvy = dy / d } else playerAttack(t.m)
+      }
+    } else if (t.type === 'npc') {
+      const dx = t.npc.x - player.x, dy = t.npc.y - player.y, d = Math.hypot(dx, dy) || 1
+      if (d > 52) { mvx = dx / d; mvy = dy / d } else { player.target = null; doNpc(t.npc) }
     } else {
-      addLog('你於青雲峰洞府中盤膝而坐，靈氣緩緩流轉。');
-      addLog('師尊玄真子傳音：「修行之道，貴在持之以恆。」', 'gold');
+      const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy)
+      if (d < 6) player.target = null; else { mvx = dx / d; mvy = dy / d }
     }
-    renderNav();
-    renderInfo();
-    render();
   }
-
-  function addLog(text, tone = 'normal') {
-    const li = document.createElement('li')
-    li.className = 'tone-' + tone
-    li.textContent = text
-    const log = $('log')
-    log.prepend(li)
-    while (log.children.length > 40) log.lastChild.remove()
+  if (mvx || mvy) {
+    player.sitting = false
+    const sx = player.x, sy = player.y, step = PLAYER_SPEED * dt
+    moveEntity(player, mvx * step, mvy * step, PLAYER_RADIUS)
+    player.face = { x: mvx, y: mvy }
+    if (player.target && Math.hypot(player.x - sx, player.y - sy) < step * 0.3) { player.stuckT += dt; if (player.stuckT > 0.4) player.target = null } else player.stuckT = 0
   }
-
-  function setBar(id, valId, value, max) {
-    const bar = $(id)
-    bar.firstElementChild.style.width = Math.max(0, Math.min(100, (value / max) * 100)) + '%'
-    bar.setAttribute('aria-valuemax', max)
-    bar.setAttribute('aria-valuenow', Math.round(value))
-    $(valId).textContent = `${Math.round(value)}/${max}`
-  }
-
-  function renderNav() {
-    $('nav').innerHTML = NAV.map((n) => `
-      <li><button type="button" data-nav="${n.id}" ${n.id === state.nav ? 'aria-current="page"' : ''}>${n.icon}${n.label}</button></li>`).join('')
-  }
-
-  function renderInfo() {
-    $('info-title').textContent = NAV.find((n) => n.id === state.nav).label
-    let html = ''
-    switch (state.nav) {
-      case 'character':
-        html = '<dl>' + ATTRIBUTES.map((a) => `
-          <div class="attr">
-            <div class="attr-head"><dt>${a.label}</dt><dd>${a.value}</dd></div>
-            <div class="mini-track" aria-hidden="true"><div style="width:${a.value}%"></div></div>
-            <p class="xs muted">${a.hint}</p>
-          </div>`).join('') + '</dl>'
-        break
-      case 'techniques':
-        html = '<ul class="stack">' + SKILLS.map((s) => `
-          <li class="tech">
-            <span class="seal" aria-hidden="true">${s.element}</span>
-            <div class="col"><span class="bold">${s.name}</span><span class="xs muted" style="line-height:1.6">${s.description} · 冷卻 ${s.cooldown} 息</span></div>
-          </li>`).join('') + '</ul>'
-        break
-      case 'bag':
-        html = renderBag()
-        break
-      case 'realm':
-        html = renderRealm()
-        break
-      case 'market':
-        html = renderMarket()
-        break
-      case 'auction':
-        html = renderAuction()
-        break
-      case 'sect':
-        html = renderSect()
-        break
+}
+function updateProjectiles(dt) {
+  for (const pr of world.projectiles) {
+    pr.x += pr.vx * dt; pr.y += pr.vy * dt; pr.dist += pr.speed * dt
+    if (pr.dist > pr.range || solidPx(pr.x, pr.y)) { pr.dead = true; continue }
+    for (const m of world.monsters) {
+      if (m.dead || Math.hypot(m.x - pr.x, m.y - pr.y) >= pr.r + m.r) continue
+      const r = rollPlayerDamage(pr.dmgMul); damageMonster(m, r.dmg, r.crit, pr.color)
+      ringFx(pr.x, pr.y, 26, pr.color, 0.25); pr.dead = true; break
     }
-    $('infoBody').innerHTML = html
   }
-
-  function renderBag() {
-    const equipped = ARTIFACTS.map((a) => `
-      <li class="card">
-        <div class="row" style="align-items:baseline"><span class="bold">${a.name}</span><span class="xs" style="color:var(--accent)">${a.grade}</span></div>
-        <p class="xs muted" style="margin-top:4px">${a.note}</p>
-      </li>`).join('')
-    const entries = Object.entries(state.inventory).filter(([, q]) => q > 0)
-    const items = entries.length ? entries.map(([id, qty]) => {
-      const def = ITEMS[id]
-      return `
-        <li class="item-card">
-          <div class="item-icon">${def.icon}</div>
-          <div class="col" style="flex:1;min-width:0">
-            <div class="row" style="align-items:baseline">
-              <span class="bold">${def.name}</span>
-              <span class="xs num muted">× ${qty}</span>
-            </div>
-            <span class="xs" style="color:${rarityColor(def.rarity)}">${def.rarity}</span>
-            <p class="xs muted" style="margin-top:2px">${def.desc}</p>
-            <div class="actions" style="justify-content:flex-start;margin-top:6px;gap:8px">
-              ${def.effect ? `<button type="button" class="small-btn" data-use-item="${id}">使用</button>` : ''}
-              <button type="button" class="small-btn" data-sell-item="${id}">出售（${def.sell} 靈石）</button>
-            </div>
-          </div>
-        </li>`
-    }).join('') : '<li class="xs muted">行囊空空，去秘境歷練拾取些物件吧。</li>'
-    return `
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">已裝備法寶</h3>
-      <ul class="stack">${equipped}</ul>
-      <h3 class="panel-title" style="font-size:12px;margin:18px 0 8px">物品欄</h3>
-      <ul class="item-list">${items}</ul>`
+  world.projectiles = world.projectiles.filter((p) => !p.dead)
+}
+function updateEffects(dt) {
+  for (const e of world.effects) { e.life -= dt; if (e.type === 'text') e.y -= 38 * dt }
+  world.effects = world.effects.filter((e) => e.life > 0)
+}
+function updateRespawns(dt) {
+  for (const r of world.respawns) {
+    r.t -= dt
+    if (r.t <= 0) { const m = spawnZoneMonster(r.zi); if (m) { world.monsters.push(m); r.done = true } else r.t = 3 }
   }
+  world.respawns = world.respawns.filter((r) => !r.done)
+}
+function checkPortals() {
+  const tx = Math.floor(player.x / TILE), ty = Math.floor(player.y / TILE)
+  const p = world.portals.find((q) => q.x === tx && q.y === ty)
+  if (!p) { player.portalLock = false; return }
+  if (player.portalLock) return
+  const dest = MAPS[p.to]
+  if (!dest) return
+  if (state.realm < (dest.reqRealm || 0)) {
+    if (player.portalMsgCd <= 0) { addLog(`「${dest.name}」妖氣沖天，需達到${REALMS[dest.reqRealm]}期才能進入。`, 'danger'); player.portalMsgCd = 3 }
+    return
+  }
+  addLog(`你踏入傳送陣，前往「${dest.name}」。`, 'gold')
+  loadMap(p.to, { tx: p.tx, ty: p.ty })
+  saveGame(true)
+}
+function update(dt) {
+  world.time += dt
+  world.fade = Math.max(0, world.fade - dt * 2.2)
+  world.banner = Math.max(0, world.banner - dt)
+  for (const k of Object.keys(state.cooldowns)) { state.cooldowns[k] -= dt; if (state.cooldowns[k] <= 0) delete state.cooldowns[k] }
+  player.atkCd = Math.max(0, player.atkCd - dt)
+  player.iframes = Math.max(0, player.iframes - dt)
+  player.returnCd = Math.max(0, player.returnCd - dt)
+  player.portalMsgCd = Math.max(0, player.portalMsgCd - dt)
+  if (player.shieldT > 0) { player.shieldT -= dt; if (player.shieldT <= 0) player.shield = 0 }
+  updatePlayer(dt)
+  for (const m of world.monsters) updateMonster(m, dt)
+  if (pendingDeath) { const by = pendingDeath; pendingDeath = null; playerDie(by); return }
+  separateMonsters()
+  world.monsters = world.monsters.filter((m) => !m.dead)
+  updateRespawns(dt)
+  updateProjectiles(dt)
+  updateEffects(dt)
+  checkPortals()
+}
 
-  function renderRealm() {
-    if (state.battle) return renderBattle()
-    if (state.selectedLocation) {
-      const loc = LOCATIONS.find((l) => l.id === state.selectedLocation)
-      const monsters = loc.monsters.map((m) => `
-        <li class="card row">
-          <div class="cluster">
-            <div class="monster-icon">${m.icon}</div>
-            <div class="col">
-              <span class="bold">${m.name}</span>
-              <span class="xs muted">氣血 ${m.hp} · 攻擊 ${m.atkMin}-${m.atkMax} · 修為 +${m.exp}</span>
-            </div>
-          </div>
-          <button type="button" class="small-btn" data-monster="${m.id}">挑戰</button>
-        </li>`).join('')
-      return `
-        <button type="button" class="small-btn" data-back-location style="margin-bottom:12px">← 返回秘境列表</button>
-        <p class="xs muted" style="margin-bottom:10px">${loc.desc}</p>
-        <ul class="stack">${monsters}</ul>`
+
+/* ---------- NPC 互動 ---------- */
+function switchNav(id) { state.nav = id; renderNav(); renderInfo() }
+function doNpc(n) {
+  switch (n.action) {
+    case 'market': addLog(`${n.name}：${n.say || ''}`, 'gold'); switchNav('market'); break
+    case 'auction': addLog(`${n.name}：${n.say || ''}`, 'gold'); switchNav('auction'); break
+    case 'sect': addLog(`${n.name}：${n.say || ''}`, 'gold'); switchNav('sect'); break
+    case 'heal':
+      if (state.hp >= maxHp() && state.mp >= maxMp()) { addLog(`${n.name}：「道友氣血靈力充盈，無需診治。」`); break }
+      if (state.stones < HEAL_NPC_COST) { addLog(`${n.name}：「診金需 ${HEAL_NPC_COST} 靈石，道友囊中羞澀啊。」`, 'danger'); break }
+      state.stones -= HEAL_NPC_COST; state.hp = maxHp(); state.mp = maxMp()
+      addLog(`${n.name}施針運功，花費 ${HEAL_NPC_COST} 靈石，你的氣血與靈力完全恢復。`, 'success')
+      renderHud(); break
+    default: {
+      const lines = n.lines && n.lines.length ? n.lines : [n.say || '…']
+      addLog(`${n.name}：「${lines[randomInt(0, lines.length - 1)].replace(/^「|」$/g, '')}」`)
     }
-    const cards = LOCATIONS.map((loc) => {
-      const open = state.realm >= loc.reqRealm
-      return `
-        <li class="card location-card ${open ? '' : 'locked'}" ${open ? `data-location="${loc.id}"` : ''}>
-          <div class="row" style="align-items:flex-start">
-            <div class="col">
-              <span class="bold">${loc.icon} ${loc.name}</span>
-              <span class="xs muted" style="margin-top:4px">${loc.desc}</span>
-            </div>
-            <span class="xs" style="color:${open ? 'var(--primary)' : 'var(--muted-fg)'};white-space:nowrap">${open ? '可探索' : `${REALMS[loc.reqRealm]}期可入`}</span>
-          </div>
-        </li>`
-    }).join('')
-    return `<ul class="stack">${cards}</ul>`
   }
+}
+function interactNearest() {
+  let best = null, bd = 70
+  for (const n of world.npcs) { const d = Math.hypot(n.x - player.x, n.y - player.y); if (d < bd) { bd = d; best = n } }
+  if (best) doNpc(best)
+}
 
-  function renderBattle() {
-    const b = state.battle
-    const hpPct = Math.max(0, Math.min(100, (state.hp / MAX_HP) * 100))
-    const mPct = Math.max(0, Math.min(100, (b.monsterHp / b.monster.hp) * 100))
+
+/* ---------- 畫布繪製 ---------- */
+const cv = $('game'), ctx = cv.getContext('2d')
+let viewW = 800, viewH = 500, dpr = 1
+const cam = { x: 0, y: 0 }
+const UI_FONT = '"Noto Sans TC","Microsoft JhengHei",sans-serif'
+const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'
+const playerImg = new Image(); let playerImgOk = false
+playerImg.onload = () => { playerImgOk = true }
+playerImg.src = './img/cultivator.png'
+
+function resizeCanvas() {
+  const r = $('stage').getBoundingClientRect()
+  dpr = Math.min(2, window.devicePixelRatio || 1)
+  viewW = Math.max(100, Math.floor(r.width)); viewH = Math.max(100, Math.floor(r.height))
+  cv.width = Math.floor(viewW * dpr); cv.height = Math.floor(viewH * dpr)
+}
+if (window.ResizeObserver) new ResizeObserver(resizeCanvas).observe($('stage')); else window.addEventListener('resize', resizeCanvas)
+
+function outlineText(t, x, y, color, size, bold) {
+  ctx.font = `${bold ? '700 ' : ''}${size}px ${UI_FONT}`
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(t, x, y)
+  ctx.fillStyle = color; ctx.fillText(t, x, y)
+}
+function bar(x, y, w, h, frac, color) {
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x - w / 2, y, w, h)
+  ctx.fillStyle = color; ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, frac)), h)
+}
+function shadow(x, y, rx) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(x, y, rx, rx * 0.4, 0, 0, Math.PI * 2); ctx.fill() }
+
+function drawTiles() {
+  const x0 = Math.max(0, Math.floor(cam.x / TILE)), x1 = Math.min(world.w - 1, Math.floor((cam.x + viewW) / TILE))
+  const y0 = Math.max(0, Math.floor(cam.y / TILE)), y1 = Math.min(world.h - 1, Math.floor((cam.y + viewH) / TILE))
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const t = world.grid[y][x], px = x * TILE, py = y * TILE
+    ctx.fillStyle = ((x * 73856093) ^ (y * 19349663)) & 1 ? t.alt : t.color
+    ctx.fillRect(px, py, TILE, TILE)
+    if (t.water) {
+      ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.lineWidth = 1.5; ctx.beginPath()
+      const o = Math.sin(world.time * 2 + x + y) * 3
+      ctx.moveTo(px + 6, py + 14 + o); ctx.quadraticCurveTo(px + 14, py + 8 + o, px + 22, py + 14 + o); ctx.moveTo(px + 16, py + 28 - o); ctx.quadraticCurveTo(px + 24, py + 22 - o, px + 32, py + 28 - o); ctx.stroke()
+    } else if (t.glow) {
+      ctx.fillStyle = t.glow; ctx.globalAlpha = 0.18 + 0.1 * Math.sin(world.time * 2 + x * 2 + y); ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); ctx.globalAlpha = 1
+    } else if (t.solid && !t.deco) {
+      ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(px, py, TILE, 3)
+    }
+    if (t.deco) { ctx.font = `${t.decoSize || 30}px ${EMOJI_FONT}`; ctx.fillStyle = '#fff'; ctx.fillText(t.deco, px + TILE / 2, py + TILE / 2 + 2) }
+  }
+}
+function drawPortal(p) {
+  const cx = (p.x + 0.5) * TILE, cy = (p.y + 0.5) * TILE
+  if (cx < cam.x - 60 || cx > cam.x + viewW + 60 || cy < cam.y - 60 || cy > cam.y + viewH + 60) return
+  const pulse = 1 + 0.12 * Math.sin(world.time * 3)
+  const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, 22 * pulse)
+  g.addColorStop(0, 'rgba(190,255,240,.95)'); g.addColorStop(0.6, 'rgba(80,200,255,.45)'); g.addColorStop(1, 'rgba(80,200,255,0)')
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 22 * pulse, 0, Math.PI * 2); ctx.fill()
+  ctx.setLineDash([4, 5]); ctx.lineDashOffset = -world.time * 20; ctx.strokeStyle = 'rgba(200,255,250,.9)'; ctx.lineWidth = 2
+  ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([])
+  const dest = MAPS[p.to]
+  outlineText('→ ' + (p.label || (dest ? dest.name : '?')), cx, cy - 30, '#b2ebf2', 12, true)
+}
+function drawPlayer() {
+  const { x, y } = player
+  shadow(x, y + 14, 14)
+  if (player.iframes > 0 && Math.floor(world.time * 20) % 2) ctx.globalAlpha = 0.5
+  if (player.shield > 0) { ctx.strokeStyle = 'rgba(100,181,246,.85)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, 24 + Math.sin(world.time * 6) * 1.5, 0, Math.PI * 2); ctx.stroke() }
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI * 2); ctx.clip()
+  if (playerImgOk) ctx.drawImage(playerImg, x - 18, y - 18, 36, 36)
+  else { ctx.fillStyle = '#2f6f5e'; ctx.fillRect(x - 18, y - 18, 36, 36); outlineText('雲', x, y + 1, '#fff', 20, true) }
+  ctx.restore()
+  ctx.strokeStyle = '#e6c15a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI * 2); ctx.stroke()
+  ctx.globalAlpha = 1
+  const mh = maxHp()
+  bar(x, y - 32, 40, 5, state.hp / mh, '#e53935')
+  if (player.shield > 0) bar(x, y - 38, 40, 3, Math.min(1, player.shield / 200), '#64b5f6')
+  if (player.sitting) { ctx.font = `18px ${EMOJI_FONT}`; ctx.fillText('💤', x + 18, y - 22 + Math.sin(world.time * 3) * 2) }
+}
+function drawMonster(m) {
+  const d = m.def, size = d.size || 1
+  shadow(m.x, m.y + m.r * 0.9, m.r * 1.1)
+  ctx.font = `${Math.round(30 * size)}px ${EMOJI_FONT}`; ctx.fillStyle = '#fff'
+  ctx.fillText(d.icon, m.x, m.y)
+  if (m.flash > 0) { ctx.globalAlpha = 0.45; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 1.1, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1 }
+  if (hoverMonster === m) { ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 6, 0, Math.PI * 2); ctx.stroke() }
+  if (m.hp < m.maxHp || d.boss) bar(m.x, m.y - m.r - 16, 34 * size, 5, m.hp / m.maxHp, d.boss ? '#ff7043' : '#e53935')
+  if (d.boss || hoverMonster === m) outlineText(d.name, m.x, m.y - m.r - 24, d.boss ? '#ffcc80' : '#fff', 12, true)
+  if (m.state === 'chase') outlineText('!', m.x + m.r, m.y - m.r - 4, '#ff5252', 14, true)
+}
+function drawNpc(n) {
+  shadow(n.x, n.y + 14, 14)
+  ctx.font = `30px ${EMOJI_FONT}`; ctx.fillStyle = '#fff'; ctx.fillText(n.icon || '🧑', n.x, n.y)
+  outlineText(n.name, n.x, n.y - 26, hoverNpc === n ? '#fff' : '#ffe082', 12, true)
+  if (Math.hypot(n.x - player.x, n.y - player.y) < 64) outlineText('按 E 互動', n.x, n.y + 30, '#ffffff', 11, false)
+}
+function drawEffects() {
+  for (const p of world.projectiles) {
+    const g = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, p.r + 6)
+    g.addColorStop(0, '#fff'); g.addColorStop(0.4, p.color); g.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 6, 0, Math.PI * 2); ctx.fill()
+  }
+  for (const e of world.effects) {
+    const k = Math.max(0, e.life / e.max)
+    if (e.type === 'text') { ctx.globalAlpha = Math.min(1, k * 1.6); outlineText(e.text, e.x, e.y, e.color, e.size, true); ctx.globalAlpha = 1 }
+    else if (e.type === 'ring') { ctx.globalAlpha = k; ctx.strokeStyle = e.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (1 - k * 0.6), 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1 }
+    else if (e.type === 'slash') { ctx.globalAlpha = k; ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(e.x, e.y, 38, e.ang - 0.9, e.ang + 0.9); ctx.stroke(); ctx.globalAlpha = 1 }
+  }
+}
+function drawMini() {
+  if (viewW < 520 || !world.mini) return
+  const { c, s } = world.mini, x = viewW - c.width - 10, y = 10
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x - 3, y - 3, c.width + 6, c.height + 6)
+  ctx.globalAlpha = 0.9; ctx.drawImage(c, x, y); ctx.globalAlpha = 1
+  const dot = (px, py, col, sz) => { ctx.fillStyle = col; ctx.fillRect(x + (px / TILE) * s - sz / 2, y + (py / TILE) * s - sz / 2, sz, sz) }
+  for (const p of world.portals) dot((p.x + 0.5) * TILE, (p.y + 0.5) * TILE, '#4dd0e1', 5)
+  for (const n of world.npcs) dot(n.x, n.y, '#ffd54f', 4)
+  for (const m of world.monsters) dot(m.x, m.y, m.def.boss ? '#ff9800' : '#ef5350', m.def.boss ? 6 : 3)
+  dot(player.x, player.y, '#ffffff', 5)
+}
+function draw() {
+  if (!world) return
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.fillStyle = '#070b0e'; ctx.fillRect(0, 0, viewW, viewH)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  const mw = world.w * TILE, mh = world.h * TILE
+  cam.x = mw <= viewW ? (mw - viewW) / 2 : Math.max(0, Math.min(mw - viewW, player.x - viewW / 2))
+  cam.y = mh <= viewH ? (mh - viewH) / 2 : Math.max(0, Math.min(mh - viewH, player.y - viewH / 2))
+  ctx.save(); ctx.translate(-Math.round(cam.x), -Math.round(cam.y))
+  drawTiles()
+  world.portals.forEach(drawPortal)
+  const list = [...world.monsters.map((o) => ({ y: o.y, f: () => drawMonster(o) })), ...world.npcs.map((o) => ({ y: o.y, f: () => drawNpc(o) })), { y: player.y, f: drawPlayer }]
+  list.sort((a, b) => a.y - b.y).forEach((o) => o.f())
+  drawEffects()
+  ctx.restore()
+  if (world.banner > 0) { ctx.globalAlpha = Math.min(1, world.banner); outlineText(`${world.def.icon || ''} ${world.def.name}`, viewW / 2, 80, '#ffe082', 30, true); ctx.globalAlpha = 1 }
+  drawMini()
+  if (world.fade > 0) { ctx.fillStyle = `rgba(0,0,0,${world.fade})`; ctx.fillRect(0, 0, viewW, viewH) }
+}
+
+
+/* ---------- 滑鼠／觸控 ---------- */
+function worldPos(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left + cam.x, y: e.clientY - r.top + cam.y } }
+function monsterAt(wx, wy) {
+  let best = null, bd = Infinity
+  for (const m of world.monsters) { if (m.dead) continue; const d = Math.hypot(m.x - wx, m.y - wy); if (d < m.r + 8 && d < bd) { bd = d; best = m } }
+  return best
+}
+function npcAt(wx, wy) { return world.npcs.find((n) => Math.hypot(n.x - wx, n.y - wy) < 24) || null }
+cv.addEventListener('pointermove', (e) => {
+  if (!world) return
+  const p = worldPos(e); hoverMonster = monsterAt(p.x, p.y); hoverNpc = hoverMonster ? null : npcAt(p.x, p.y)
+  cv.style.cursor = hoverMonster ? 'crosshair' : hoverNpc ? 'pointer' : 'default'
+})
+cv.addEventListener('pointerleave', () => { hoverMonster = null; hoverNpc = null })
+cv.addEventListener('pointerdown', (e) => {
+  if (!world || !started) return
+  e.preventDefault()
+  const p = worldPos(e), m = monsterAt(p.x, p.y), n = m ? null : npcAt(p.x, p.y)
+  player.sitting = false
+  if (m) player.target = { type: 'monster', m }
+  else if (n) player.target = { type: 'npc', npc: n }
+  else { player.target = { type: 'point', x: p.x, y: p.y }; ringFx(p.x, p.y, 14, '#ffffff', 0.3) }
+})
+
+
+/* ---------- 面板（右側資訊欄） ---------- */
+function setText(id, t) { const el = $(id); if (el.textContent !== t) el.textContent = t }
+function setBar(id, valId, value, max) {
+  const bar = $(id)
+  bar.firstElementChild.style.width = Math.max(0, Math.min(100, (value / max) * 100)) + '%'
+  bar.setAttribute('aria-valuemax', Math.round(max)); bar.setAttribute('aria-valuenow', Math.round(value))
+  setText(valId, `${Math.round(value)}/${Math.round(max)}`)
+}
+function addLog(text, tone = 'normal') {
+  const li = document.createElement('li')
+  li.className = 'tone-' + tone
+  li.textContent = text
+  const log = $('log')
+  log.prepend(li)
+  while (log.children.length > 50) log.lastChild.remove()
+}
+function renderNav() {
+  $('nav').innerHTML = NAV.map((n) => `
+    <li><button type="button" data-nav="${n.id}" ${n.id === state.nav ? 'aria-current="page"' : ''}>${n.icon}${n.label}</button></li>`).join('')
+}
+function lockedCard(what) {
+  return `<div class="card"><p class="bold" style="margin-bottom:6px">此處無法使用${what}</p>
+    <p class="xs muted" style="line-height:1.7">${what}只能在城鎮中使用。請走回城鎮，或按下方的「回城」。</p>
+    <button type="button" class="small-btn" data-go-home style="margin-top:10px">回城</button></div>`
+}
+function renderInfo() {
+  $('info-title').textContent = NAV.find((n) => n.id === state.nav).label
+  let html = ''
+  switch (state.nav) {
+    case 'character': html = renderCharacter(); break
+    case 'techniques': html = renderTechniques(); break
+    case 'bag': html = renderBag(); break
+    case 'world': html = renderWorld(); break
+    case 'market': html = canTrade() ? renderMarket() : lockedCard('交易所'); break
+    case 'auction': html = canTrade() ? renderAuction() : lockedCard('拍賣場'); break
+    case 'sect': html = renderSect(); break
+  }
+  $('infoBody').innerHTML = html
+}
+function renderCharacter() {
+  const [lo, hi] = playerAtkRange()
+  const stats = [['攻擊力', `${lo} ~ ${hi}`], ['氣血上限', maxHp()], ['靈力上限', maxMp()], ['減傷', state.realm * 2], ['移動速度', PLAYER_SPEED], ['暴擊率', Math.round(CRIT_CHANCE * 100) + '%']]
+  return `<dl class="sect-grid" style="margin-bottom:18px">${stats.map(([k, v]) => `<div class="card"><dt class="xs muted">${k}</dt><dd class="bold num">${v}</dd></div>`).join('')}</dl>` +
+    '<dl>' + ATTRIBUTES.map((a) => `
+      <div class="attr">
+        <div class="attr-head"><dt>${a.label}</dt><dd>${a.value}</dd></div>
+        <div class="mini-track" aria-hidden="true"><div style="width:${a.value}%"></div></div>
+        <p class="xs muted">${a.hint}</p>
+      </div>`).join('') + '</dl>'
+}
+function skillSummary(s) {
+  const f = s.effect || {}
+  switch (f.type) {
+    case 'projectile': return `發射法術彈，${Math.round(f.dmgMul * 100)}% 攻擊力傷害，射程 ${f.range}`
+    case 'dash': return `向前衝刺 ${f.distance}，期間無敵 ${f.invincible} 秒`
+    case 'aoe': return `周圍 ${f.radius} 範圍內，${Math.round(f.dmgMul * 100)}% 攻擊力傷害`
+    case 'shield': return `護盾吸收 ${f.value + state.realm * (f.perRealm || 0)} 傷害，持續 ${f.duration} 秒`
+    default: return ''
+  }
+}
+function renderTechniques() {
+  return '<ul class="stack">' + SKILLS.map((s, i) => `
+    <li class="tech">
+      <span class="seal" aria-hidden="true">${s.element}</span>
+      <div class="col"><span class="bold">${s.name} <span class="xs muted" style="font-family:var(--sans);font-weight:400">[${i + 1}]</span></span>
+        <span class="xs muted" style="line-height:1.6">${s.description}</span>
+        <span class="xs" style="color:var(--accent);line-height:1.6">${skillSummary(s)} · 耗 ${s.cost} 靈力 · 冷卻 ${s.cooldown} 秒</span></div>
+    </li>`).join('') + '</ul>'
+}
+function renderBag() {
+  const equipped = ARTIFACTS.map((a) => `
+    <li class="card">
+      <div class="row" style="align-items:baseline"><span class="bold">${a.name}</span><span class="xs" style="color:var(--accent)">${a.grade}</span></div>
+      <p class="xs muted" style="margin-top:4px">${a.note}</p>
+    </li>`).join('')
+  const entries = Object.entries(state.inventory).filter(([id, q]) => q > 0 && ITEMS[id])
+  const town = canTrade()
+  const items = entries.length ? entries.map(([id, qty]) => {
+    const def = ITEMS[id]
     return `
-      <div class="battle">
-        <div class="battle-row">
-          <div class="combatant">
-            <div class="avatar" style="width:64px;height:64px"><img src="./img/cultivator.png" alt="" /></div>
-            <span class="bold xs">雲逸</span>
-            <div class="track" style="width:110px"><div class="fill" style="background:var(--destructive);width:${hpPct}%"></div></div>
-            <span class="xs muted num">${state.hp}/${MAX_HP}</span>
+      <li class="item-card">
+        <div class="item-icon">${def.icon}</div>
+        <div class="col" style="flex:1;min-width:0">
+          <div class="row" style="align-items:baseline">
+            <span class="bold">${def.name}</span>
+            <span class="xs num muted">× ${qty}</span>
           </div>
-          <span class="xs muted serif">VS</span>
-          <div class="combatant">
-            <div class="monster-icon" style="width:64px;height:64px;font-size:32px">${b.monster.icon}</div>
-            <span class="bold xs">${b.monster.name}</span>
-            <div class="track" style="width:110px"><div class="fill" style="background:var(--primary);width:${mPct}%"></div></div>
-            <span class="xs muted num">${b.monsterHp}/${b.monster.hp}</span>
+          <span class="xs" style="color:${rarityColor(def.rarity)}">${def.rarity}</span>
+          <p class="xs muted" style="margin-top:2px">${def.desc}</p>
+          <div class="actions" style="justify-content:flex-start;margin-top:6px;gap:8px">
+            ${def.effect ? `<button type="button" class="small-btn" data-use-item="${id}">使用</button>` : ''}
+            <button type="button" class="small-btn" data-sell-item="${id}" ${town ? '' : 'disabled title="需在城鎮才能出售"'}>出售（${def.sell} 靈石）</button>
           </div>
         </div>
-        <div class="actions" style="margin-top:14px">
-          <button type="button" class="btn btn-gold" data-attack>攻擊</button>
-          <button type="button" class="btn btn-ghost" data-flee>逃跑</button>
-        </div>
-        <ol class="battle-log xs muted">${b.log.map((l) => `<li>${l}</li>`).join('')}</ol>
-      </div>`
-  }
-
-  function renderMarket() {
-    const buy = SHOP_ITEMS.map((id) => {
-      const def = ITEMS[id]
-      return `
-        <li class="card row">
-          <div class="cluster">
-            <div class="item-icon">${def.icon}</div>
-            <div class="col">
-              <span class="bold">${def.name}</span>
-              <span class="xs muted">${def.desc}</span>
-            </div>
-          </div>
-          <button type="button" class="small-btn" data-buy-item="${id}">購買（${def.buy} ${def.currency === 'jade' ? '仙玉' : '靈石'}）</button>
-        </li>`
-    }).join('')
-    const entries = Object.entries(state.inventory).filter(([, q]) => q > 0)
-    const sell = entries.length ? entries.map(([id, qty]) => {
-      const def = ITEMS[id]
-      return `
-        <li class="card row">
-          <div class="cluster">
-            <div class="item-icon">${def.icon}</div>
-            <span class="bold">${def.name} <span class="xs muted">× ${qty}</span></span>
-          </div>
-          <button type="button" class="small-btn" data-sell-item="${id}">出售（${def.sell} 靈石）</button>
-        </li>`
-    }).join('') : '<li class="xs muted">無可出售物品</li>'
+      </li>`
+  }).join('') : '<li class="xs muted">行囊空空，去地圖上歷練拾取些物件吧。</li>'
+  return `
+    <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">已裝備法寶</h3>
+    <ul class="stack">${equipped}</ul>
+    <h3 class="panel-title" style="font-size:12px;margin:18px 0 8px">物品欄</h3>
+    ${town ? '' : '<p class="xs muted" style="margin-bottom:8px">提示：出售物品需要回到城鎮。</p>'}
+    <ul class="item-list">${items}</ul>`
+}
+function renderWorld() {
+  const here = world.def
+  const cards = Object.entries(MAPS).map(([id, m]) => {
+    const ok = state.realm >= (m.reqRealm || 0), cur = id === world.id
+    const mons = [...new Set((m.spawns || []).map((s) => s.monster))].filter((k) => MONSTERS[k])
+    const monsterText = mons.length ? mons.map((k) => `<span class="monster-chip xs muted">${MONSTERS[k].icon}${MONSTERS[k].name}</span>`).join('') : '<span class="xs muted">沒有妖獸</span>'
+    const tag = cur ? '目前所在' : ok ? (m.town ? '城鎮' : '可前往') : `需${REALMS[m.reqRealm]}期`
+    const col = cur ? 'var(--accent)' : ok ? 'var(--primary)' : 'var(--muted-fg)'
     return `
-      <div class="card" style="margin-bottom:18px">
-        <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:10px">靈石兌仙玉（500 : 1）</h3>
-        <div class="row" style="gap:8px">
-          <input id="exchangeAmount" class="exchange-input" type="number" min="0" step="500" placeholder="靈石數量" />
-          <button type="button" class="small-btn" data-exchange>兌換</button>
-        </div>
-      </div>
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">仙品鋪</h3>
-      <ul class="stack" style="margin-bottom:18px">${buy}</ul>
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">出售物品</h3>
-      <ul class="stack">${sell}</ul>`
-  }
-
-  function renderAuction() {
-    const npcCards = state.auctions.map((a) => {
-      const def = ITEMS[a.item]
-      const mine = a.highestBidder === 'player'
-      const target = a.highestBidder ? a.currentBid + a.increment : a.currentBid
-      return `
-        <li class="card">
-          <div class="row" style="align-items:flex-start">
-            <div class="cluster">
-              <div class="item-icon">${def.icon}</div>
-              <div class="col">
-                <span class="bold">${def.name} <span class="xs muted">× ${a.qty}</span></span>
-                <span class="xs muted">${a.highestBidder ? `目前最高：${mine ? '你' : a.highestBidder}` : '尚無人出價'}</span>
-              </div>
-            </div>
-            <span class="xs muted num" style="white-space:nowrap">剩餘 ${a.timeLeft}s</span>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <span class="xs muted">目前出價 <span class="bold num" style="color:var(--accent)">${a.currentBid}</span> 靈石</span>
-            <button type="button" class="small-btn" data-bid="${a.id}" ${mine ? 'disabled' : ''}>${mine ? '領先中' : `出價 ${target}`}</button>
-          </div>
-        </li>`
-    }).join('')
-
-    // 可上架拍賣的物品：排除 SHOP_ITEMS（交易所買得到的丹藥無法上架）
-    const eligible = Object.entries(state.inventory).filter(([id, q]) => q > 0 && !SHOP_ITEMS.includes(id))
-    const options = eligible.length
-      ? eligible.map(([id, q]) => `<option value="${id}">${ITEMS[id].icon} ${ITEMS[id].name}（持有 ${q}）</option>`).join('')
-      : `<option value="">（目前沒有可上架的物品）</option>`
-
-    const myListings = state.playerListings.length
-      ? state.playerListings.map((l) => {
-          const def = ITEMS[l.item]
-          return `
-            <li class="card">
-              <div class="row" style="align-items:flex-start">
-                <div class="cluster">
-                  <div class="item-icon">${def.icon}</div>
-                  <div class="col">
-                    <span class="bold">${def.name} <span class="xs muted">× ${l.qty}</span></span>
-                    <span class="xs muted">${l.highestBidder ? `目前出價者：${l.highestBidder}` : '尚無人出價'}</span>
-                  </div>
-                </div>
-                <span class="xs muted num" style="white-space:nowrap">剩餘 ${l.timeLeft}s</span>
-              </div>
-              <p class="xs muted" style="margin-top:8px">起標 ${l.startPrice} 靈石 · 目前 <span class="bold num" style="color:var(--accent)">${l.currentBid}</span> 靈石</p>
-            </li>`
-        }).join('')
-      : '<li class="xs muted">尚未上架任何物品</li>'
-
-    return `
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">各方拍賣</h3>
-      <ul class="stack" style="margin-bottom:18px">${npcCards}</ul>
-      <div class="card" style="margin-bottom:18px">
-        <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:10px">上架我的物品（交易所販售的丹藥無法上架）</h3>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <select id="listItemSelect" class="exchange-input" style="flex:2;min-width:140px">${options}</select>
-          <input id="listPrice" class="exchange-input" type="number" min="1" placeholder="起標靈石" style="flex:1;min-width:90px" />
-          <button type="button" class="small-btn" data-list-item>上架</button>
-        </div>
-      </div>
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">我的拍賣中</h3>
-      <ul class="stack">${myListings}</ul>`
-  }
-
-  function renderSect() {
-    const cards = SECTS.map((s) => `
-      <li class="card sect-card ${state.sect === s.id ? 'selected' : ''}" data-sect="${s.id}">
+      <li class="card" style="${ok ? '' : 'opacity:.6'}">
         <div class="row" style="align-items:flex-start">
-          <div class="col">
-            <span class="bold">${s.name}</span>
-            <span class="xs muted" style="margin-top:4px">${s.desc}</span>
-            <span class="xs" style="color:var(--accent);margin-top:4px">${s.bonus}</span>
-          </div>
-          <span class="xs" style="color:${state.sect === s.id ? 'var(--primary)' : 'var(--muted-fg)'};white-space:nowrap">${state.sect === s.id ? '目前宗門' : '點擊加入'}</span>
+          <div class="col"><span class="bold">${m.icon || ''} ${m.name}</span><span class="xs muted" style="margin-top:4px;line-height:1.6">${m.desc || ''}</span></div>
+          <span class="xs" style="color:${col};white-space:nowrap">${tag}</span>
         </div>
-      </li>`).join('')
-    const current = SECTS.find((s) => s.id === state.sect) || SECTS[0]
-    const info = [['宗門', current.name], ['職位', '內門弟子'], ['貢獻', state.contribution.toLocaleString()], ['師尊', current.master]]
+        <div style="margin-top:6px">${monsterText}</div>
+      </li>`
+  }).join('')
+  const tx = Math.floor(player.x / TILE), ty = Math.floor(player.y / TILE)
+  return `
+    <div class="card" style="margin-bottom:14px">
+      <div class="row"><span class="bold">${here.icon || ''} ${here.name}</span><span class="xs muted num">座標 (${tx}, ${ty})</span></div>
+      <p class="xs muted" style="margin-top:6px">走到發光的傳送陣即可前往相連的地圖；城鎮外無法使用交易所與拍賣場。</p>
+      <button type="button" class="small-btn" data-go-home style="margin-top:10px">回城</button>
+    </div>
+    <ul class="stack">${cards}</ul>`
+}
+function renderMarket() {
+  const buy = SHOP_ITEMS.filter((id) => ITEMS[id]).map((id) => {
+    const def = ITEMS[id]
     return `
-      <ul class="stack" style="margin-bottom:18px">${cards}</ul>
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">宗門資料</h3>
-      <dl class="sect-grid">${info.map(([k, v]) => `<div class="card"><dt class="xs muted">${k}</dt><dd class="bold">${v}</dd></div>`).join('')}</dl>`
+      <li class="card row">
+        <div class="cluster">
+          <div class="item-icon">${def.icon}</div>
+          <div class="col"><span class="bold">${def.name}</span><span class="xs muted">${def.desc}</span></div>
+        </div>
+        <button type="button" class="small-btn" data-buy-item="${id}">購買（${def.buy} ${def.currency === 'jade' ? '仙玉' : '靈石'}）</button>
+      </li>`
+  }).join('')
+  const entries = Object.entries(state.inventory).filter(([id, q]) => q > 0 && ITEMS[id])
+  const sell = entries.length ? entries.map(([id, qty]) => {
+    const def = ITEMS[id]
+    return `
+      <li class="card row">
+        <div class="cluster"><div class="item-icon">${def.icon}</div><span class="bold">${def.name} <span class="xs muted">× ${qty}</span></span></div>
+        <button type="button" class="small-btn" data-sell-item="${id}">出售（${def.sell} 靈石）</button>
+      </li>`
+  }).join('') : '<li class="xs muted">無可出售物品</li>'
+  return `
+    <div class="card" style="margin-bottom:18px">
+      <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:10px">靈石兌仙玉（500 : 1）</h3>
+      <div class="row" style="gap:8px">
+        <input id="exchangeAmount" class="exchange-input" type="number" min="0" step="500" placeholder="靈石數量" />
+        <button type="button" class="small-btn" data-exchange>兌換</button>
+      </div>
+    </div>
+    <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">仙品鋪</h3>
+    <ul class="stack" style="margin-bottom:18px">${buy}</ul>
+    <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">出售物品</h3>
+    <ul class="stack">${sell}</ul>`
+}
+
+/* 拍賣場：表單只在切換分頁／上架時整個重畫；倒數與出價每秒只更新文字，避免輸入框被洗掉 */
+let auctionRenderedSig = ''
+const auctionSig = () => state.auctions.map((a) => a.id + a.item + a.qty).join('|') + '#' + state.playerListings.map((l) => l.id).join('|')
+function npcAuctionCards() {
+  return state.auctions.map((a) => {
+    const def = ITEMS[a.item]
+    return `
+      <li class="card" data-au="${a.id}">
+        <div class="row" style="align-items:flex-start">
+          <div class="cluster">
+            <div class="item-icon">${def.icon}</div>
+            <div class="col"><span class="bold">${def.name} <span class="xs muted">× ${a.qty}</span></span><span class="xs muted au-who"></span></div>
+          </div>
+          <span class="xs muted num au-time" style="white-space:nowrap"></span>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <span class="xs muted">目前出價 <span class="bold num au-bid" style="color:var(--accent)"></span> 靈石</span>
+          <button type="button" class="small-btn au-btn" data-bid="${a.id}"></button>
+        </div>
+      </li>`
+  }).join('')
+}
+function myListingCards() {
+  if (!state.playerListings.length) return '<li class="xs muted">尚未上架任何物品</li>'
+  return state.playerListings.map((l) => {
+    const def = ITEMS[l.item]
+    return `
+      <li class="card" data-pl="${l.id}">
+        <div class="row" style="align-items:flex-start">
+          <div class="cluster">
+            <div class="item-icon">${def.icon}</div>
+            <div class="col"><span class="bold">${def.name} <span class="xs muted">× ${l.qty}</span></span><span class="xs muted au-who"></span></div>
+          </div>
+          <span class="xs muted num au-time" style="white-space:nowrap"></span>
+        </div>
+        <p class="xs muted" style="margin-top:8px">起標 ${l.startPrice} 靈石 · 目前 <span class="bold num au-bid" style="color:var(--accent)"></span> 靈石</p>
+      </li>`
+  }).join('')
+}
+function listOptionsHtml() {
+  const eligible = Object.entries(state.inventory).filter(([id, q]) => q > 0 && ITEMS[id] && !SHOP_ITEMS.includes(id))
+  return eligible.length ? eligible.map(([id, q]) => `<option value="${id}">${ITEMS[id].icon} ${ITEMS[id].name}（持有 ${q}）</option>`).join('') : '<option value="">（目前沒有可上架的物品）</option>'
+}
+function renderAuction() {
+  auctionRenderedSig = auctionSig()
+  setTimeout(() => updateAuctionLive(true), 0)
+  return `
+    <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">各方拍賣</h3>
+    <ul class="stack" id="auctionNpc" style="margin-bottom:18px">${npcAuctionCards()}</ul>
+    <div class="card" style="margin-bottom:18px">
+      <h3 class="xs muted" style="letter-spacing:.1em;margin-bottom:10px;line-height:1.6">上架我的物品（交易所販售的道具無法上架；成交抽成 ${Math.round(AUCTION_FEE * 100)}%）</h3>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <select id="listItemSelect" class="exchange-input" style="flex:2;min-width:140px">${listOptionsHtml()}</select>
+        <input id="listPrice" class="exchange-input" type="number" min="1" placeholder="起標靈石" style="flex:1;min-width:90px" />
+        <button type="button" class="small-btn" data-list-item>上架</button>
+      </div>
+    </div>
+    <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">我的拍賣中</h3>
+    <ul class="stack" id="auctionMine">${myListingCards()}</ul>`
+}
+function updateAuctionLive(force) {
+  if (state.nav !== 'auction' || !canTrade() || !$('auctionNpc')) return
+  const sig = auctionSig()
+  if (sig !== auctionRenderedSig) {
+    $('auctionNpc').innerHTML = npcAuctionCards(); $('auctionMine').innerHTML = myListingCards(); auctionRenderedSig = sig
+    const sel = $('listItemSelect')
+    if (sel) { const keep = sel.value; sel.innerHTML = listOptionsHtml(); if ([...sel.options].some((o) => o.value === keep)) sel.value = keep }
   }
-
-  function renderSkills() {
-    $('skills').innerHTML = SKILLS.map((s, i) => {
-      const cd = state.cooldowns[s.id] || 0
-      const disabled = cd > 0 || state.mp < s.cost
-      return `
-        <li><button type="button" class="skill" data-skill="${i}" ${disabled ? 'disabled' : ''}
-            aria-label="${s.name}，消耗 ${s.cost} 靈力${cd > 0 ? `，冷卻 ${cd} 秒` : ''}">
-          <span class="seal" aria-hidden="true">${s.element}</span>
-          <span class="skill-text"><span class="bold">${s.name}</span><span class="xs muted">${s.cost} 靈力 · <kbd>${i + 1}</kbd></span></span>
-          ${cd > 0 ? `<span class="cd" aria-hidden="true">${cd}</span>` : ''}
-        </button></li>`
-    }).join('')
+  const put = (root, sel, text) => { const el = root.querySelector(sel); if (el && el.textContent !== text) el.textContent = text }
+  for (const a of state.auctions) {
+    const li = document.querySelector(`[data-au="${a.id}"]`); if (!li) continue
+    const mine = a.highestBidder === 'player', target = a.highestBidder ? a.currentBid + a.increment : a.currentBid
+    put(li, '.au-who', a.highestBidder ? `目前最高：${mine ? '你' : a.highestBidder}` : '尚無人出價')
+    put(li, '.au-time', `剩餘 ${a.timeLeft}s`); put(li, '.au-bid', String(a.currentBid))
+    const b = li.querySelector('.au-btn'); put(li, '.au-btn', mine ? '領先中' : `出價 ${target}`); b.disabled = mine
   }
-
-  function render() {
-    const req = required()
-    const ready = state.xp >= req
-    const progress = Math.min(1, state.xp / req)
-
-    const currentSect = SECTS.find((s) => s.id === state.sect) || SECTS[0]
-    $('sectBadge').textContent = `${currentSect.name} · 內門弟子`
-    $('realmLine').textContent = `${REALMS[state.realm]}期 · 第${NUM[state.layer - 1]}層`
-    setBar('hpBar', 'hpVal', state.hp, MAX_HP)
-    setBar('mpBar', 'mpVal', state.mp, MAX_MP)
-    $('stones').textContent = state.stones.toLocaleString()
-    $('jade').textContent = state.jade.toLocaleString()
-
-    const core = $('core')
-    core.classList.toggle('ready', ready)
-    core.classList.toggle('secluded', state.secluded)
-    const ring = $('ring')
-    ring.setAttribute('stroke-dasharray', CIRC)
-    ring.setAttribute('stroke-dashoffset', CIRC * (1 - progress))
-    ring.setAttribute('stroke', ready ? 'var(--accent)' : 'var(--primary)')
-    $('coreRealm').textContent = REALMS[state.realm]
-    $('coreLayer').textContent = `第${NUM[state.layer - 1]}層`
-    $('coreXp').textContent = `修為 ${Math.floor(state.xp)} / ${req}`
-    $('chance').textContent = Math.round(chance() * 100) + '%'
-
-    $('btnCultivate').disabled = state.mp < CULTIVATE_COST || ready
-    $('btnBreak').disabled = !ready
-    const sec = $('btnSeclude')
-    sec.textContent = state.secluded ? '出關' : '閉關'
-    sec.setAttribute('aria-pressed', state.secluded)
-    $('coreHint').textContent = state.secluded ? '閉關中 · 每息自動吸納天地靈氣' : '運功消耗 5 點靈力，修為圓滿方可突破'
-
-    renderSkills()
-    // 拍賣場／戰鬥中的畫面需要每秒即時更新，其餘分頁（背包、交易所…）的刷新由各自的操作函式自行呼叫 renderInfo()
-    if (state.nav === 'auction' || (state.nav === 'realm' && state.battle)) renderInfo()
+  for (const l of state.playerListings) {
+    const li = document.querySelector(`[data-pl="${l.id}"]`); if (!li) continue
+    put(li, '.au-who', l.highestBidder ? `目前出價者：${l.highestBidder}` : '尚無人出價')
+    put(li, '.au-time', `剩餘 ${l.timeLeft}s`); put(li, '.au-bid', String(l.currentBid))
   }
+}
+function renderSect() {
+  const cards = SECTS.map((s) => `
+    <li class="card sect-card ${state.sect === s.id ? 'selected' : ''}" data-sect="${s.id}">
+      <div class="row" style="align-items:flex-start">
+        <div class="col">
+          <span class="bold">${s.name}</span>
+          <span class="xs muted" style="margin-top:4px">${s.desc}</span>
+          <span class="xs" style="color:var(--accent);margin-top:4px">${s.bonus || ''}</span>
+        </div>
+        <span class="xs" style="color:${state.sect === s.id ? 'var(--primary)' : 'var(--muted-fg)'};white-space:nowrap">${state.sect === s.id ? '目前宗門' : '點擊加入'}</span>
+      </div>
+    </li>`).join('')
+  const cur = currentSect()
+  const info = [['宗門', cur.name], ['職位', '內門弟子'], ['貢獻', state.contribution.toLocaleString()], ['師尊', cur.master]]
+  return `
+    <ul class="stack" style="margin-bottom:18px">${cards}</ul>
+    <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">宗門資料</h3>
+    <dl class="sect-grid">${info.map(([k, v]) => `<div class="card"><dt class="xs muted">${k}</dt><dd class="bold">${v}</dd></div>`).join('')}</dl>`
+}
 
-  function cultivate() {
-    const req = required()
-    if (state.mp < CULTIVATE_COST || state.xp >= req) return
-    const gain = Math.round(req * (0.06 + Math.random() * 0.06))
-    state.mp -= CULTIVATE_COST
-    state.xp = Math.min(req, state.xp + gain)
-    if (Math.random() < 0.35) addLog(`運轉周天，吸納天地靈氣，修為增加 ${gain}。`)
-    render()
-  }
+/* ---------- 功法列 ---------- */
+function buildSkills() {
+  $('skills').innerHTML = SKILLS.map((s, i) => `
+    <li><button type="button" class="skill" data-skill="${i}">
+      <span class="seal" aria-hidden="true">${s.element}</span>
+      <span class="skill-text"><span class="bold">${s.name}</span><span class="xs muted">${s.cost} 靈力 · <kbd>${i + 1}</kbd></span></span>
+      <span class="cd hidden" aria-hidden="true"></span>
+    </button></li>`).join('')
+}
+function updateSkillBar() {
+  $('skills').querySelectorAll('.skill').forEach((b, i) => {
+    const s = SKILLS[i], cd = state.cooldowns[s.id] || 0, dis = cd > 0 || state.mp < s.cost
+    if (b.disabled !== dis) b.disabled = dis
+    const el = b.querySelector('.cd')
+    if (cd > 0) { el.classList.remove('hidden'); const t = String(Math.ceil(cd)); if (el.textContent !== t) el.textContent = t } else el.classList.add('hidden')
+  })
+}
 
-  function breakthrough() {
-    if (state.xp < required()) return
-    if (Math.random() < chance()) {
-      state.xp = 0
-      if (state.layer < MAX_LAYER) {
-        addLog(`突破成功！晉入${REALMS[state.realm]}期第${NUM[state.layer]}層。`, 'success')
-        state.layer++
-      } else if (state.realm < REALMS.length - 1) {
-        state.realm++
-        state.layer = 1
-        addLog(`天降異象，霞光萬道！你成功踏入${REALMS[state.realm]}期！`, 'gold')
-      } else {
-        addLog('你已臻大乘圓滿，只待飛升之日。', 'gold')
-      }
+/* ---------- 上方狀態列／修為列 ---------- */
+function renderHud() {
+  if (!started || !world) return
+  const req = required(), mh = maxHp(), mm = maxMp()
+  state.hp = Math.min(state.hp, mh); state.mp = Math.min(state.mp, mm)
+  setText('sectBadge', `${currentSect().name} · 內門弟子`)
+  setText('realmLine', `${REALMS[state.realm]}期 · 第${NUM[state.layer - 1]}層`)
+  setBar('hpBar', 'hpVal', state.hp, mh)
+  setBar('mpBar', 'mpVal', state.mp, mm)
+  setText('stones', state.stones.toLocaleString()); setText('jade', state.jade.toLocaleString())
+  const ready = state.xp >= req
+  $('xpBar').firstElementChild.style.width = Math.min(100, (state.xp / req) * 100) + '%'
+  $('xpBar').firstElementChild.style.background = ready ? 'var(--accent)' : 'var(--primary)'
+  setText('xpVal', `${Math.floor(state.xp)} / ${req}`)
+  setText('chance', Math.round(chance() * 100) + '%')
+  $('btnBreak').disabled = !ready
+  setText('mapName', `${world.def.icon || ''} ${world.def.name}`)
+  setText('mapSub', world.def.town ? '城鎮 · 安全區' : `建議 ${REALMS[world.def.reqRealm || 0]}期以上`)
+  const sit = $('btnSit'); setText('btnSit', player.sitting ? '起身' : '打坐'); sit.setAttribute('aria-pressed', player.sitting)
+  const hd = Math.ceil(player.returnCd); setText('btnHome', hd > 0 ? `回城 ${hd}` : '回城'); $('btnHome').disabled = hd > 0
+  updateSkillBar()
+}
+
+/* ---------- 修煉／道具／交易 ---------- */
+function breakthrough() {
+  if (state.xp < required()) return
+  if (Math.random() < chance()) {
+    state.xp = 0
+    if (state.layer < MAX_LAYER) {
+      state.layer++
+      addLog(`突破成功！晉入${REALMS[state.realm]}期第${NUM[state.layer - 1]}層。`, 'success')
+    } else if (state.realm < REALMS.length - 1) {
+      state.realm++; state.layer = 1
+      addLog(`天降異象，霞光萬道！你成功踏入${REALMS[state.realm]}期！`, 'gold')
     } else {
-      state.xp = Math.floor(state.xp * 0.6)
-      state.hp = Math.max(1, state.hp - 40)
-      addLog('衝擊瓶頸失敗，靈氣逆衝經脈，氣血受損。', 'danger')
+      addLog('你已臻大乘圓滿，只待飛升之日。', 'gold')
     }
-    render()
+    state.hp = maxHp(); state.mp = maxMp()     // 突破成功：氣血與靈力全滿
+    ringFx(player.x, player.y, 60, '#ffd54f', 0.6); floatText(player.x, player.y - 50, '突破！', '#ffd54f', 22)
+  } else {
+    state.xp = Math.floor(state.xp * 0.6)
+    state.hp = Math.max(1, state.hp - 40)
+    addLog('衝擊瓶頸失敗，靈氣逆衝經脈，氣血受損。', 'danger')
   }
+  renderHud()
+  if (state.nav === 'character' || state.nav === 'world' || state.nav === 'techniques') renderInfo()
+}
+function toggleSit() {
+  if (!world) return
+  player.sitting = !player.sitting
+  if (player.sitting) player.target = null
+  renderHud()
+}
+function goHome() {
+  if (!world || player.returnCd > 0) return
+  const id = startMapId()
+  if (world.id === id) { addLog('你已經在城鎮中了。'); return }
+  addLog('你捏碎回城符，身形化作流光，返回城鎮。', 'gold')
+  loadMap(id, { tx: MAPS[id].spawn.x, ty: MAPS[id].spawn.y })
+  player.returnCd = RETURN_COOLDOWN
+  saveGame(true)
+}
+function useItem(id) {
+  const qty = state.inventory[id] || 0, def = ITEMS[id]
+  if (qty <= 0 || !def || !def.effect) return
+  const fx = def.effect
+  if (fx.type === 'restoreHp' && state.hp >= maxHp()) { addLog('氣血已滿，無需服用。'); return }
+  if (fx.type === 'restoreMp' && state.mp >= maxMp()) { addLog('靈力已滿，無需服用。'); return }
+  state.inventory[id] = qty - 1
+  if (state.inventory[id] <= 0) delete state.inventory[id]
+  if (fx.type === 'restoreHp') { state.hp = Math.min(maxHp(), state.hp + fx.value); floatText(player.x, player.y - 30, `+${fx.value}`, '#69f0ae', 16); addLog(`服下「${def.name}」，${def.desc.replace(/（.*）/, '')}。`, 'success') }
+  else if (fx.type === 'restoreMp') { state.mp = Math.min(maxMp(), state.mp + fx.value); floatText(player.x, player.y - 30, `+${fx.value} 靈力`, '#4fc3f7', 15); addLog(`服下「${def.name}」，${def.desc.replace(/（.*）/, '')}。`, 'success') }
+  else if (fx.type === 'addXpPercent') { const req = required(); state.xp = Math.min(req, state.xp + req * fx.value); addLog(`服下「${def.name}」，${def.desc}。`, 'gold') }
+  renderHud()
+  if (state.nav === 'bag' || state.nav === 'market') renderInfo()
+}
+function quickUse(id) {
+  if (!(state.inventory[id] > 0)) { addLog(`背包裡沒有「${ITEMS[id] ? ITEMS[id].name : id}」了。`, 'danger'); return }
+  useItem(id)
+}
+function sellItem(id) {
+  if (!canTrade()) { addLog('需要回到城鎮才能出售物品。', 'danger'); return }
+  const qty = state.inventory[id] || 0, def = ITEMS[id]
+  if (qty <= 0 || !def) return
+  state.inventory[id] = qty - 1
+  if (state.inventory[id] <= 0) delete state.inventory[id]
+  state.stones += def.sell
+  addLog(`售出「${def.name}」，獲得 ${def.sell} 靈石。`)
+  renderHud()
+  if (['bag', 'market'].includes(state.nav)) renderInfo()
+  else if (state.nav === 'auction') { const sel = $('listItemSelect'); if (sel) { const keep = sel.value; sel.innerHTML = listOptionsHtml(); if ([...sel.options].some((o) => o.value === keep)) sel.value = keep } }
+}
+function buyItem(id) {
+  if (!canTrade()) { addLog('需要在城鎮才能購買物品。', 'danger'); return }
+  const def = ITEMS[id]
+  if (!def || !def.buy) return
+  const wallet = def.currency === 'jade' ? 'jade' : 'stones', label = wallet === 'jade' ? '仙玉' : '靈石'
+  if (state[wallet] < def.buy) { addLog(`${label}不足，無法購買「${def.name}」。`, 'danger'); return }
+  state[wallet] -= def.buy
+  addItem(id, 1)
+  addLog(`花費 ${def.buy} ${label}，購得「${def.name}」。`, 'gold')
+  renderHud()
+  if (state.nav === 'market') renderInfo()
+}
+function exchangeCurrency(amount) {
+  if (!canTrade()) { addLog('需要在城鎮才能兌換仙玉。', 'danger'); return }
+  const rate = 500, jadeGain = Math.floor(amount / rate)
+  if (jadeGain <= 0) { addLog('靈石數量不足以兌換仙玉。', 'danger'); return }
+  const cost = jadeGain * rate
+  if (state.stones < cost) { addLog('靈石不足，無法完成兌換。', 'danger'); return }
+  state.stones -= cost; state.jade += jadeGain
+  addLog(`以 ${cost} 靈石兌換 ${jadeGain} 仙玉。`, 'gold')
+  renderHud()
+}
 
-  function toggleSeclusion() {
-    state.secluded = !state.secluded
-    addLog(state.secluded ? '你封閉洞府，開始閉關苦修。' : '你推開石門，結束閉關。', state.secluded ? 'normal' : 'gold')
-    render()
-  }
-
-  function castSkill(skill) {
-    if ((state.cooldowns[skill.id] || 0) > 0 || state.mp < skill.cost) return
-    state.mp -= skill.cost
-    state.cooldowns[skill.id] = skill.cooldown
-    addLog(`施展「${skill.name}」—— ${skill.description}。`, 'success')
-    render()
-  }
-
-  function useItem(id) {
-    const qty = state.inventory[id] || 0
-    const def = ITEMS[id]
-    if (qty <= 0 || !def || !def.effect) return
-    state.inventory[id] = qty - 1
-    if (state.inventory[id] <= 0) delete state.inventory[id]
-    if (def.effect.type === 'restoreMp') {
-      state.mp = Math.min(MAX_MP, state.mp + def.effect.value)
-      addLog(`服下「${def.name}」，${def.desc}。`, 'success')
-    } else if (def.effect.type === 'addXpPercent') {
-      const req = required()
-      state.xp = Math.min(req, state.xp + req * def.effect.value)
-      addLog(`服下「${def.name}」，${def.desc}。`, 'gold')
-    }
-    render()
-    if (state.nav === 'bag' || state.nav === 'market') renderInfo()
-  }
-
-  function sellItem(id) {
-    const qty = state.inventory[id] || 0
-    const def = ITEMS[id]
-    if (qty <= 0 || !def) return
-    state.inventory[id] = qty - 1
-    if (state.inventory[id] <= 0) delete state.inventory[id]
-    state.stones += def.sell
-    addLog(`售出「${def.name}」，獲得 ${def.sell} 靈石。`)
-    render()
-    if (state.nav === 'bag' || state.nav === 'market' || state.nav === 'auction') renderInfo()
-  }
-
-  function buyItem(id) {
-    const def = ITEMS[id]
-    if (!def || !def.buy) return
-    const wallet = def.currency === 'jade' ? 'jade' : 'stones'
-    if (state[wallet] < def.buy) {
-      addLog(`${wallet === 'jade' ? '仙玉' : '靈石'}不足，無法購買「${def.name}」。`, 'danger')
-      render()
-      if (state.nav === 'market') renderInfo()
-      return
-    }
-    state[wallet] -= def.buy
-    addItem(id, 1)
-    addLog(`花費 ${def.buy} ${wallet === 'jade' ? '仙玉' : '靈石'}，購得「${def.name}」。`, 'gold')
-    render()
-    if (state.nav === 'bag' || state.nav === 'market') renderInfo()
-  }
-
-  function exchangeCurrency(amount) {
-    const rate = 500
-    const jadeGain = Math.floor(amount / rate)
-    if (jadeGain <= 0) {
-      addLog('靈石數量不足以兌換仙玉。', 'danger')
-      render()
-      if (state.nav === 'market') renderInfo()
-      return
-    }
-    const cost = jadeGain * rate
-    if (state.stones < cost) {
-      addLog('靈石不足，無法完成兌換。', 'danger')
-      render()
-      if (state.nav === 'market') renderInfo()
-      return
-    }
-    state.stones -= cost
-    state.jade += jadeGain
-    addLog(`以 ${cost} 靈石兌換 ${jadeGain} 仙玉。`, 'gold')
-    render()
-    if (state.nav === 'market') renderInfo()
-  }
-
-  function enterLocation(id) {
-    state.selectedLocation = id
-    state.battle = null
-    renderInfo()
-  }
-  function backToLocations() {
-    state.selectedLocation = null
-    state.battle = null
-    renderInfo()
-  }
-  function playerAtkRange() {
-    const base = 8 + state.realm * 10 + state.layer * 2
-    const v = Math.round(base * 0.3)
-    return [Math.max(1, base - v), base + v]
-  }
-  function startBattle(monster) {
-    state.battle = { monster, monsterHp: monster.hp, log: [`你與「${monster.name}」遭遇了！`] }
-    renderInfo()
-  }
-  function battleLog(text) {
-    state.battle.log.unshift(text)
-    if (state.battle.log.length > 6) state.battle.log.pop()
-  }
-  function attackMonster() {
-    if (!state.battle) return
-    const [lo, hi] = playerAtkRange()
-    const dmg = randomInt(lo, hi)
-    state.battle.monsterHp = Math.max(0, state.battle.monsterHp - dmg)
-    battleLog(`你攻擊「${state.battle.monster.name}」，造成 ${dmg} 點傷害。`)
-    if (state.battle.monsterHp <= 0) return victory()
-    const mitigation = state.realm * 2
-    const mdmg = Math.max(1, randomInt(state.battle.monster.atkMin, state.battle.monster.atkMax) - mitigation)
-    state.hp = Math.max(0, state.hp - mdmg)
-    battleLog(`「${state.battle.monster.name}」反擊，你受到 ${mdmg} 點傷害。`)
-    if (state.hp <= 0) return defeat()
-    render()
-    renderInfo()
-  }
-  function victory() {
-    const m = state.battle.monster
-    const req = required()
-    state.xp = Math.min(req, state.xp + m.exp)
-    const loot = rollLoot(m)
-    loot.forEach((l) => addItem(l.item, l.qty))
-    const lootText = loot.length ? `，拾取 ${loot.map((l) => `${ITEMS[l.item].name} × ${l.qty}`).join('、')}` : ''
-    addLog(`擊敗「${m.name}」，獲得 ${m.exp} 點修為${lootText}。`, 'success')
-    state.battle = null
-    render()
-    renderInfo()
-  }
-  function defeat() {
-    addLog(`不敵「${state.battle.monster.name}」，你身受重傷，狼狽撤退。`, 'danger')
-    state.hp = Math.max(1, Math.round(MAX_HP * 0.2))
-    state.battle = null
-    render()
-    renderInfo()
-  }
-  function fleeBattle() {
-    addLog(`你從「${state.battle.monster.name}」身邊脫身而逃。`)
-    state.battle = null
-    render()
-    renderInfo()
-  }
-
-  function npcBidAuction(a) {
-    if (a.highestBidder === 'player') state.stones += a.currentBid
-    const bidder = BIDDERS[randomInt(0, BIDDERS.length - 1)]
-    a.currentBid += a.increment
-    a.highestBidder = bidder
-  }
-  function playerBid(id) {
-    const a = state.auctions.find((x) => x.id === id)
-    if (!a || a.timeLeft <= 0 || a.highestBidder === 'player') return
-    const target = a.highestBidder ? a.currentBid + a.increment : a.currentBid
-    if (state.stones < target) {
-      addLog('靈石不足，無法出價。', 'danger')
-      render()
-      return
-    }
-    state.stones -= target
-    a.currentBid = target
-    a.highestBidder = 'player'
-    addLog(`你於拍賣場出價 ${target} 靈石，競得「${ITEMS[a.item].name}」目前最高價。`, 'gold')
-    render()
-  }
-  function resolveAuction(a) {
-    if (a.highestBidder === 'player') {
-      addItem(a.item, a.qty)
-      addLog(`拍賣結束！你以 ${a.currentBid} 靈石標得「${ITEMS[a.item].name}」× ${a.qty}。`, 'gold')
-    } else if (a.highestBidder) {
-      addLog(`拍賣結束，「${ITEMS[a.item].name}」被${a.highestBidder}以 ${a.currentBid} 靈石標走。`)
-    } else {
-      addLog(`「${ITEMS[a.item].name}」流拍，無人出價。`)
-    }
-  }
-
-  // 玩家上架物品到拍賣場：交易所有在賣的道具（SHOP_ITEMS）不能上架
-  function listPlayerItem() {
-    const select = $('listItemSelect')
-    const priceInput = $('listPrice')
-    const itemId = select && select.value
-    const price = Math.max(0, Math.floor(Number(priceInput && priceInput.value) || 0))
-    if (!itemId) { addLog('沒有可上架的物品。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    if (SHOP_ITEMS.includes(itemId)) { addLog('交易所販售的道具無法上架拍賣場。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    if ((state.inventory[itemId] || 0) <= 0) { addLog('物品數量不足，無法上架。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    if (price <= 0) { addLog('請輸入有效的起標價格。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    state.inventory[itemId] -= 1
-    if (state.inventory[itemId] <= 0) delete state.inventory[itemId]
-    state.playerListings.push({
-      id: 'p' + Date.now() + Math.random().toString(16).slice(2, 6),
-      item: itemId, qty: 1, startPrice: price, currentBid: price,
-      highestBidder: null, timeLeft: randomInt(60, 120),
-    })
-    addLog(`將「${ITEMS[itemId].name}」送上拍賣場，起標 ${price} 靈石。`, 'gold')
-    render()
-    renderInfo()
-  }
-
-  function selectSect(id) {
-    if (state.sect === id) return
-    const s = SECTS.find((x) => x.id === id)
-    if (!s) return
-    state.sect = id
-    addLog(`你拜入「${s.name}」，正式成為門下弟子。`, 'gold')
-    render()
-    renderInfo()
-  }
-
-  function tick() {
-    // 只有在遊戲畫面顯示時才自動運轉
-    if ($('game-screen').classList.contains('hidden')) return;
-
-    state.mp = Math.min(MAX_MP, state.mp + (state.secluded ? 1 : 2))
-    state.hp = Math.min(MAX_HP, state.hp + 1)
-    for (const k of Object.keys(state.cooldowns)) {
-      if (state.cooldowns[k] > 1) state.cooldowns[k]--
-      else delete state.cooldowns[k]
-    }
-    if (state.secluded) {
-      const req = required()
-      if (state.xp >= req) {
-        state.secluded = false
-        addLog('修為已至圓滿，你緩緩出關，準備衝擊瓶頸。', 'gold')
-      } else {
-        state.xp = Math.min(req, state.xp + req * 0.03)
-        state.stones = Math.max(0, state.stones - 2)
-      }
-    }
-
-    // NPC 拍賣攤位倒數與搶標
-    state.auctions.forEach((a) => {
-      if (a.timeLeft <= 0) return
-      a.timeLeft--
-      if (a.highestBidder !== 'player' && Math.random() < 0.14) npcBidAuction(a)
-      else if (a.highestBidder === 'player' && Math.random() < 0.1) npcBidAuction(a)
-      if (a.timeLeft <= 0) {
-        resolveAuction(a)
-        Object.assign(a, createAuctionListing(a.id))
-      }
-    })
-
-    // 玩家自己上架的拍賣物品：倒數、NPC 隨機搶標、結標後結算
-    state.playerListings = state.playerListings.filter((l) => {
-      if (l.timeLeft > 0) {
-        l.timeLeft--
-        if (Math.random() < 0.12) {
-          const bidder = BIDDERS[randomInt(0, BIDDERS.length - 1)]
-          const inc = Math.max(3, Math.round(l.currentBid * 0.1))
-          l.currentBid += inc
-          l.highestBidder = bidder
+/* ---------- 拍賣 ---------- */
+function npcBidAuction(a) {
+  if (a.highestBidder === 'player') state.stones += a.currentBid       // 被超標：退還玩家押的靈石
+  a.currentBid += a.increment
+  a.highestBidder = BIDDERS[randomInt(0, BIDDERS.length - 1)]
+}
+function playerBid(id) {
+  if (!canTrade()) return
+  const a = state.auctions.find((x) => x.id === id)
+  if (!a || a.timeLeft <= 0 || a.highestBidder === 'player') return
+  const target = a.highestBidder ? a.currentBid + a.increment : a.currentBid
+  if (state.stones < target) { addLog('靈石不足，無法出價。', 'danger'); return }
+  state.stones -= target; a.currentBid = target; a.highestBidder = 'player'
+  addLog(`你於拍賣場出價 ${target} 靈石，目前領先「${ITEMS[a.item].name}」。`, 'gold')
+  renderHud(); updateAuctionLive()
+}
+function resolveAuction(a) {
+  if (a.highestBidder === 'player') { addItem(a.item, a.qty); addLog(`拍賣結束！你以 ${a.currentBid} 靈石標得「${ITEMS[a.item].name}」× ${a.qty}。`, 'gold') }
+  else if (a.highestBidder) addLog(`拍賣結束，「${ITEMS[a.item].name}」被${a.highestBidder}以 ${a.currentBid} 靈石標走。`)
+  else addLog(`「${ITEMS[a.item].name}」流拍，無人出價。`)
+}
+function listPlayerItem() {
+  if (!canTrade()) return
+  const itemId = $('listItemSelect') && $('listItemSelect').value
+  const price = Math.max(0, Math.floor(Number($('listPrice') && $('listPrice').value) || 0))
+  if (!itemId || !ITEMS[itemId]) { addLog('沒有可上架的物品。', 'danger'); return }
+  if (SHOP_ITEMS.includes(itemId)) { addLog('交易所販售的道具無法上架拍賣場。', 'danger'); return }
+  if ((state.inventory[itemId] || 0) <= 0) { addLog('物品數量不足，無法上架。', 'danger'); return }
+  if (price <= 0) { addLog('請輸入有效的起標價格。', 'danger'); return }
+  state.inventory[itemId] -= 1
+  if (state.inventory[itemId] <= 0) delete state.inventory[itemId]
+  state.playerListings.push({ id: 'p' + Date.now() + Math.random().toString(16).slice(2, 6), item: itemId, qty: 1, startPrice: price, currentBid: price, highestBidder: null, timeLeft: randomInt(60, 120) })
+  addLog(`將「${ITEMS[itemId].name}」送上拍賣場，起標 ${price} 靈石。`, 'gold')
+  renderHud(); renderInfo()
+}
+function tickPlayerListings() {
+  state.playerListings = state.playerListings.filter((l) => {
+    if (l.timeLeft > 0) {
+      l.timeLeft--
+      // 出價越接近「商店出售價」越容易有人加價；超過 PLAYER_AUCTION_MAX_RATIO 倍就沒人理
+      const fair = ITEMS[l.item].sell * l.qty, ratio = l.currentBid / fair
+      if (ratio < PLAYER_AUCTION_MAX_RATIO) {
+        const p = ratio < 0.8 ? 0.2 : ratio < 1.5 ? 0.1 : 0.04
+        if (Math.random() < p) {
+          if (l.highestBidder) l.currentBid += Math.max(1, Math.round(fair * 0.08))
+          l.highestBidder = BIDDERS[randomInt(0, BIDDERS.length - 1)]
         }
       }
-      if (l.timeLeft > 0) return true
-      if (l.highestBidder) {
-        state.stones += l.currentBid
-        addLog(`你上架的「${ITEMS[l.item].name}」被${l.highestBidder}以 ${l.currentBid} 靈石標走，所得已入帳。`, 'gold')
-      } else {
-        addItem(l.item, l.qty)
-        addLog(`你上架的「${ITEMS[l.item].name}」流拍，已退回背包。`)
-      }
-      return false
-    })
-
-    saveGame(true) // 每秒自動存檔（靜默，不顯示訊息）
-    render()
-  }
-
-  $('btnCultivate').addEventListener('click', cultivate)
-  $('btnBreak').addEventListener('click', breakthrough)
-  $('btnSeclude').addEventListener('click', toggleSeclusion)
-  $('btnSave').addEventListener('click', () => saveGame(false))
-  $('btnLoad').addEventListener('click', () => loadGame(false))
-  $('nav').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-nav]')
-    if (!btn) return
-    state.nav = btn.dataset.nav
-    renderNav()
-    renderInfo()
-  })
-  $('infoBody').addEventListener('click', (e) => {
-    const useBtn = e.target.closest('[data-use-item]')
-    if (useBtn) return useItem(useBtn.dataset.useItem)
-    const sellBtn = e.target.closest('[data-sell-item]')
-    if (sellBtn) return sellItem(sellBtn.dataset.sellItem)
-    const buyBtn = e.target.closest('[data-buy-item]')
-    if (buyBtn) return buyItem(buyBtn.dataset.buyItem)
-    const exchangeBtn = e.target.closest('[data-exchange]')
-    if (exchangeBtn) {
-      const input = $('exchangeAmount')
-      const amt = Math.max(0, Math.floor(Number(input && input.value) || 0))
-      return exchangeCurrency(amt)
     }
-    const listBtn = e.target.closest('[data-list-item]')
-    if (listBtn) return listPlayerItem()
-    const locBtn = e.target.closest('[data-location]')
-    if (locBtn) return enterLocation(locBtn.dataset.location)
-    const backBtn = e.target.closest('[data-back-location]')
-    if (backBtn) return backToLocations()
-    const challengeBtn = e.target.closest('[data-monster]')
-    if (challengeBtn) {
-      const loc = LOCATIONS.find((l) => l.id === state.selectedLocation)
-      const mon = loc && loc.monsters.find((m) => m.id === challengeBtn.dataset.monster)
-      if (mon) startBattle(mon)
-      return
-    }
-    const atkBtn = e.target.closest('[data-attack]')
-    if (atkBtn) return attackMonster()
-    const fleeBtn = e.target.closest('[data-flee]')
-    if (fleeBtn) return fleeBattle()
-    const bidBtn = e.target.closest('[data-bid]')
-    if (bidBtn) return playerBid(bidBtn.dataset.bid)
-    const sectEl = e.target.closest('[data-sect]')
-    if (sectEl) return selectSect(sectEl.dataset.sect)
+    if (l.timeLeft > 0) return true
+    if (l.highestBidder) {
+      const fee = Math.floor(l.currentBid * AUCTION_FEE), gain = l.currentBid - fee
+      state.stones += gain
+      addLog(`你上架的「${ITEMS[l.item].name}」被${l.highestBidder}以 ${l.currentBid} 靈石標走，扣除抽成 ${fee}，入帳 ${gain} 靈石。`, 'gold')
+    } else { addItem(l.item, l.qty); addLog(`你上架的「${ITEMS[l.item].name}」流拍，已退回背包。`) }
+    return false
   })
-  $('skills').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-skill]')
-    if (btn) castSkill(SKILLS[Number(btn.dataset.skill)])
-  })
-  window.addEventListener('keydown', (e) => {
-    if (e.target.closest('input, textarea, [contenteditable="true"]')) return
-    const i = Number(e.key) - 1
-    if (i >= 0 && i < SKILLS.length) castSkill(SKILLS[i])
-  })
-  window.addEventListener('beforeunload', () => saveGame(true))
+}
+function selectSect(id) {
+  const s = SECTS.find((x) => x.id === id)
+  if (!s || state.sect === id) return
+  state.sect = id
+  state.hp = Math.min(state.hp, maxHp())
+  addLog(`你拜入「${s.name}」，正式成為門下弟子。${s.bonus ? '（' + s.bonus + '）' : ''}`, 'gold')
+  renderHud(); renderInfo()
+}
 
-  setInterval(tick, 1000)
+
+/* ---------- 開始遊戲 ---------- */
+function enterGame() {
+  $('start-screen').classList.add('hidden')
+  $('game-screen').classList.remove('hidden')
+  resizeCanvas()
+  buildSkills()
+  const warnings = validateGameData()
+  const loaded = loadGame(true)
+  if (!world) loadMap(startMapId())
+  started = true
+  if (loaded) addLog('靈氣流轉，你繼續先前的修行進度。', 'gold')
+  else { addLog('你於青雲村中睜開雙眼，山風拂面，靈氣緩緩流轉。'); addLog('師尊玄真子傳音：「修行之道，貴在持之以恆。」', 'gold') }
+  warnings.forEach((t) => { addLog('資料檢查：' + t, 'danger'); console.warn('[資料檢查]', t) })
+  renderNav(); renderInfo(); renderHud()
+}
+
+
+/* ---------- 主迴圈／每秒計時 ---------- */
+let lastFrame = performance.now(), hudT = 0
+function frame(now) {
+  requestAnimationFrame(frame)
+  const dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now
+  if (!started || !world) return
+  update(dt); draw()
+  hudT += dt; if (hudT >= 0.1) { hudT = 0; renderHud() }
+}
+requestAnimationFrame(frame)
+
+let autosaveT = 0
+function tick() {
+  if (!started) return
+  const sit = player.sitting
+  state.mp = Math.min(maxMp(), state.mp + (sit ? 5 : 2))
+  state.hp = Math.min(maxHp(), state.hp + (sit ? 5 : 1))
+
+  state.auctions.forEach((a) => {
+    if (a.timeLeft <= 0) return
+    a.timeLeft--
+    if (Math.random() < (a.highestBidder === 'player' ? 0.1 : 0.14)) npcBidAuction(a)
+    if (a.timeLeft <= 0) { resolveAuction(a); Object.assign(a, createAuctionListing(a.id)) }
+  })
+  tickPlayerListings()
+
+  if (++autosaveT >= AUTOSAVE_SECONDS) { autosaveT = 0; saveGame(true) }
+  renderHud()
+  updateAuctionLive()
+}
+setInterval(tick, 1000)
+
+
+/* ---------- 事件綁定 ---------- */
+$('btnAttack').addEventListener('click', () => playerAttack())
+$('btnBreak').addEventListener('click', breakthrough)
+$('btnSit').addEventListener('click', toggleSit)
+$('btnHome').addEventListener('click', goHome)
+$('btnSave').addEventListener('click', () => saveGame(false))
+$('btnLoad').addEventListener('click', () => loadGame(false))
+$('nav').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-nav]')
+  if (btn) switchNav(btn.dataset.nav)
+})
+$('infoBody').addEventListener('click', (e) => {
+  const q = (s) => e.target.closest(s)
+  let el
+  if ((el = q('[data-use-item]'))) return useItem(el.dataset.useItem)
+  if ((el = q('[data-sell-item]'))) return sellItem(el.dataset.sellItem)
+  if ((el = q('[data-buy-item]'))) return buyItem(el.dataset.buyItem)
+  if (q('[data-exchange]')) { const i = $('exchangeAmount'); return exchangeCurrency(Math.max(0, Math.floor(Number(i && i.value) || 0))) }
+  if (q('[data-list-item]')) return listPlayerItem()
+  if ((el = q('[data-bid]'))) return playerBid(el.dataset.bid)
+  if ((el = q('[data-sect]'))) return selectSect(el.dataset.sect)
+  if (q('[data-go-home]')) return goHome()
+})
+$('skills').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-skill]')
+  if (btn) castSkill(SKILLS[Number(btn.dataset.skill)])
+})
+const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
+const typing = (e) => e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"]')
+window.addEventListener('keydown', (e) => {
+  if (!started || !world || typing(e) || e.ctrlKey || e.metaKey || e.altKey) return
+  if (MOVE_KEYS.has(e.code)) { keys[e.code] = true; e.preventDefault(); return }
+  if (e.code === 'Space' || e.code === 'KeyJ') { e.preventDefault(); playerAttack(); return }
+  if (e.code === 'KeyE') { if (!e.repeat) interactNearest(); return }
+  if (e.code === 'KeyQ') { if (!e.repeat) toggleSit(); return }
+  if (e.code === 'KeyZ') { if (!e.repeat) quickUse(QUICK_HP_ITEM); return }
+  if (e.code === 'KeyX') { if (!e.repeat) quickUse(QUICK_MP_ITEM); return }
+  const i = Number(e.key) - 1
+  if (e.key.length === 1 && i >= 0 && i < SKILLS.length) castSkill(SKILLS[i])
+})
+window.addEventListener('keyup', (e) => { if (MOVE_KEYS.has(e.code)) keys[e.code] = false; if (e.code === 'Space' && started && !typing(e)) e.preventDefault() })
+window.addEventListener('blur', () => { for (const k of Object.keys(keys)) keys[k] = false })
+window.addEventListener('beforeunload', () => { if (started) saveGame(true) })   // 還沒按「開始遊戲」時不會存檔，避免用初始資料蓋掉舊存檔
 </script>
 </body>
 </html>
