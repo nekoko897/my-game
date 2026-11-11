@@ -1,0 +1,10 @@
+{
+  "name": "xiuxian-game",
+  "version": "1.0.0",
+  "description": "問道長生修仙界",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}
