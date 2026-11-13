@@ -1019,6 +1019,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   const $ = (id) => document.getElementById(id)
   const required = () => Math.round(100 * Math.pow(1.6, state.realm) * (1 + state.layer * 0.25))
+  /* 人物修為獲取速度倍率：所有「人物修為」來源皆除以 XP_SLOW（原速 ÷ 20）。想調整速度只改這個數字即可 */
+  const XP_SLOW = 20
+  const xpGain = (n) => Math.round(n / XP_SLOW * 10) / 10
   /* ---------- 宗門加成／增益 ---------- */
   const currentSect = () => SECTS.find((s) => s.id === state.sect) || null
   // 目前宗門某種特色狀態的總值（沒有宗門 = 0）
@@ -1215,7 +1218,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       net.seenMail.add(m.id); ids.push(m.id)
       if (m.kind === 'stones') state.stones = Math.max(0, state.stones + m.amount)
       else if (m.kind === 'item') addItem(m.item, m.qty || 1)
-      else if (m.kind === 'xp') state.xp = Math.min(required(), state.xp + m.amount)
+      else if (m.kind === 'xp') state.xp = Math.min(required(), state.xp + xpGain(m.amount))
       addLog(m.text || '收到一封傳書。', m.kind === 'stones' && m.amount < 0 ? 'danger' : 'gold')
     }
     if (ids.length) { api('mail/ack', { ids }); render(); if (['bag', 'market', 'auction', 'pets'].includes(state.nav)) renderInfo() }
@@ -1331,7 +1334,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         lb.alive = false
         lb.respawnAt = Date.now() + LOCAL_BOSS.respawnSec * 1000
         const stones = 300 + state.realm * 150
-        const req = required(), xp = Math.round(req * 0.3)
+        const req = required(), xp = xpGain(req * 0.3)
         state.stones += stones
         state.xp = Math.min(req, state.xp + xp)
         if (pet) addPetXp(pet, 200 + state.realm * 100)
@@ -2107,7 +2110,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const r = q.reward
     state.contribution += r.contribution
     if (r.stones) state.stones += r.stones
-    if (r.xp) { const req = required(); state.xp = Math.min(req, state.xp + Math.round(req * r.xp)) }
+    if (r.xp) { const req = required(); state.xp = Math.min(req, state.xp + xpGain(req * r.xp)) }
     addLog(`完成宗門任務「${q.name}」，獲得${rewardText(r)}。`, 'gold')
     refreshSect()
   }
@@ -2188,7 +2191,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function cultivate() {
     const req = required()
     if (state.mp < CULTIVATE_COST || state.xp >= req) return
-    const gain = Math.round(req * (0.06 + Math.random() * 0.06) * (1 + sectBonus('cultivate') + buffVal('cultivate')))
+    const gain = xpGain(req * (0.06 + Math.random() * 0.06) * (1 + sectBonus('cultivate') + buffVal('cultivate')))
     state.mp -= CULTIVATE_COST
     state.xp = Math.min(req, state.xp + gain)
     if (Math.random() < 0.35) addLog(`運轉周天，吸納天地靈氣，修為增加 ${gain}。`)
@@ -2262,7 +2265,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       } else if (ef.type === 'restoreAll') {
         state.hp = MAX_HP; state.mp = MAX_MP; notes.push('氣血靈力全滿')
       } else if (ef.type === 'addXpPercent') {
-        const req = required(), v = Math.round(req * ef.value * pillMul)
+        const req = required(), v = xpGain(req * ef.value * pillMul)
         state.xp = Math.min(req, state.xp + v); notes.push(`修為 +${v}`)
       } else if (ef.type === 'buff') {
         const cur = state.buffs[ef.stat]
@@ -2385,7 +2388,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function victory() {
     const m = state.battle.monster
     const req = required()
-    const exp = Math.round(m.exp * (1 + sectBonus('exp')))
+    const exp = xpGain(m.exp * (1 + sectBonus('exp')))
     state.xp = Math.min(req, state.xp + exp)
     const loot = rollLoot(m)
     loot.forEach((l) => addItem(l.item, l.qty))
@@ -2487,7 +2490,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         state.secluded = false
         addLog('修為已至圓滿，你緩緩出關，準備衝擊瓶頸。', 'gold')
       } else {
-        state.xp = Math.min(req, state.xp + req * 0.03 * (1 + sectBonus('cultivate') + buffVal('cultivate')))
+        state.xp = Math.min(req, state.xp + req * 0.03 / XP_SLOW * (1 + sectBonus('cultivate') + buffVal('cultivate')))
         state.stones = Math.max(0, state.stones - 2)
       }
     }
