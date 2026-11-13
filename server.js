@@ -6,6 +6,13 @@ const http = require('http'), https = require('https'), fs = require('fs'), path
 const PORT = process.env.PORT || 3000
 const MAX_HP = 260
 
+// ===== GM 帳號 =====
+// GM 道號（小寫比對）與密碼。強烈建議在部署環境用環境變數 GM_PASSWORD 設定密碼，不要把真密碼寫進程式碼。
+// 一般玩家無法註冊或登入 GM 道號；只有密碼正確才會被視為 GM。
+const GM_NAMES = ['gm']
+const GM_PASSWORD = process.env.GM_PASSWORD || ''
+const isGMKey = (k) => GM_NAMES.includes(k)
+
 // ===== Supabase 雲端資料庫設定 =====
 const SUPABASE_HOST = 'iedoalfukazgzzpbgdzu.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_AzWFfTrZKE4UDBUPfICxHg_xlcsPvz7'
@@ -242,12 +249,16 @@ const server = http.createServer(async (req, res) => {
       if (pw.length < 4) return json(res, 400, { error: '密碼至少 4 字元' })
       const key = name.toLowerCase()
       let pl = db.players[key], created = false
-      if (!pl) {
+      if (isGMKey(key)) {
+        if (!GM_PASSWORD) return json(res, 403, { error: '伺服器尚未設定 GM_PASSWORD，GM 帳號停用' })
+        if (pw !== GM_PASSWORD) return json(res, 403, { error: '密碼錯誤' })
+        if (!pl) { const salt = crypto.randomBytes(16).toString('hex'); pl = db.players[key] = { name, salt, hash: hashPw(pw, salt), save: null, mail: [], created: now() }; created = true; dirty = true }
+      } else if (!pl) {
         const salt = crypto.randomBytes(16).toString('hex')
         pl = db.players[key] = { name, salt, hash: hashPw(pw, salt), save: null, mail: [], created: now() }; created = true; dirty = true
       } else if (hashPw(pw, pl.salt) !== pl.hash) return json(res, 403, { error: '密碼錯誤' })
       const token = crypto.randomBytes(24).toString('hex'); sessions.set(token, key)
-      return json(res, 200, { token, name: pl.name, created, save: pl.save, mail: pl.mail || [] })
+      return json(res, 200, { token, name: pl.name, created, gm: isGMKey(key), save: pl.save, mail: pl.mail || [] })
     }
     const key = sessions.get(b.token)
     if (!key) return json(res, 401, { error: '登入已失效，請重新登入' })

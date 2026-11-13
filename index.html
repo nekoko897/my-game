@@ -1064,7 +1064,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function addItem(id, qty = 1) {
     state.inventory[id] = (state.inventory[id] || 0) + qty
   }
+  // GM：背包擁有全部物品，各 99999（伺服器存檔上限）；每息補滿，上架拍賣等直接扣數量的動作也不會用完
+  function fillGMInventory() {
+    for (const id of Object.keys(ITEMS)) state.inventory[id] = 99999
+  }
   function consumeItem(id, qty = 1) {
+    if (state.isGM) return // GM：物品無限
     state.inventory[id] = (state.inventory[id] || 0) - qty
     if (state.inventory[id] <= 0) delete state.inventory[id]
   }
@@ -1562,8 +1567,10 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     btn.disabled = false; btn.textContent = '連線登入'
     if (r.error || !r.token) { err.textContent = r.error || '登入失敗'; return }
     net.token = r.token; net.name = r.name
+    state.isGM = !!r.gm
     if (r.save) Object.assign(state, r.save)
     normalizeState()
+    if (state.isGM) fillGMInventory()
     state.selectedLocation = null; state.battle = null
     $('login-screen').classList.add('hidden')
     enterOnline(r)
@@ -2507,6 +2514,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     // 只有在遊戲畫面顯示時才自動運轉
     if ($('game-screen').classList.contains('hidden')) return;
 
+    if (state.isGM) fillGMInventory()
     state.mp = Math.min(MAX_MP, state.mp + (state.secluded ? 1 : 2) + sectBonus('mpRegen'))
     state.hp = Math.min(MAX_HP, state.hp + 1 + sectBonus('hpRegen'))
     for (const k of Object.keys(state.cooldowns)) {
