@@ -48,12 +48,23 @@
   .hidden { display: none !important; }
 
   /* 首頁封面樣式 */
+  /* 封面：外層用模糊放大的 bg.jpg 填滿，內層 .start-stage 依原圖比例（1358×768）完整顯示，
+     按鈕以 .start-stage 為基準定位，任何螢幕比例都會對準圖上畫的按鈕 */
   #start-screen {
-    background-image: url('bg.jpg');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    background: #0b131a;
     z-index: 10;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  #start-screen::before {
+    content: ''; position: absolute; inset: -40px;
+    background: url('bg.jpg') center / cover no-repeat;
+    filter: blur(18px) brightness(.55);
+  }
+  .start-stage {
+    position: relative;
+    width: min(100vw, calc(100dvh * 1358 / 768));
+    aspect-ratio: 1358 / 768;
+    background: url('bg.jpg') center / 100% 100% no-repeat;
   }
   .clickable-area {
     position: absolute;
@@ -67,8 +78,26 @@
     border-radius: 8px;
   }
   /* 圖片上的按鈕精確位置（可依你的圖片位置微調百分比） */
-  #btn-start { bottom: 1%; left: 22.8%; width: 17%; height: 12%; }
-  #btn-settings-home { bottom: 1%; right: 22.8%; width: 17%; height: 12%; }
+  /* 位置為 bg.jpg 上「開始遊戲」「設定」按鈕的實際範圍（佔圖片寬高的百分比） */
+  #btn-start { top: 82%; left: 22.8%; width: 17%; height: 9.7%; }
+  #btn-settings-home { top: 82%; left: 60.5%; width: 17.2%; height: 9.7%; }
+
+  /* 缺少 bg.jpg 時的備用封面（JS 偵測圖片載入失敗後加上 .no-art） */
+  .start-fallback { display: none; }
+  #start-screen.no-art { background: radial-gradient(ellipse at 50% 30%, oklch(0.3 0.06 180) 0%, var(--background) 70%); }
+  #start-screen.no-art::before { display: none; }
+  #start-screen.no-art .start-stage {
+    background: none; aspect-ratio: auto; width: auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px;
+  }
+  #start-screen.no-art .start-fallback { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+  #start-screen.no-art .clickable-area { position: static; width: auto; height: auto; }
+  #start-screen.no-art .start-actions { display: flex; gap: 16px; }
+  .start-title { font-family: var(--serif); font-size: clamp(40px, 10vw, 72px); font-weight: 900; letter-spacing: .3em; color: var(--accent); text-shadow: 0 0 30px color-mix(in oklch, var(--accent) 40%, transparent); }
+  .start-sub { font-family: var(--serif); letter-spacing: .5em; color: var(--muted-fg); }
+  /* 遊戲畫面缺圖時：背景改漸層、頭像改文字 */
+  .app.no-bg { background: radial-gradient(ellipse at 50% 20%, oklch(0.26 0.05 190) 0%, var(--background) 75%); }
+  .avatar-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 24px; font-weight: 900; color: var(--accent); background: var(--secondary); }
 
   .app { position: relative; min-height: 100dvh; overflow: hidden; }
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -312,9 +341,25 @@
 
 <!-- 1. 遊戲首頁畫面（封面） -->
 <div id="start-screen" class="screen">
-  <button id="btn-start" class="clickable-area" onclick="showLogin()" aria-label="開始遊戲"></button>
-  <button id="btn-settings-home" class="clickable-area" onclick="alert('開啟設定選單')" aria-label="設定"></button>
+ <div class="start-stage">
+  <div class="start-fallback">
+    <h1 class="start-title">問道長生</h1>
+    <p class="start-sub">修仙界</p>
+  </div>
+  <div class="start-actions">
+    <button id="btn-start" class="clickable-area" onclick="showLogin()" aria-label="開始遊戲"><span class="start-fallback btn btn-gold">開始遊戲</span></button>
+    <button id="btn-settings-home" class="clickable-area" onclick="alert('開啟設定選單')" aria-label="設定"><span class="start-fallback btn btn-ghost">設定</span></button>
+  </div>
+ </div>
 </div>
+<script>
+  // 封面圖 bg.jpg 載不到時，改用備用封面（文字標題＋可見按鈕）
+  (function () {
+    const img = new Image()
+    img.onerror = () => document.getElementById('start-screen').classList.add('no-art')
+    img.src = 'bg.jpg'
+  })()
+</script>
 
 <!-- 1.5 登入畫面（連線模式） -->
 <div id="login-screen" class="screen hidden" style="z-index:20;display:flex;align-items:center;justify-content:center;background:color-mix(in oklch, var(--background) 82%, transparent);backdrop-filter:blur(6px)">
@@ -335,13 +380,13 @@
 <!-- 2. 遊戲主畫面（預設隱藏 .hidden） -->
 <div id="game-screen" class="screen hidden">
   <div class="app">
-    <img class="bg" src="./img/scene-peaks.png" alt="" />
+    <img class="bg" src="./img/scene-peaks.png" alt="" onerror="this.remove();document.querySelector('.app').classList.add('no-bg')" />
     <div class="veil" aria-hidden="true"></div>
 
     <div class="shell">
       <header class="panel top">
         <div class="who">
-          <div class="avatar"><img src="./img/cultivator.png" alt="角色頭像：雲逸" /></div>
+          <div class="avatar"><img src="./img/cultivator.png" alt="角色頭像：雲逸" onerror="this.outerHTML='&lt;div class=&quot;avatar-fallback&quot;&gt;仙&lt;/div&gt;'" /></div>
           <div class="col">
             <div class="name-row">
               <h1 id="playerName">雲逸</h1>
@@ -500,6 +545,7 @@
     { id: 'character', label: '角色', icon: ICON('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>') },
     { id: 'techniques', label: '功法', icon: ICON('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>') },
     { id: 'bag', label: '背包', icon: ICON('<path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect x="2" y="7" width="20" height="14" rx="2"/>') },
+    { id: 'pets', label: '靈寵', icon: ICON('<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/>') },
     { id: 'realm', label: '秘境', icon: ICON('<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>') },
     { id: 'market', label: '交易所', icon: ICON('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>') },
     { id: 'auction', label: '拍賣場', icon: ICON('<path d="m14.5 12.5-8 8a2.12 2.12 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/>') },
@@ -532,6 +578,15 @@
     demonCore: { name: '妖丹', icon: '🔴', type: 'material', rarity: '精良', sell: 35, desc: '妖獸體內凝結的靈力結晶，煉丹煉器皆可用' },
     jadeSlip: { name: '破損玉簡', icon: '📜', type: 'material', rarity: '稀有', sell: 80, desc: '殘缺的功法玉簡，或許藏有秘密' },
     thunderCrystal: { name: '雷晶', icon: '⚡', type: 'material', rarity: '史詩', sell: 220, desc: '蘊含天雷之力的罕見晶石' },
+    // ── 靈寵相關道具 ──
+    //   effect { type: 'hatch', grade }   → 孵化靈獸蛋，grade 對應 PET_GRADES 的 key
+    //   effect { type: 'feedPet', value } → 餵食靈寵，增加靈寵修為 value 點（背包「使用」= 餵給出戰靈寵）
+    commonEgg: { name: '普通靈獸蛋', icon: '🥚', type: 'egg', rarity: '精良', sell: 150, buy: 600, currency: 'stones', effect: { type: 'hatch', grade: 'common' }, desc: '可孵出煉氣～築基期的凡品靈寵，資質上限：築基' },
+    advancedEgg: { name: '高級靈獸蛋', icon: '🪺', type: 'egg', rarity: '稀有', sell: 1200, effect: { type: 'hatch', grade: 'advanced' }, desc: '秘境妖獸遺落的靈獸蛋，可孵出金丹～元嬰期的靈品靈寵，資質上限：元嬰' },
+    divineEgg: { name: '神獸蛋', icon: '🌟', type: 'egg', rarity: '史詩', sell: 6000, effect: { type: 'hatch', grade: 'divine' }, desc: '世界王魔蛟守護的上古神獸蛋，可孵出化神～大乘期的神品靈寵，資質上限：大乘' },
+    commonFeed: { name: '普通寵物飼料', icon: '🌾', type: 'feed', rarity: '普通', sell: 8, buy: 30, currency: 'stones', effect: { type: 'feedPet', value: 40 }, desc: '靈寵修為 +40' },
+    advancedFeed: { name: '高級寵物飼料', icon: '🍖', type: 'feed', rarity: '精良', sell: 60, effect: { type: 'feedPet', value: 400 }, desc: '靈寵修為 +400，秘境妖獸機率掉落' },
+    divineFeed: { name: '神級寵物飼料', icon: '🍑', type: 'feed', rarity: '史詩', sell: 400, effect: { type: 'feedPet', value: 3000 }, desc: '靈寵修為 +3000，討伐世界王機率掉落' },
     // ↑ 在這裡繼續加新道具，例如：
     // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
   }
@@ -552,7 +607,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 });
   
   /* 交易所「仙品鋪」要賣什麼，就把 ITEMS 裡有設定 buy 價格的道具 id 填進這個陣列 */
-  const SHOP_ITEMS = ['qi', 'foundation']
+  const SHOP_ITEMS = ['qi', 'foundation', 'commonEgg', 'commonFeed']
 
   /* NPC 拍賣會從這個池子隨機挑選物品與起標價（base），可自行增減項目或調整價格 */
   const AUCTION_POOL = [
@@ -560,6 +615,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     { item: 'jadeSlip', base: 60 },
     { item: 'demonCore', base: 25 },
     { item: 'foundation', base: 90 },
+    { item: 'advancedFeed', base: 80 },
   ]
   /* 拍賣場搶標的 NPC 名字，可自由增減 */
   const BIDDERS = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙', '鐵戟羅漢']
@@ -608,6 +664,62 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     // ↑ 在這裡繼續加新地點，記得 reqRealm 對應 REALMS 的索引
   ]
 
+  /* =========================================================
+   * 靈寵系統
+   * PET_GRADES：靈獸蛋品階
+   *   minRealm / maxRealm  孵化時的初始境界範圍（REALMS 索引；越高的境界機率越低）
+   *   cap                  資質上限：靈寵最高可修煉到的境界（到該境界第九層即圓滿）
+   * PET_TEMPLATES：靈寵模板，加一筆就多一種靈寵。欄位：
+   *   id、name、icon  識別、名稱、圖示
+   *   grade           品階，對應 PET_GRADES 的 key（決定由哪種蛋孵出）
+   *   atk             攻擊倍率（出戰時協同攻擊的傷害）
+   *   desc            說明
+   * ========================================================= */
+  const PET_GRADES = {
+    common:   { label: '凡品', color: 'var(--muted-fg)', minRealm: 0, maxRealm: 1, cap: 1 }, // 煉氣～築基，上限築基
+    advanced: { label: '靈品', color: 'var(--primary)', minRealm: 2, maxRealm: 3, cap: 3 },  // 金丹～元嬰，上限元嬰
+    divine:   { label: '神品', color: 'var(--accent)', minRealm: 4, maxRealm: 6, cap: 6 },   // 化神～大乘，上限大乘
+  }
+  const PET_TEMPLATES = [
+    { id: 'rabbit', name: '玉兔', icon: '🐇', grade: 'common', atk: 0.9, desc: '月下靈兔，性情溫馴，善於尋覓靈草。' },
+    { id: 'fox', name: '赤狐', icon: '🦊', grade: 'common', atk: 1.0, desc: '狡黠靈狐，擅使幻術迷惑敵人。' },
+    { id: 'sparrow', name: '青羽雀', icon: '🐦', grade: 'common', atk: 0.95, desc: '羽色青碧，鳴聲可清心寧神。' },
+    { id: 'frog', name: '金蟾', icon: '🐸', grade: 'common', atk: 0.85, desc: '口吐金霧，傳說能招財納福。' },
+    { id: 'lynx', name: '山猞', icon: '🐈', grade: 'common', atk: 1.05, desc: '山林間的靈貓，身手矯健。' },
+    { id: 'snowwolf', name: '雪狼王', icon: '🐺', grade: 'advanced', atk: 1.2, desc: '北原狼群之主，寒氣凝爪。' },
+    { id: 'roc', name: '金翅鵬', icon: '🦅', grade: 'advanced', atk: 1.3, desc: '一翼九萬里，雙爪可裂金石。' },
+    { id: 'python', name: '碧鱗蟒', icon: '🐍', grade: 'advanced', atk: 1.25, desc: '鱗甲如碧玉，毒牙穿心。' },
+    { id: 'marten', name: '紫電貂', icon: '🦡', grade: 'advanced', atk: 1.25, desc: '來去如紫電，專噬敵之靈力。' },
+    { id: 'azure', name: '青龍', icon: '🐉', grade: 'divine', atk: 1.6, desc: '東方神獸，行雲布雨，威懾萬靈。' },
+    { id: 'whitetiger', name: '白虎', icon: '🐅', grade: 'divine', atk: 1.65, desc: '西方神獸，主殺伐，金氣凜然。' },
+    { id: 'vermilion', name: '朱雀', icon: '🔥', grade: 'divine', atk: 1.6, desc: '南方神獸，浴火不滅，焚盡邪祟。' },
+    { id: 'tortoise', name: '玄武', icon: '🐢', grade: 'divine', atk: 1.5, desc: '北方神獸，龜蛇合體，萬法難侵。' },
+    { id: 'qilin', name: '麒麟', icon: '🦄', grade: 'divine', atk: 1.7, desc: '祥瑞之首，踏火而行，福澤主人。' },
+    // ↑ 在這裡繼續加新靈寵，grade 決定由哪種蛋孵出
+  ]
+  const MAX_PETS = 12 // 最多可同時擁有的靈寵數
+
+  /* 靈寵蛋 / 飼料掉落設定（chance = 機率 0~1） */
+  // 秘境：所有地點的每隻妖獸都會加上這份掉落表
+  const REALM_PET_LOOT = [
+    { item: 'advancedEgg', chance: 0.03, min: 1, max: 1 },
+    { item: 'advancedFeed', chance: 0.12, min: 1, max: 2 },
+  ]
+  // 世界王：每次出手判定一次
+  const BOSS_PET_LOOT = [
+    { item: 'divineEgg', chance: 0.01, min: 1, max: 1 },
+    { item: 'divineFeed', chance: 0.05, min: 1, max: 1 },
+  ]
+  // 世界王（單機幻影）：擊殺時額外判定一次
+  const BOSS_KILL_PET_LOOT = [
+    { item: 'divineEgg', chance: 0.2, min: 1, max: 1 },
+    { item: 'divineFeed', chance: 0.6, min: 1, max: 2 },
+  ]
+  LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push(...REALM_PET_LOOT)))
+
+  /* 單機模式的世界王（魔蛟幻影）：連線模式由伺服器提供真正的世界王 */
+  const LOCAL_BOSS = { name: '魔蛟 · 幻影', maxHp: 2500, respawnSec: 90, dmgMul: 3 }
+
   /* 已裝備法寶（目前僅顯示用，未串接戰鬥加成） */
   const ARTIFACTS = [
     { name: '青霜劍', grade: '靈器 · 上品', note: '劍氣森寒，可斬妖邪' },
@@ -639,10 +751,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     realm: 1, layer: 3, xp: 120, hp: 220, mp: 86,
     stones: 12860, jade: 36, secluded: false,
     cooldowns: {}, nav: 'character',
-    inventory: { qi: 5, foundation: 2, spiritGrass: 3 },
+    inventory: { qi: 5, foundation: 2, spiritGrass: 3, commonEgg: 1, commonFeed: 5 },
     sect: 'qingyun', contribution: 1280,
     selectedLocation: null, battle: null,
     auctions: [], playerListings: [],
+    pets: [], activePet: null, // 靈寵列表、出戰靈寵 uid
+    localBoss: { hp: LOCAL_BOSS.maxHp, alive: true, respawnAt: 0, dmg: 0 }, // 單機世界王（不存檔）
   }
 
   const $ = (id) => document.getElementById(id)
@@ -657,12 +771,125 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function addItem(id, qty = 1) {
     state.inventory[id] = (state.inventory[id] || 0) + qty
   }
-  function rollLoot(monster) {
+  function consumeItem(id, qty = 1) {
+    state.inventory[id] = (state.inventory[id] || 0) - qty
+    if (state.inventory[id] <= 0) delete state.inventory[id]
+  }
+  function rollTable(table) {
     const loot = []
-    for (const entry of monster.loot) {
+    for (const entry of table) {
       if (Math.random() < entry.chance) loot.push({ item: entry.item, qty: randomInt(entry.min, entry.max) })
     }
     return loot
+  }
+  const rollLoot = (monster) => rollTable(monster.loot)
+  const lootText = (loot) => loot.map((l) => `${ITEMS[l.item].name} × ${l.qty}`).join('、')
+
+  /* ---------- 靈寵 ---------- */
+  const realmText = (realm, layer) => `${REALMS[realm]}期第${NUM[layer - 1]}層`
+  const petTpl = (p) => PET_TEMPLATES.find((t) => t.id === p.tpl) || PET_TEMPLATES[0]
+  const petRequired = (p) => Math.round(80 * Math.pow(1.6, p.realm) * (1 + p.layer * 0.25))
+  const petMaxed = (p) => p.realm >= p.cap && p.layer >= MAX_LAYER
+  const petAtk = (p) => Math.round((4 + p.realm * 7 + p.layer * 1.2) * petTpl(p).atk)
+  const petStrike = (p) => { const a = petAtk(p); return randomInt(Math.round(a * 0.8), Math.round(a * 1.2)) }
+  const activePet = () => state.pets.find((p) => p.uid === state.activePet) || null
+
+  /* ---------- 靈寵存檔編碼（連線模式用） ----------
+   * 伺服器 server.js 存檔只保留固定欄位，inventory 只收「英文字母 key（≤24 字）→ 0~99999 的數字」，
+   * 所以連線模式把每隻靈寵編碼成一筆 inventory key 送上去，登入時再解回 state.pets：
+   *   key   = 'zqpet' + 境界(a~g) + 層數(a~i) + 出戰(y/n) + uid(6 個小寫字母) + 模板 id
+   *   value = 靈寵目前修為
+   * 因此 PET_TEMPLATES 的 id 必須是純英文字母、最多 10 字。 */
+  const PET_KEY = 'zqpet'
+  const newPetUid = () => Array.from({ length: 6 }, () => String.fromCharCode(97 + randomInt(0, 25))).join('')
+  const L = (n) => String.fromCharCode(97 + n), N = (c) => c.charCodeAt(0) - 97
+  function encodePets(inv) {
+    const out = Object.assign({}, inv)
+    for (const p of state.pets) {
+      if (!/^[a-z]{6}$/.test(p.uid)) { const old = p.uid; p.uid = newPetUid(); if (state.activePet === old) state.activePet = p.uid }
+      out[PET_KEY + L(p.realm) + L(p.layer - 1) + (p.uid === state.activePet ? 'y' : 'n') + p.uid + p.tpl] = Math.min(99999, Math.floor(p.xp))
+    }
+    return out
+  }
+  function decodePets(inv) {
+    const pets = []
+    let active = null
+    for (const [k, v] of Object.entries(inv || {})) {
+      if (!k.startsWith(PET_KEY)) continue
+      delete inv[k]
+      const body = k.slice(PET_KEY.length)
+      const tpl = PET_TEMPLATES.find((t) => t.id === body.slice(9))
+      if (!tpl || pets.length >= MAX_PETS) continue
+      const cap = PET_GRADES[tpl.grade].cap
+      const p = { uid: body.slice(3, 9), tpl: tpl.id, grade: tpl.grade, realm: Math.min(cap, Math.max(0, N(body[0]))), layer: Math.min(MAX_LAYER, Math.max(1, N(body[1]) + 1)), xp: Number(v) || 0, cap }
+      pets.push(p)
+      if (body[2] === 'y') active = p.uid
+    }
+    return { pets, active }
+  }
+
+  function hatchEgg(grade) {
+    const g = PET_GRADES[grade]
+    const pool = PET_TEMPLATES.filter((t) => t.grade === grade)
+    const tpl = pool[randomInt(0, pool.length - 1)]
+    // 初始境界：範圍內越高越稀有，權重依序為 n, n-1, …, 1
+    const span = g.maxRealm - g.minRealm + 1
+    let r = Math.random() * (span * (span + 1) / 2), realm = g.minRealm
+    for (let i = 0; i < span; i++) { r -= span - i; if (r < 0) { realm = g.minRealm + i; break } }
+    const pet = { uid: newPetUid(), tpl: tpl.id, grade, realm, layer: randomInt(1, 3), xp: 0, cap: g.cap }
+    state.pets.push(pet)
+    if (!activePet()) state.activePet = pet.uid
+    return pet
+  }
+
+  // 增加靈寵修為，滿了自動晉層／晉境，直到資質上限
+  function addPetXp(p, amount) {
+    if (!p || petMaxed(p)) return
+    p.xp += amount
+    let ups = 0
+    while (!petMaxed(p) && p.xp >= petRequired(p)) {
+      p.xp -= petRequired(p)
+      if (p.layer < MAX_LAYER) p.layer++
+      else { p.realm++; p.layer = 1 }
+      ups++
+    }
+    if (petMaxed(p)) p.xp = 0
+    if (ups) addLog(`靈寵「${petTpl(p).name}」修為精進，晉入${realmText(p.realm, p.layer)}${petMaxed(p) ? '，已達資質上限，圓滿無缺！' : '。'}`, 'success')
+  }
+
+  function refreshAfterItem() {
+    render()
+    if (['bag', 'market', 'auction', 'pets'].includes(state.nav)) renderInfo()
+  }
+
+  function feedPet(uid, feedId) {
+    const p = state.pets.find((x) => x.uid === uid)
+    const def = ITEMS[feedId]
+    if (!p || !def || !def.effect || def.effect.type !== 'feedPet') return
+    if ((state.inventory[feedId] || 0) <= 0) { addLog(`沒有「${def.name}」了。`, 'danger'); return refreshAfterItem() }
+    if (petMaxed(p)) { addLog(`「${petTpl(p).name}」已達資質上限（${REALMS[p.cap]}期圓滿），無法再精進。`, 'danger'); return refreshAfterItem() }
+    consumeItem(feedId)
+    addLog(`餵食「${petTpl(p).name}」${def.name}，靈寵修為 +${def.effect.value}。`)
+    addPetXp(p, def.effect.value)
+    refreshAfterItem()
+  }
+
+  function toggleActivePet(uid) {
+    const p = state.pets.find((x) => x.uid === uid)
+    if (!p) return
+    if (state.activePet === uid) { state.activePet = null; addLog(`「${petTpl(p).name}」回到靈獸袋中休息。`) }
+    else { state.activePet = uid; addLog(`「${petTpl(p).name}」隨你出戰。`, 'success') }
+    refreshAfterItem()
+  }
+
+  function releasePet(uid) {
+    const p = state.pets.find((x) => x.uid === uid)
+    if (!p) return
+    if (!confirm(`確定要放生「${petTpl(p).name}」（${realmText(p.realm, p.layer)}）嗎？放生後無法找回。`)) return
+    state.pets = state.pets.filter((x) => x.uid !== uid)
+    if (state.activePet === uid) state.activePet = null
+    addLog(`你將「${petTpl(p).name}」放歸山林。`)
+    refreshAfterItem()
   }
   function createAuctionListing(id) {
     const pick = AUCTION_POOL[randomInt(0, AUCTION_POOL.length - 1)]
@@ -692,7 +919,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return j
     } catch (e) { return { ok: false, error: '無法連線到伺服器' } }
   }
-  const snapshot = () => ({ realm: state.realm, layer: state.layer, xp: state.xp, hp: state.hp, mp: state.mp, stones: state.stones, jade: state.jade, inventory: state.inventory, sect: state.sect, contribution: state.contribution })
+  const snapshot = () => ({ realm: state.realm, layer: state.layer, xp: state.xp, hp: state.hp, mp: state.mp, stones: state.stones, jade: state.jade, inventory: encodePets(state.inventory), sect: state.sect, contribution: state.contribution })
   const pushSave = () => api('save', { save: snapshot() })
 
   function setNet(up) {
@@ -712,7 +939,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       else if (m.kind === 'xp') state.xp = Math.min(required(), state.xp + m.amount)
       addLog(m.text || '收到一封傳書。', m.kind === 'stones' && m.amount < 0 ? 'danger' : 'gold')
     }
-    if (ids.length) { api('mail/ack', { ids }); render(); if (['bag', 'market', 'auction'].includes(state.nav)) renderInfo() }
+    if (ids.length) { api('mail/ack', { ids }); render(); if (['bag', 'market', 'auction', 'pets'].includes(state.nav)) renderInfo() }
   }
 
   function connectStream() {
@@ -781,8 +1008,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
 
   function renderBoss() {
-    if (!isOnline()) return offlineNotice()
-    const b = net.boss
+    const lb = state.localBoss
+    const b = isOnline() ? net.boss : { name: LOCAL_BOSS.name, hp: lb.hp, maxHp: LOCAL_BOSS.maxHp, alive: lb.alive, respawnAt: lb.respawnAt, top: lb.dmg ? [{ name: pname(), dmg: lb.dmg }] : [] }
     if (!b) return '<p class="xs muted">正在感應魔蛟氣息…</p>'
     const pct = Math.max(0, Math.min(100, (b.hp / b.maxHp) * 100))
     const top = (b.top || []).map((t, i) => `<li class="row xs"><span>${i + 1}. ${esc(t.name)}</span><span class="num muted">${t.dmg.toLocaleString()}</span></li>`).join('') || '<li class="xs muted">尚無人出手</li>'
@@ -797,15 +1024,51 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       </div>
       <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">傷害榜</h3>
       <ul class="stack" style="gap:8px">${top}</ul>
-      <p class="xs muted" style="margin-top:12px;line-height:1.7">擊殺獎勵：全體參與者依傷害占比獲得靈石與修為；最後一擊得雷晶，傷害第一得破損玉簡。</p>`
+      <p class="xs muted" style="margin-top:12px;line-height:1.7">${isOnline()
+        ? '擊殺獎勵：全體參與者依傷害占比獲得靈石與修為；最後一擊得雷晶，傷害第一得破損玉簡。'
+        : `單機幻影：擊殺可得靈石與修為，並有 ${Math.round(BOSS_KILL_PET_LOOT[0].chance * 100)}% 機率獲得神獸蛋；${LOCAL_BOSS.respawnSec} 秒後重生。`}</p>
+      <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--accent)">每次出手皆有機緣：神獸蛋 ${+(BOSS_PET_LOOT[0].chance * 100).toFixed(2)}%、神級寵物飼料 ${+(BOSS_PET_LOOT[1].chance * 100).toFixed(2)}%。出戰靈寵會協同攻擊。</p>`
   }
   async function attackBoss() {
     if (state.mp < 10) { addLog('靈力不足，無法出手。', 'danger'); render(); return }
-    const r = await api('boss/attack')
-    if (!r.ok) { addLog(r.error, 'danger'); return }
-    state.mp -= 10
-    addLog(`你向「${net.boss ? net.boss.name : '魔蛟'}」發出一擊，造成 ${r.dmg} 點傷害。`, 'success')
+    const pet = activePet()
+    if (isOnline()) {
+      const r = await api('boss/attack')
+      if (!r.ok) { addLog(r.error, 'danger'); return }
+      state.mp -= 10
+      addLog(`你向「${net.boss ? net.boss.name : '魔蛟'}」發出一擊，造成 ${r.dmg} 點傷害。`, 'success')
+    } else {
+      const lb = state.localBoss
+      if (!lb.alive) return
+      const [lo, hi] = playerAtkRange()
+      const myDmg = randomInt(lo, hi) * LOCAL_BOSS.dmgMul
+      const petDmg = pet ? petStrike(pet) * LOCAL_BOSS.dmgMul : 0
+      const dmg = Math.min(lb.hp, myDmg + petDmg)
+      state.mp -= 10
+      lb.hp -= dmg
+      lb.dmg += dmg
+      addLog(`你向「${LOCAL_BOSS.name}」發出一擊${pet ? `，「${petTpl(pet).name}」協同撲擊` : ''}，共造成 ${dmg} 點傷害。`, 'success')
+      if (lb.hp <= 0) {
+        lb.alive = false
+        lb.respawnAt = Date.now() + LOCAL_BOSS.respawnSec * 1000
+        const stones = 300 + state.realm * 150
+        const req = required(), xp = Math.round(req * 0.3)
+        state.stones += stones
+        state.xp = Math.min(req, state.xp + xp)
+        if (pet) addPetXp(pet, 200 + state.realm * 100)
+        const kill = rollTable(BOSS_KILL_PET_LOOT)
+        kill.forEach((l) => addItem(l.item, l.qty))
+        addLog(`魔蛟幻影潰散！獲得 ${stones} 靈石、${xp} 修為${kill.length ? `，並拾得 ${lootText(kill)}` : ''}。`, 'gold')
+      }
+    }
+    const drops = rollTable(BOSS_PET_LOOT)
+    if (drops.length) {
+      drops.forEach((l) => addItem(l.item, l.qty))
+      addLog(`魔蛟鱗甲崩落之間，你眼明手快拾得 ${lootText(drops)}！`, 'gold')
+    }
     render()
+    if (state.nav === 'boss') renderInfo()
+    if (isOnline()) pushSave()
   }
   async function challengePlayer(name) {
     const r = await api('pvp', { target: name })
@@ -901,6 +1164,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       realm: state.realm, layer: state.layer, xp: state.xp, hp: state.hp, mp: state.mp,
       stones: state.stones, jade: state.jade,
       inventory: state.inventory, sect: state.sect, contribution: state.contribution,
+      pets: state.pets, activePet: state.activePet,
     }
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data))
@@ -924,6 +1188,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     try {
       const data = JSON.parse(raw)
       Object.assign(state, data)
+      normalizeState()
       state.selectedLocation = null
       state.battle = null
       if (!silent) addLog('已讀取存檔進度。', 'gold')
@@ -933,6 +1198,21 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       if (!silent) { addLog('讀取存檔失敗，存檔資料可能已損毀。', 'danger'); render() }
       return false
     }
+  }
+
+  // 舊存檔沒有靈寵欄位、或資料不完整時補齊
+  function normalizeState() {
+    if (!Array.isArray(state.pets)) state.pets = []
+    // 連線存檔：靈寵以編碼 key 藏在 inventory 裡，解回 state.pets
+    if (state.inventory && Object.keys(state.inventory).some((k) => k.startsWith(PET_KEY))) {
+      const d = decodePets(state.inventory)
+      state.pets = d.pets
+      state.activePet = d.active
+    }
+    state.pets = state.pets.filter((p) => p && PET_TEMPLATES.some((t) => t.id === p.tpl))
+    if (!state.pets.some((p) => p.uid === state.activePet)) state.activePet = null
+    if (!state.inventory || typeof state.inventory !== 'object') state.inventory = {}
+    for (const id of Object.keys(state.inventory)) if (!ITEMS[id]) delete state.inventory[id]
   }
 
   // 開始畫面 → 登入畫面
@@ -954,6 +1234,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (r.error || !r.token) { err.textContent = r.error || '登入失敗'; return }
     net.token = r.token; net.name = r.name
     if (r.save) Object.assign(state, r.save)
+    normalizeState()
     state.selectedLocation = null; state.battle = null
     $('login-screen').classList.add('hidden')
     enterOnline(r)
@@ -1030,6 +1311,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         break
       case 'bag':
         html = renderBag()
+        break
+      case 'pets':
+        html = renderPets()
         break
       case 'realm':
         html = renderRealm()
@@ -1120,6 +1404,66 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   modal.classList.remove('hidden'); // 顯示彈窗
 }
 
+  function renderPets() {
+    const byEffect = (type) => Object.keys(ITEMS).filter((id) => ITEMS[id].effect && ITEMS[id].effect.type === type)
+    const feeds = byEffect('feedPet')
+    const eggCards = byEffect('hatch').filter((id) => (state.inventory[id] || 0) > 0).map((id) => {
+      const def = ITEMS[id]
+      return `
+        <li class="card row">
+          <div class="cluster">
+            <div class="item-icon">${def.icon}</div>
+            <div class="col">
+              <span class="bold">${def.name} <span class="xs muted">× ${state.inventory[id]}</span></span>
+              <span class="xs muted">${def.desc}</span>
+            </div>
+          </div>
+          <button type="button" class="small-btn" data-hatch="${id}">孵化</button>
+        </li>`
+    }).join('') || '<li class="xs muted" style="line-height:1.7">沒有靈獸蛋。普通靈獸蛋可在交易所購得；高級靈獸蛋掉落於秘境妖獸；神獸蛋唯有討伐世界王魔蛟方有機緣。</li>'
+
+    const petCards = state.pets.map((p) => {
+      const t = petTpl(p), g = PET_GRADES[p.grade] || PET_GRADES.common
+      const active = p.uid === state.activePet, maxed = petMaxed(p)
+      const req = petRequired(p), pct = maxed ? 100 : Math.min(100, (p.xp / req) * 100)
+      const feedBtns = feeds.map((f) => {
+        const q = state.inventory[f] || 0
+        return `<button type="button" class="small-btn" data-pet-feed="${p.uid}" data-feed="${f}" ${q <= 0 || maxed ? 'disabled' : ''} title="${ITEMS[f].name}：${ITEMS[f].desc}">${ITEMS[f].icon} ${ITEMS[f].name.replace('寵物', '')} ${q}</button>`
+      }).join('')
+      return `
+        <li class="card" style="${active ? 'border-color:color-mix(in oklch, var(--accent) 60%, transparent);background:color-mix(in oklch, var(--accent) 6%, transparent)' : ''}">
+          <div class="row" style="align-items:flex-start">
+            <div class="cluster">
+              <div class="monster-icon" style="width:44px;height:44px;font-size:24px;border-color:${g.color}">${t.icon}</div>
+              <div class="col">
+                <span class="bold">${t.name} <span class="xs" style="color:${g.color}">${g.label}</span></span>
+                <span class="xs muted">${realmText(p.realm, p.layer)} · 攻擊 ${petAtk(p)}</span>
+              </div>
+            </div>
+            <span class="xs" style="color:${active ? 'var(--accent)' : 'var(--muted-fg)'};white-space:nowrap">${active ? '出戰中' : '休息中'}</span>
+          </div>
+          <p class="xs muted" style="margin-top:6px">${t.desc}</p>
+          <div class="row xs" style="margin-top:8px">
+            <span class="muted">資質上限：<span style="color:${g.color}">${REALMS[p.cap]}期</span></span>
+            <span class="num muted">${maxed ? '已圓滿' : `修為 ${Math.floor(p.xp)} / ${req}`}</span>
+          </div>
+          <div class="mini-track" style="margin-top:4px" aria-hidden="true"><div style="width:${pct}%;${maxed ? 'background:var(--accent)' : ''}"></div></div>
+          <div class="actions" style="justify-content:flex-start;gap:6px;margin-top:10px">
+            <button type="button" class="small-btn" data-pet-active="${p.uid}">${active ? '休息' : '出戰'}</button>
+            ${feedBtns}
+            <button type="button" class="small-btn" data-pet-release="${p.uid}" style="border-color:color-mix(in oklch, var(--destructive) 50%, transparent);color:var(--destructive)">放生</button>
+          </div>
+        </li>`
+    }).join('') || '<li class="xs muted">尚無靈寵，孵化一顆靈獸蛋吧。</li>'
+
+    return `
+      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">靈獸蛋</h3>
+      <ul class="stack" style="margin-bottom:18px">${eggCards}</ul>
+      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">我的靈寵（${state.pets.length}/${MAX_PETS}）</h3>
+      <ul class="stack">${petCards}</ul>
+      <p class="xs muted" style="margin-top:12px;line-height:1.7">出戰靈寵會在秘境與世界王戰鬥中協同攻擊，戰勝妖獸時與你一同獲得修為。靈寵修為圓滿會自動晉級，最高可修煉至資質上限的第九層。</p>`
+  }
+
   function renderRealm() {
     if (state.battle) return renderBattle()
     if (state.selectedLocation) {
@@ -1164,7 +1508,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <div class="battle">
         <div class="battle-row">
           <div class="combatant">
-            <div class="avatar" style="width:64px;height:64px"><img src="./img/cultivator.png" alt="" /></div>
+            <div class="avatar" style="width:64px;height:64px"><img src="./img/cultivator.png" alt="" onerror="this.outerHTML='&lt;div class=&quot;avatar-fallback&quot;&gt;仙&lt;/div&gt;'" /></div>
             <span class="bold xs">${esc(pname())}</span>
             <div class="track" style="width:110px"><div class="fill" style="background:var(--destructive);width:${hpPct}%"></div></div>
             <span class="xs muted num">${state.hp}/${MAX_HP}</span>
@@ -1177,6 +1521,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             <span class="xs muted num">${b.monsterHp}/${b.monster.hp}</span>
           </div>
         </div>
+        ${activePet() ? `<p class="xs muted" style="text-align:center">出戰靈寵：${petTpl(activePet()).icon} ${petTpl(activePet()).name}（${realmText(activePet().realm, activePet().layer)} · 攻擊 ${petAtk(activePet())}）</p>` : ''}
         <div class="actions" style="margin-top:14px">
           <button type="button" class="btn btn-gold" data-attack>攻擊</button>
           <button type="button" class="btn btn-ghost" data-flee>逃跑</button>
@@ -1414,8 +1759,20 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const qty = state.inventory[id] || 0
     const def = ITEMS[id]
     if (qty <= 0 || !def || !def.effect) return
-    state.inventory[id] = qty - 1
-    if (state.inventory[id] <= 0) delete state.inventory[id]
+    if (def.effect.type === 'hatch') {
+      if (state.pets.length >= MAX_PETS) { addLog(`靈寵已達上限 ${MAX_PETS} 隻，請先放生部分靈寵。`, 'danger'); return refreshAfterItem() }
+      consumeItem(id)
+      const p = hatchEgg(def.effect.grade)
+      const g = PET_GRADES[p.grade]
+      addLog(`${def.name}破殼而出——獲得${g.label}靈寵「${petTpl(p).icon} ${petTpl(p).name}」（${realmText(p.realm, p.layer)}，資質上限：${REALMS[p.cap]}期）！`, 'gold')
+      return refreshAfterItem()
+    }
+    if (def.effect.type === 'feedPet') {
+      const p = activePet()
+      if (!p) { addLog('尚無出戰靈寵，請先到「靈寵」分頁指定出戰靈寵再餵食。', 'danger'); return refreshAfterItem() }
+      return feedPet(p.uid, id)
+    }
+    consumeItem(id)
     if (def.effect.type === 'restoreMp') {
       state.mp = Math.min(MAX_MP, state.mp + def.effect.value)
       addLog(`服下「${def.name}」，${def.desc}。`, 'success')
@@ -1509,6 +1866,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const dmg = randomInt(lo, hi)
     state.battle.monsterHp = Math.max(0, state.battle.monsterHp - dmg)
     battleLog(`你攻擊「${state.battle.monster.name}」，造成 ${dmg} 點傷害。`)
+    const pet = activePet()
+    if (pet && state.battle.monsterHp > 0) {
+      const pd = petStrike(pet)
+      state.battle.monsterHp = Math.max(0, state.battle.monsterHp - pd)
+      battleLog(`靈寵「${petTpl(pet).name}」撲擊，造成 ${pd} 點傷害。`)
+    }
     if (state.battle.monsterHp <= 0) return victory()
     const mitigation = state.realm * 2
     const mdmg = Math.max(1, randomInt(state.battle.monster.atkMin, state.battle.monster.atkMax) - mitigation)
@@ -1524,8 +1887,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     state.xp = Math.min(req, state.xp + m.exp)
     const loot = rollLoot(m)
     loot.forEach((l) => addItem(l.item, l.qty))
-    const lootText = loot.length ? `，拾取 ${loot.map((l) => `${ITEMS[l.item].name} × ${l.qty}`).join('、')}` : ''
-    addLog(`擊敗「${m.name}」，獲得 ${m.exp} 點修為${lootText}。`, 'success')
+    addLog(`擊敗「${m.name}」，獲得 ${m.exp} 點修為${loot.length ? `，拾取 ${lootText(loot)}` : ''}。`, 'success')
+    if (loot.some((l) => l.item === 'advancedEgg')) addLog('妖獸巢穴中竟藏著一顆高級靈獸蛋！', 'gold')
+    addPetXp(activePet(), m.exp)
     state.battle = null
     render()
     renderInfo()
@@ -1663,10 +2027,17 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return false
     })
 
+    // 單機世界王重生
+    if (!isOnline() && !state.localBoss.alive && Date.now() >= state.localBoss.respawnAt) {
+      Object.assign(state.localBoss, { hp: LOCAL_BOSS.maxHp, alive: true, respawnAt: 0, dmg: 0 })
+      addLog(`${LOCAL_BOSS.name}再度現世，魔氣沖天！`, 'danger')
+      if (state.nav === 'boss') renderInfo()
+    }
+
     if (isOnline()) {
       if (++net.tickN % 5 === 0) pushSave() // 連線模式：每 5 秒同步到伺服器
-      tickTimers()
     } else saveGame(true) // 單機模式：每秒自動存檔（靜默）
+    tickTimers()
     render()
   }
 
@@ -1737,6 +2108,14 @@ $('bag-modal').addEventListener('click', (e) => {
     if (bidBtn) return playerBid(bidBtn.dataset.bid)
     const sectEl = e.target.closest('[data-sect]')
     if (sectEl) return selectSect(sectEl.dataset.sect)
+    const hatchBtn = e.target.closest('[data-hatch]')
+    if (hatchBtn) return useItem(hatchBtn.dataset.hatch)
+    const feedBtn = e.target.closest('[data-pet-feed]')
+    if (feedBtn) return feedPet(feedBtn.dataset.petFeed, feedBtn.dataset.feed)
+    const petActBtn = e.target.closest('[data-pet-active]')
+    if (petActBtn) return toggleActivePet(petActBtn.dataset.petActive)
+    const petRelBtn = e.target.closest('[data-pet-release]')
+    if (petRelBtn) return releasePet(petRelBtn.dataset.petRelease)
     const nb = e.target.closest('[data-net-bid]')
     if (nb) return netBid(nb.dataset.netBid)
     if (e.target.closest('[data-net-list]')) return netList()
