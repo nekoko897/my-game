@@ -1042,7 +1042,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
    *   XP_SLOW_BASE        1 級（煉氣 1 層）的減速倍數：原速 ÷ 20
    *   XP_SLOW_PER_LEVEL   每升一層，減速倍數增加的比例（等級序號 = 境界 × 9 + 層數 - 1，共 0～62）
    *   例：煉氣 1 層 ÷20、煉氣 9 層 ÷36、築基 1 層 ÷38、大乘 9 層 ÷144 */
-  const XP_SLOW_BASE = 10
+  const XP_SLOW_BASE = 5
   const XP_SLOW_PER_LEVEL = 0.1
   const xpSlow = () => XP_SLOW_BASE * (1 + (state.realm * MAX_LAYER + state.layer - 1) * XP_SLOW_PER_LEVEL)
   const xpGain = (n) => Math.round(n / xpSlow() * 100) / 100
