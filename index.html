@@ -718,6 +718,25 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   /* 拍賣場搶標的 NPC 名字，可自由增減 */
   const BIDDERS = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙', '鐵戟羅漢']
 
+  /* 拍賣場參數
+   *   AUCTION_DURATION      每件拍賣品的拍賣時間（秒）：10 分鐘
+   *   AUCTION_BID_CHANCE    NPC 每分鐘搶標機率，依物品稀有度：普通 15%，越珍貴越高（NPC 與玩家上架的物品通用）
+   *   NPC_LIST_MIN / MAX    NPC 隨機上架的間隔（秒）：5～20 分鐘 */
+  const AUCTION_DURATION = 600
+  const AUCTION_BID_CHANCE = { '普通': 0.15, '精良': 0.22, '稀有': 0.30, '史詩': 0.40 }
+  const NPC_LIST_MIN = 300
+  const NPC_LIST_MAX = 1200
+  /* NPC 出價上限：單件物品的基準價（道具的 sell）× 下列倍率 × 數量。
+   * 搶標後的價格若會超過上限，NPC 就不出價，避免玩家用天價起標賺走 NPC 的靈石 */
+  const AUCTION_PRICE_CAP = { '普通': 1.5, '精良': 2, '稀有': 2.5, '史詩': 3 }
+  const npcMaxPrice = (itemId, qty) => {
+    const d = ITEMS[itemId] || {}
+    return Math.round((d.sell || 0) * (qty || 1) * (AUCTION_PRICE_CAP[d.rarity] || 1.5))
+  }
+  const playerListingInc = (l) => Math.max(3, Math.round(l.currentBid * 0.1))
+  const npcBidChance = (itemId) => AUCTION_BID_CHANCE[(ITEMS[itemId] || {}).rarity] || 0.15
+  const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+
   /* =========================================================
    * 秘境／狩獵地點：依境界解鎖
    * 新增地點：在陣列中加入一個物件。欄位：
@@ -1002,8 +1021,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
    * 玩家初始數值：開新遊戲、或找不到存檔時使用的起始狀態
    * ========================================================= */
   const state = {
-    realm: 1, layer: 3, xp: 120, hp: 220, mp: 86,
-    stones: 12860, jade: 36, secluded: false,
+    realm: 0, layer: 0, xp: 0, hp: 100, mp: 20,
+    stones: 1000, jade: 36, secluded: false,
     cooldowns: {}, nav: 'character',
     inventory: { qi: 5, foundation: 2, spiritGrass: 3, commonEgg: 1, commonFeed: 5 },
     sect: '', contribution: 0, // 初始為散修，到「宗門」分頁拜入
@@ -1174,13 +1193,15 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     refreshAfterItem()
   }
   function createAuctionListing(id) {
+    id = id || 'a' + Date.now() + randomInt(0, 999)
     const pick = AUCTION_POOL[randomInt(0, AUCTION_POOL.length - 1)]
     const base = Math.max(10, pick.base + randomInt(-5, 15))
-    return { id, item: pick.item, qty: randomInt(1, 2), currentBid: base, highestBidder: null, timeLeft: randomInt(45, 90), increment: Math.max(5, Math.round(base * 0.12)) }
+    return { id, item: pick.item, qty: randomInt(1, 2), currentBid: base, highestBidder: null, timeLeft: AUCTION_DURATION, increment: Math.max(5, Math.round(base * 0.12)) }
   }
 
-  // 初始化三個 NPC 拍賣攤位（需在 randomInt / createAuctionListing 定義之後執行）
-  state.auctions = ['a1', 'a2', 'a3'].map(createAuctionListing)
+  // 開局先有一件 NPC 拍賣品，之後每 5～20 分鐘會有 NPC 隨機再上架一件（需在 randomInt / createAuctionListing 定義之後執行）
+  state.auctions = [createAuctionListing()]
+  state.nextNpcListIn = randomInt(NPC_LIST_MIN, NPC_LIST_MAX)
 
   /* =========================================================
    * 連線層（ORPG）：登入、SSE 即時推送、聊天、PvP、共享拍賣、世界 Boss
@@ -1448,6 +1469,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       inventory: state.inventory, sect: state.sect, contribution: state.contribution,
       pets: state.pets, activePet: state.activePet,
       quests: state.quests, buffs: state.buffs, breakBonus: state.breakBonus,
+      auctions: state.auctions, playerListings: state.playerListings, nextNpcListIn: state.nextNpcListIn,
     }
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data))
@@ -1486,6 +1508,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   // 舊存檔沒有靈寵欄位、或資料不完整時補齊
   function normalizeState() {
     if (!Array.isArray(state.pets)) state.pets = []
+    if (!Array.isArray(state.auctions)) state.auctions = []
+    if (!Array.isArray(state.playerListings)) state.playerListings = []
+    state.auctions = state.auctions.filter((a) => a && ITEMS[a.item])
+    state.playerListings = state.playerListings.filter((l) => l && ITEMS[l.item])
+    if (!Number.isFinite(state.nextNpcListIn)) state.nextNpcListIn = randomInt(NPC_LIST_MIN, NPC_LIST_MAX)
     // 連線存檔：靈寵以編碼 key 藏在 inventory 裡，解回 state.pets
     if (state.inventory && Object.keys(state.inventory).some((k) => k.startsWith(PET_KEY))) {
       const d = decodePets(state.inventory)
@@ -1884,14 +1911,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
                 <span class="xs muted">${a.highestBidder ? `目前最高：${mine ? '你' : a.highestBidder}` : '尚無人出價'}</span>
               </div>
             </div>
-            <span class="xs muted num" style="white-space:nowrap">剩餘 ${a.timeLeft}s</span>
+            <span class="xs muted num" style="white-space:nowrap">剩餘 ${fmtTime(a.timeLeft)}</span>
           </div>
           <div class="row" style="margin-top:10px">
             <span class="xs muted">目前出價 <span class="bold num" style="color:var(--accent)">${a.currentBid}</span> 靈石</span>
             <button type="button" class="small-btn" data-bid="${a.id}" ${mine ? 'disabled' : ''}>${mine ? '領先中' : `出價 ${target}`}</button>
           </div>
         </li>`
-    }).join('')
+    }).join('') || '<li class="xs muted">目前沒有 NPC 拍賣品，過一陣子會有人上架。</li>'
 
     // 可上架拍賣的物品：排除 SHOP_ITEMS（交易所買得到的丹藥無法上架）
     const eligible = Object.entries(state.inventory).filter(([id, q]) => q > 0 && !SHOP_ITEMS.includes(id))
@@ -1912,9 +1939,10 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
                     <span class="xs muted">${l.highestBidder ? `目前出價者：${l.highestBidder}` : '尚無人出價'}</span>
                   </div>
                 </div>
-                <span class="xs muted num" style="white-space:nowrap">剩餘 ${l.timeLeft}s</span>
+                <span class="xs muted num" style="white-space:nowrap">剩餘 ${fmtTime(l.timeLeft)}</span>
               </div>
               <p class="xs muted" style="margin-top:8px">起標 ${l.startPrice} 靈石 · 目前 <span class="bold num" style="color:var(--accent)">${l.currentBid}</span> 靈石</p>
+              ${l.currentBid + playerListingInc(l) > npcMaxPrice(l.item, l.qty) ? `<p class="xs" style="margin-top:4px;color:var(--destructive)">價格已超過 NPC 願意出的上限（${npcMaxPrice(l.item, l.qty)} 靈石），不會有人搶標，可能流拍。</p>` : ''}
             </li>`
         }).join('')
       : '<li class="xs muted">尚未上架任何物品</li>'
@@ -2463,7 +2491,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     state.playerListings.push({
       id: 'p' + Date.now() + Math.random().toString(16).slice(2, 6),
       item: itemId, qty: 1, startPrice: price, currentBid: price,
-      highestBidder: null, timeLeft: randomInt(60, 120),
+      highestBidder: null, timeLeft: AUCTION_DURATION,
     })
     addLog(`將「${ITEMS[itemId].name}」送上拍賣場，起標 ${price} 靈石。`, 'gold')
     render()
@@ -2495,26 +2523,32 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       }
     }
 
-    // NPC 拍賣攤位倒數與搶標（連線模式改用全服拍賣，此處略過）
-    if (!isOnline()) state.auctions.forEach((a) => {
-      if (a.timeLeft <= 0) return
-      a.timeLeft--
-      if (a.highestBidder !== 'player' && Math.random() < 0.14) npcBidAuction(a)
-      else if (a.highestBidder === 'player' && Math.random() < 0.1) npcBidAuction(a)
-      if (a.timeLeft <= 0) {
-        resolveAuction(a)
-        Object.assign(a, createAuctionListing(a.id))
+    // NPC 隨機上架、拍賣倒數與搶標（連線模式改用全服拍賣，此處略過）
+    if (!isOnline()) {
+      if (--state.nextNpcListIn <= 0) {
+        const l = createAuctionListing()
+        state.auctions.push(l)
+        state.nextNpcListIn = randomInt(NPC_LIST_MIN, NPC_LIST_MAX)
+        addLog(`有人在拍賣場上架了「${ITEMS[l.item].name}」× ${l.qty}，起標 ${l.currentBid} 靈石。`)
       }
-    })
+      state.auctions = state.auctions.filter((a) => {
+        a.timeLeft--
+        // 每過一分鐘，其他 NPC 依物品稀有度判定一次搶標
+        if (a.timeLeft % 60 === 0 && Math.random() < npcBidChance(a.item) && a.currentBid + a.increment <= npcMaxPrice(a.item, a.qty)) npcBidAuction(a)
+        if (a.timeLeft > 0) return true
+        resolveAuction(a)
+        return false
+      })
+    }
 
     // 玩家自己上架的拍賣物品：倒數、NPC 隨機搶標、結標後結算
     if (!isOnline()) state.playerListings = state.playerListings.filter((l) => {
       if (l.timeLeft > 0) {
         l.timeLeft--
-        if (Math.random() < 0.12) {
+        // 價格超過 NPC 願意出的上限就不會搶標
+        if (l.timeLeft % 60 === 0 && Math.random() < npcBidChance(l.item) && l.currentBid + playerListingInc(l) <= npcMaxPrice(l.item, l.qty)) {
           const bidder = BIDDERS[randomInt(0, BIDDERS.length - 1)]
-          const inc = Math.max(3, Math.round(l.currentBid * 0.1))
-          l.currentBid += inc
+          l.currentBid += playerListingInc(l)
           l.highestBidder = bidder
         }
       }
