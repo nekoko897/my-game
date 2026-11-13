@@ -1,36 +1,67 @@
 /* 問道長生 · ORPG 伺服器（零依賴，只需 Node 16+）
  * 啟動：node server.js   → 開啟 http://localhost:3000
- * 資料存於 Supabase 雲端資料庫。
+ * 資料存於 Supabase 雲端資料庫（使用內建 https 模組）。
  */
-const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto')
+const http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), crypto = require('crypto')
 const PORT = process.env.PORT || 3000
 const MAX_HP = 260
 
 // ===== Supabase 雲端資料庫設定 =====
-const SUPABASE_URL = 'https://iedoalfukazgzpbgdzu.supabase.co'
+const SUPABASE_HOST = 'iedoalfukazgzpbgdzu.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_AzWFfTrZKE4UDBUPfICxHg_xlcsPvz7'
 
 let db = { players: {}, nextId: 1, auctions: [] }
 
+// 封裝一個用來跟 Supabase 溝通的標準 HTTPS 請求函式
+function supabaseRequest(method, endpoint, data = null) {
+  return new Promise((resolve, reject) => {
+    const bodyStr = data ? JSON.stringify(data) : ''
+    const options = {
+      hostname: SUPABASE_HOST,
+      path: endpoint,
+      method: method,
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
+        'Prefer': 'return=minimal'
+      }
+    }
+
+    const req = https.request(options, (res) => {
+      let rawData = ''
+      res.on('data', (chunk) => { rawData += chunk })
+      res.on('end', () => {
+        try {
+          const json = rawData ? JSON.parse(rawData) : null
+          resolve({ status: res.statusCode, data: json })
+        } catch (e) {
+          resolve({ status: res.statusCode, data: rawData })
+        }
+      })
+    })
+
+    req.on('error', (e) => { reject(e) })
+    if (bodyStr) req.write(bodyStr)
+    req.end()
+  })
+}
+
 // 從 Supabase 雲端載入資料
 async function loadFromCloud() {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/game_store?id=eq.main_db&select=data`, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`
+    const result = await supabaseRequest('GET', '/rest/v1/game_store?id=eq.main_db&select=data')
+    if (result.status >= 200 && result.status < 300) {
+      const rows = result.data
+      if (rows && rows.length > 0 && rows[0].data && Object.keys(rows[0].data).length > 0) {
+        db = Object.assign(db, rows[0].data)
+        console.log('成功從雲端載入遊戲資料！')
+      } else {
+        console.log('雲端目前資料為空，使用初始空資料')
       }
-    })
-    if (!res.ok) {
-      console.error('從雲端載入失敗，HTTP 狀態碼：', res.status)
-      return
-    }
-    const rows = await res.json()
-    if (rows && rows.length > 0 && rows[0].data && Object.keys(rows[0].data).length > 0) {
-      db = Object.assign(db, rows[0].data)
-      console.log('成功從雲端載入遊戲資料！')
     } else {
-      console.log('雲端目前資料為空，使用初始空資料')
+      console.error('從雲端載入失敗，HTTP 狀態碼：', result.status, result.data)
     }
   } catch (e) {
     console.error('從雲端載入發生例外錯誤：', e.message)
@@ -44,18 +75,9 @@ async function persistToCloud() {
   if (!dirty) return
   dirty = false
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/game_store?id=eq.main_db`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({ data: db })
-    })
-    if (!res.ok) {
-      console.error('雲端存檔失敗，HTTP 狀態碼：', res.status)
+    const result = await supabaseRequest('PATCH', '/rest/v1/game_store?id=eq.main_db', { data: db })
+    if (result.status < 200 || result.status >= 300) {
+      console.error('雲端存檔失敗，HTTP 狀態碼：', result.status, result.data)
       dirty = true // 失敗時保留變更，下次重試
     }
   } catch (e) {
@@ -293,7 +315,7 @@ const server = http.createServer(async (req, res) => {
         mail(winner, { kind: 'stones', amount: loot, text: `切磋勝出，奪得 ${loot} 靈石。` })
         mail(loser, { kind: 'stones', amount: -loot, text: `切磋落敗，損失 ${loot} 靈石。` })
       }
-      sysChat(`「${pl.name}」向「${tp.name}」發起切磋，勝者：${db.players[winner].name}${loot > 0 ? `（奪得 ${loot} 靈石）` : ''}。`)
+      sysChat(`👤「${pl.name}」向「${tp.name}」發起切磋，勝者：${db.players[winner].name}${loot > 0 ? `（奪得 ${loot} 靈石）` : ''}。`)
       return json(res, 200, { ok: true, win, loot })
     }
     if (p === '/api/boss/attack') {
