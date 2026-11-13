@@ -310,20 +310,3 @@ const server = http.createServer(async (req, res) => {
 loadFromCloud().then(() => {
   server.listen(PORT, '0.0.0.0', () => console.log(`問道長生 ORPG 已啟動：http://localhost:${PORT}`))
 })
-```[cite: 17]
-
----
-
-### 補充說明（第二步的「手動新增初始資料」是什麼意思？）
-
-剛才在 Supabase 建立好 `game_store` 表格後，因為裡面是空的，伺服器第一次啟動去雲端抓資料時會找不到東西。
-
-如果你還沒手動新增那筆資料，請回到 Supabase 的 **Table Editor** $\rightarrow$ 點選左側的 `game_store` 表格，然後依照以下步驟補做：
-
-1. 點擊右上角的綠色 **`Insert`** 按鈕，選擇 **`Insert row`**。
-2. 在欄位裡填入：
-   * **`id`** 填入：`main_db`
-   * **`data`** 填入：`{}`
-3. 點擊右下角 **Save** 儲存。
-
-只要完成這個動作，再把上面改好的 `server.js` 放到 GitHub 並讓 Render 重新部署，你的修仙遊戲就完美連上雲端資料庫了！
