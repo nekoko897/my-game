@@ -6,9 +6,9 @@ const http = require('http'), fs = require('fs'), path = require('path'), crypto
 const PORT = process.env.PORT || 3000
 const MAX_HP = 260
 
-// ===== Supabase 雲端資料庫設定（已帶入你的專案資訊） =====
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iedoalfukazgzpbgdzu.supabase.co'
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_AzWFfTrZKE4UDBUPfICxHg_xlcsPvz7'
+// ===== Supabase 雲端資料庫設定 =====
+const SUPABASE_URL = 'https://iedoalfukazgzpbgdzu.supabase.co'
+const SUPABASE_KEY = 'sb_publishable_AzWFfTrZKE4UDBUPfICxHg_xlcsPvz7'
 
 let db = { players: {}, nextId: 1, auctions: [] }
 
@@ -21,13 +21,19 @@ async function loadFromCloud() {
         'Authorization': `Bearer ${SUPABASE_KEY}`
       }
     })
+    if (!res.ok) {
+      console.error('從雲端載入失敗，HTTP 狀態碼：', res.status)
+      return
+    }
     const rows = await res.json()
     if (rows && rows.length > 0 && rows[0].data && Object.keys(rows[0].data).length > 0) {
       db = Object.assign(db, rows[0].data)
       console.log('成功從雲端載入遊戲資料！')
+    } else {
+      console.log('雲端目前資料為空，使用初始空資料')
     }
   } catch (e) {
-    console.error('從雲端載入失敗', e.message)
+    console.error('從雲端載入發生例外錯誤：', e.message)
   }
 }
 
@@ -38,7 +44,7 @@ async function persistToCloud() {
   if (!dirty) return
   dirty = false
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/game_store?id=eq.main_db`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/game_store?id=eq.main_db`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -48,8 +54,13 @@ async function persistToCloud() {
       },
       body: JSON.stringify({ data: db })
     })
+    if (!res.ok) {
+      console.error('雲端存檔失敗，HTTP 狀態碼：', res.status)
+      dirty = true // 失敗時保留變更，下次重試
+    }
   } catch (e) {
-    console.error('雲端存檔失敗', e.message)
+    console.error('雲端存檔發生例外錯誤：', e.message)
+    dirty = true
   }
 }
 setInterval(persistToCloud, 5000)
