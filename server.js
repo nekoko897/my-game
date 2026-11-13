@@ -1,18 +1,63 @@
 /* 問道長生 · ORPG 伺服器（零依賴，只需 Node 16+）
  * 啟動：node server.js   → 開啟 http://localhost:3000
- * 資料存於 data.json。
+ * 資料存於 Supabase 雲端資料庫。
  */
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto')
 const PORT = process.env.PORT || 3000
-const DB_FILE = path.join(__dirname, 'data.json')
 const MAX_HP = 260
 
+// ===== Supabase 雲端資料庫設定（已帶入你的專案資訊） =====
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iedoalfukazgzpbgdzu.supabase.co'
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_AzWFfTrZKE4UDBUPfICxHg_xlcsPvz7'
+
 let db = { players: {}, nextId: 1, auctions: [] }
-try { db = Object.assign(db, JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))) } catch (e) {}
+
+// 從 Supabase 雲端載入資料
+async function loadFromCloud() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/game_store?id=eq.main_db&select=data`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    })
+    const rows = await res.json()
+    if (rows && rows.length > 0 && rows[0].data && Object.keys(rows[0].data).length > 0) {
+      db = Object.assign(db, rows[0].data)
+      console.log('成功從雲端載入遊戲資料！')
+    }
+  } catch (e) {
+    console.error('從雲端載入失敗', e.message)
+  }
+}
+
+// 寫入資料到 Supabase 雲端
 let dirty = false
-const persist = () => { if (!dirty) return; dirty = false; try { fs.writeFileSync(DB_FILE + '.tmp', JSON.stringify(db)); fs.renameSync(DB_FILE + '.tmp', DB_FILE) } catch (e) { console.error('存檔失敗', e.message) } }
-setInterval(persist, 5000)
-process.on('SIGINT', () => { dirty = true; persist(); process.exit(0) })
+const persist = () => { dirty = true }
+async function persistToCloud() {
+  if (!dirty) return
+  dirty = false
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/game_store?id=eq.main_db`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ data: db })
+    })
+  } catch (e) {
+    console.error('雲端存檔失敗', e.message)
+  }
+}
+setInterval(persistToCloud, 5000)
+process.on('SIGINT', async () => { 
+  dirty = true
+  await persistToCloud()
+  process.exit(0) 
+})
 
 const sessions = new Map()   // token -> name key
 const clients = new Map()    // token -> { res, key }
@@ -87,21 +132,18 @@ setInterval(() => {
 setInterval(() => {
   const t = now();
   db.auctions.forEach(a => {
-    // 確保拍賣還在進行中、且目前最高價不是玩家、且隨機機率調低（例如原本 0.05 改為 0.01 降低頻率）
     if (a.endsAt > t && !a.bidder && Math.random() < 0.01) {
       const npcNames = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙'];
       const randomNpc = npcNames[Math.floor(Math.random() * npcNames.length)];
-      // 隨機以 10% 或 30% 加價
       const rate = Math.random() < 0.7 ? 0.1 : 0.3;
       const inc = Math.ceil(a.current * rate);
       a.current += inc;
-      // 這裡可以用一個虛擬的 key 代表 NPC
       a.bidder = 'npc_' + randomNpc; 
       dirty = true;
       broadcast('auctions', pubAuctions());
     }
   });
-}, 5000); // 每 5 秒檢查一次，且機率降低，大幅減少 NPC 出價頻率
+}, 5000);
 
 /* ---------- PvP ---------- */
 function duel(a, b) {
@@ -214,7 +256,6 @@ const server = http.createServer(async (req, res) => {
       if (a.seller === key) return json(res, 400, { error: '不能競標自己的物品' })
       if (a.bidder === key) return json(res, 400, { error: '你已是最高出價者' })
       
-      // 支援前端傳入指定的競標金額，若無則預設為原本邏輯
       const basePrice = a.bidder ? a.current : a.start;
       const amount = b.amount ? num(b.amount, basePrice + 1, 1e12) : (a.bidder ? a.current + a.inc : a.start);
 
@@ -223,7 +264,6 @@ const server = http.createServer(async (req, res) => {
       
       if (a.bidder) mail(a.bidder, { kind: 'stones', amount: a.current, text: `你在拍賣中被超越，退還 ${a.current} 靈石。` })
       a.current = amount; a.bidder = key; 
-      // 剩餘時間少於 15 秒（15000ms）時，有人出價自動延長 15 秒防搶標（可選）
       if (a.endsAt - now() < 15000) a.endsAt += 15000; 
       dirty = true
       
@@ -265,4 +305,25 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(full).toLowerCase()] || 'application/octet-stream' }); res.end(buf)
   })
 })
-server.listen(PORT, '0.0.0.0', () => console.log(`問道長生 ORPG 已啟動：http://localhost:${PORT}`))
+
+// 先從雲端載入資料後，再啟動伺服器
+loadFromCloud().then(() => {
+  server.listen(PORT, '0.0.0.0', () => console.log(`問道長生 ORPG 已啟動：http://localhost:${PORT}`))
+})
+```[cite: 17]
+
+---
+
+### 補充說明（第二步的「手動新增初始資料」是什麼意思？）
+
+剛才在 Supabase 建立好 `game_store` 表格後，因為裡面是空的，伺服器第一次啟動去雲端抓資料時會找不到東西。
+
+如果你還沒手動新增那筆資料，請回到 Supabase 的 **Table Editor** $\rightarrow$ 點選左側的 `game_store` 表格，然後依照以下步驟補做：
+
+1. 點擊右上角的綠色 **`Insert`** 按鈕，選擇 **`Insert row`**。
+2. 在欄位裡填入：
+   * **`id`** 填入：`main_db`
+   * **`data`** 填入：`{}`
+3. 點擊右下角 **Save** 儲存。
+
+只要完成這個動作，再把上面改好的 `server.js` 放到 GitHub 並讓 Render 重新部署，你的修仙遊戲就完美連上雲端資料庫了！
