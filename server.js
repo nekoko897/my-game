@@ -286,10 +286,17 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true })
     }
     if (p === '/api/auction/list') {
-      const item = String(b.item || ''), price = num(b.price, 1, 1e7)
-      if (!/^[A-Za-z]{1,24}$/.test(item) || price < 1) return json(res, 400, { error: '參數錯誤' })
+      // price 為整組起標總價（客戶端 = 每件單價 × 數量），qty 為上架數量
+      const item = String(b.item || ''), qty = num(b.qty || 1, 1, 99999), price = num(b.price, 1, 1e12)
+      if (!/^[A-Za-z]{1,24}$/.test(item) || price < 1 || qty < 1) return json(res, 400, { error: '參數錯誤' })
       if (db.auctions.filter((a) => a.seller === key).length >= 5) return json(res, 400, { error: '最多同時上架 5 件' })
-      const a = { id: 'a' + db.nextId++, seller: key, item, qty: 1, start: price, current: price, bidder: null, inc: Math.max(3, Math.round(price * 0.1)), endsAt: now() + 180000 }
+      // 以伺服器記錄的背包（Supabase 存檔）驗證持有數量，並先在伺服器端扣除
+      const inv = (pl.save && pl.save.inventory) || {}
+      if ((inv[item] || 0) < qty) return json(res, 400, { error: '背包中的物品數量不足' })
+      inv[item] -= qty
+      if (inv[item] <= 0) delete inv[item]
+      pl.save.inventory = inv
+      const a = { id: 'a' + db.nextId++, seller: key, item, qty, start: price, current: price, bidder: null, inc: Math.max(3, Math.round(price * 0.1)), endsAt: now() + 180000 }
       db.auctions.push(a); dirty = true
       broadcast('auctions', pubAuctions())
       return json(res, 200, { ok: true })

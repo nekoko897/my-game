@@ -1410,7 +1410,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             <span class="xs muted num" style="white-space:nowrap">剩餘 <span data-ends="${a.endsAt}"></span>s</span>
           </div>
           <div class="row" style="margin-top:8px">
-            <span class="xs muted">目前 <span class="bold num" style="color:var(--accent)">${a.current}</span> 靈石</span>
+            <span class="xs muted">目前 <span class="bold num" style="color:var(--accent)">${a.current}</span> 靈石${a.qty > 1 ? `（每件約 ${Math.round(a.current / a.qty)}）` : ''}</span>
           </div>
           <div class="actions" style="justify-content:flex-start; margin-top:8px; gap:4px; flex-wrap:wrap;">
             <button type="button" class="small-btn" data-net-bid-rate="${a.id}" data-rate="0.1" ${mineSell || lead ? 'disabled' : ''}>+10% (${bid10})</button>
@@ -1426,10 +1426,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">全服拍賣</h3>
       <ul class="stack" style="margin-bottom:18px">${cards}</ul>
       <div class="card">
-        <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:10px">上架我的物品（每次 1 件，最多同時 5 件）</h3>
+        <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:10px">上架我的物品（可選數量，價格為每件單價，最多同時 5 件）</h3>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <select id="listItemSelect" class="exchange-input" style="flex:2;min-width:140px">${options}</select>
-          <input id="listPrice" class="exchange-input" type="number" min="1" placeholder="起標靈石" style="flex:1;min-width:90px" />
+          <input id="listQty" class="exchange-input" type="number" min="1" step="1" value="1" placeholder="數量" style="flex:0 0 70px;min-width:60px" aria-label="上架數量" />
+          <input id="listPrice" class="exchange-input" type="number" min="1" placeholder="每件起標靈石" style="flex:1;min-width:100px" aria-label="每件起標價格" />
           <button type="button" class="small-btn" data-net-list>上架</button>
         </div>
       </div>`
@@ -1454,11 +1455,13 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const price = Math.max(0, Math.floor(Number($('listPrice') && $('listPrice').value) || 0))
     if (!itemId || (state.inventory[itemId] || 0) <= 0) { addLog('沒有可上架的物品。', 'danger'); return }
     if (SHOP_ITEMS.includes(itemId)) { addLog('交易所販售的道具無法上架拍賣場。', 'danger'); return }
-    if (price <= 0) { addLog('請輸入有效的起標價格。', 'danger'); return }
-    state.inventory[itemId] -= 1
-    if (state.inventory[itemId] <= 0) delete state.inventory[itemId]
-    const r = await api('auction/list', { item: itemId, price })
-    if (!r.ok) { addItem(itemId, 1); addLog(r.error, 'danger') } else { addLog(`將「${ITEMS[itemId].name}」送上全服拍賣，起標 ${price} 靈石。`, 'gold'); pushSave() }
+    const qty = Math.max(1, Math.floor(Number($('listQty') && $('listQty').value) || 1))
+    if (price <= 0) { addLog('請輸入有效的每件起標價格。', 'danger'); return }
+    if (qty > (state.inventory[itemId] || 0)) { addLog('物品數量不足，無法上架這麼多。', 'danger'); return }
+    const total = price * qty // 伺服器的起標價為整組總價
+    await pushSave() // 先把最新背包同步到伺服器，伺服器會驗證持有數量
+    const r = await api('auction/list', { item: itemId, price: total, qty })
+    if (!r.ok) { addLog(r.error, 'danger') } else { consumeItem(itemId, qty); addLog(`將「${ITEMS[itemId].name}」× ${qty} 送上全服拍賣，每件 ${price} 靈石，起標總價 ${total} 靈石。`, 'gold'); pushSave() }
     render(); renderInfo()
   }
   function tickTimers() {
@@ -1626,7 +1629,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('info-title').textContent = NAV.find((n) => n.id === state.nav).label
     // 重繪前記住輸入框內容與焦點，避免被每次更新清掉
     const keep = {}
-    for (const id of ['listPrice', 'listItemSelect', 'exchangeAmount', 'chatInput']) { const el = $(id); if (el) keep[id] = el.value }
+    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput']) { const el = $(id); if (el) keep[id] = el.value }
     const focusId = document.activeElement && document.activeElement.id
     let html = ''
     switch (state.nav) {
@@ -1953,7 +1956,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
                 </div>
                 <span class="xs muted num" style="white-space:nowrap">剩餘 ${fmtTime(l.timeLeft)}</span>
               </div>
-              <p class="xs muted" style="margin-top:8px">起標 ${l.startPrice} 靈石 · 目前 <span class="bold num" style="color:var(--accent)">${l.currentBid}</span> 靈石</p>
+              <p class="xs muted" style="margin-top:8px">起標 ${l.startPrice} 靈石${l.qty > 1 ? `（每件 ${l.unitPrice || Math.round(l.startPrice / l.qty)}）` : ''} · 目前總價 <span class="bold num" style="color:var(--accent)">${l.currentBid}</span> 靈石${l.qty > 1 ? `（每件約 ${Math.round(l.currentBid / l.qty)}）` : ''}</p>
               ${l.currentBid + playerListingInc(l) > npcMaxPrice(l.item, l.qty) ? `<p class="xs" style="margin-top:4px;color:var(--destructive)">價格已超過 NPC 願意出的上限（${npcMaxPrice(l.item, l.qty)} 靈石），不會有人搶標，可能流拍。</p>` : ''}
             </li>`
         }).join('')
@@ -1963,10 +1966,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">各方拍賣</h3>
       <ul class="stack" style="margin-bottom:18px">${npcCards}</ul>
       <div class="card" style="margin-bottom:18px">
-        <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:10px">上架我的物品（交易所販售的丹藥無法上架）</h3>
+        <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:10px">上架我的物品（可選數量，價格為每件單價；交易所販售的丹藥無法上架）</h3>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <select id="listItemSelect" class="exchange-input" style="flex:2;min-width:140px">${options}</select>
-          <input id="listPrice" class="exchange-input" type="number" min="1" placeholder="起標靈石" style="flex:1;min-width:90px" />
+          <input id="listQty" class="exchange-input" type="number" min="1" step="1" value="1" placeholder="數量" style="flex:0 0 70px;min-width:60px" aria-label="上架數量" />
+          <input id="listPrice" class="exchange-input" type="number" min="1" placeholder="每件起標靈石" style="flex:1;min-width:100px" aria-label="每件起標價格" />
           <button type="button" class="small-btn" data-list-item>上架</button>
         </div>
       </div>
@@ -2496,16 +2500,17 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const price = Math.max(0, Math.floor(Number(priceInput && priceInput.value) || 0))
     if (!itemId) { addLog('沒有可上架的物品。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
     if (SHOP_ITEMS.includes(itemId)) { addLog('交易所販售的道具無法上架拍賣場。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    if ((state.inventory[itemId] || 0) <= 0) { addLog('物品數量不足，無法上架。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    if (price <= 0) { addLog('請輸入有效的起標價格。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    state.inventory[itemId] -= 1
-    if (state.inventory[itemId] <= 0) delete state.inventory[itemId]
+    const qty = Math.max(1, Math.floor(Number($('listQty') && $('listQty').value) || 1))
+    if ((state.inventory[itemId] || 0) < qty) { addLog('物品數量不足，無法上架這麼多。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
+    if (price <= 0) { addLog('請輸入有效的每件起標價格。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
+    const total = price * qty // 起標總價 = 每件單價 × 數量
+    consumeItem(itemId, qty)
     state.playerListings.push({
       id: 'p' + Date.now() + Math.random().toString(16).slice(2, 6),
-      item: itemId, qty: 1, startPrice: price, currentBid: price,
+      item: itemId, qty, unitPrice: price, startPrice: total, currentBid: total,
       highestBidder: null, timeLeft: AUCTION_DURATION,
     })
-    addLog(`將「${ITEMS[itemId].name}」送上拍賣場，起標 ${price} 靈石。`, 'gold')
+    addLog(`將「${ITEMS[itemId].name}」× ${qty} 送上拍賣場，每件 ${price} 靈石，起標總價 ${total} 靈石。`, 'gold')
     render()
     renderInfo()
   }
