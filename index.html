@@ -1021,8 +1021,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
    * 玩家初始數值：開新遊戲、或找不到存檔時使用的起始狀態
    * ========================================================= */
   const state = {
-    realm: 0, layer: 0, xp: 0, hp: 100, mp: 20,
-    stones: 1000, jade: 36, secluded: false,
+    realm: 1, layer: 3, xp: 120, hp: 220, mp: 86,
+    stones: 12860, jade: 36, secluded: false,
     cooldowns: {}, nav: 'character',
     inventory: { qi: 5, foundation: 2, spiritGrass: 3, commonEgg: 1, commonFeed: 5 },
     sect: '', contribution: 0, // 初始為散修，到「宗門」分頁拜入
@@ -1038,9 +1038,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   const $ = (id) => document.getElementById(id)
   const required = () => Math.round(100 * Math.pow(1.6, state.realm) * (1 + state.layer * 0.25))
-  /* 人物修為獲取速度倍率：所有「人物修為」來源皆除以 XP_SLOW（原速 ÷ 20）。想調整速度只改這個數字即可 */
-  const XP_SLOW = 20
-  const xpGain = (n) => Math.round(n / XP_SLOW * 10) / 10
+  /* 人物修為獲取速度：所有「人物修為」來源皆除以 xpSlow()，且等級越高除數越大（升級越慢）。
+   *   XP_SLOW_BASE        1 級（煉氣 1 層）的減速倍數：原速 ÷ 20
+   *   XP_SLOW_PER_LEVEL   每升一層，減速倍數增加的比例（等級序號 = 境界 × 9 + 層數 - 1，共 0～62）
+   *   例：煉氣 1 層 ÷20、煉氣 9 層 ÷36、築基 1 層 ÷38、大乘 9 層 ÷144 */
+  const XP_SLOW_BASE = 10
+  const XP_SLOW_PER_LEVEL = 0.1
+  const xpSlow = () => XP_SLOW_BASE * (1 + (state.realm * MAX_LAYER + state.layer - 1) * XP_SLOW_PER_LEVEL)
+  const xpGain = (n) => Math.round(n / xpSlow() * 100) / 100
   /* ---------- 宗門加成／增益 ---------- */
   const currentSect = () => SECTS.find((s) => s.id === state.sect) || null
   // 目前宗門某種特色狀態的總值（沒有宗門 = 0）
@@ -2518,7 +2523,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         state.secluded = false
         addLog('修為已至圓滿，你緩緩出關，準備衝擊瓶頸。', 'gold')
       } else {
-        state.xp = Math.min(req, state.xp + req * 0.03 / XP_SLOW * (1 + sectBonus('cultivate') + buffVal('cultivate')))
+        state.xp = Math.min(req, state.xp + req * 0.03 / xpSlow() * (1 + sectBonus('cultivate') + buffVal('cultivate')))
         state.stones = Math.max(0, state.stones - 2)
       }
     }
