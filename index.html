@@ -6,6 +6,11 @@
 <meta name="theme-color" content="#14232b" />
 <meta name="color-scheme" content="dark" />
 <title>問道長生 · 修仙界</title>
+<!-- 加上這三行手機 PWA 全螢幕設定 -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="mobile-web-app-capable" content="yes" />
+
 <meta name="description" content="一款修仙風格的遊戲介面：修煉、突破境界、施展功法，踏上長生大道。" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -230,6 +235,77 @@
   @keyframes orbit { to { transform: rotate(360deg); } }
   @keyframes log-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .glow, .orbit, .log li { animation: none !important; } }
+  /* ========== 手機版專屬響應式優化 (螢幕寬度小於 1023px) ========== */
+@media (max-width: 1023px) {
+  /* 1. 解除畫面鎖死，允許手機上下滑動瀏覽 */
+  html, body {
+    height: auto;
+    min-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .screen {
+    position: relative;
+    min-height: 100dvh;
+    height: auto;
+  }
+  #start-screen {
+    position: fixed; /* 封面維持滿版固定 */
+    inset: 0;
+  }
+  .app {
+    overflow: visible;
+    padding-bottom: 24px;
+  }
+
+  /* 2. 縮小修為靈球尺寸，避免佔據整個手機螢幕 */
+  .orb {
+    width: 210px;
+    height: 210px;
+  }
+  .core-realm {
+    font-size: 44px;
+  }
+  .core {
+    gap: 14px;
+  }
+  main {
+    padding: 8px 0;
+    gap: 14px;
+  }
+
+  /* 3. 優化左側導覽列：在手機上變成好滑動的橫向標籤列 */
+  .nav {
+    padding: 6px;
+  }
+  .nav ul {
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch; /* iOS 滑動慣性優化 */
+  }
+  .nav button {
+    padding: 8px 12px;
+    font-size: 13px;
+    letter-spacing: .15em;
+    gap: 6px;
+  }
+
+  /* 4. 調整資訊面板與日誌高度，避免需要兩層滾動條 */
+  .info {
+    max-height: 55vh;
+  }
+  .log-wrap {
+    height: 200px;
+  }
+
+  /* 5. 按鈕加大觸控區域，方便手指點擊 */
+  .btn {
+    padding: 12px 16px;
+    min-width: 96px;
+  }
+  .small-btn {
+    padding: 8px 12px;
+  }
+}
 </style>
 </head>
 <body>
@@ -1626,6 +1702,8 @@ $('bag-modal').addEventListener('click', (e) => {
   }
 })
   $('infoBody').addEventListener('click', (e) => {
+    const nbRate = e.target.closest('[data-net-bid-rate]')
+    if (nbRate) return netBidWithRate(nbRate.dataset.netBidRate, nbRate.dataset.rate)
     const useBtn = e.target.closest('[data-use-item]')
     if (useBtn) return useItem(useBtn.dataset.useItem)
     const sellBtn = e.target.closest('[data-sell-item]')
