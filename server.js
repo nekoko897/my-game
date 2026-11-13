@@ -83,6 +83,26 @@ setInterval(() => {
   if (changed) broadcast('auctions', pubAuctions())
 }, 1000)
 
+/* ---------- 全服拍賣 NPC 隨機競標（降低頻率）---------- */
+setInterval(() => {
+  const t = now();
+  db.auctions.forEach(a => {
+    // 確保拍賣還在進行中、且目前最高價不是玩家、且隨機機率調低（例如原本 0.05 改為 0.01 降低頻率）
+    if (a.endsAt > t && !a.bidder && Math.random() < 0.01) {
+      const npcNames = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙'];
+      const randomNpc = npcNames[Math.floor(Math.random() * npcNames.length)];
+      // 隨機以 10% 或 30% 加價
+      const rate = Math.random() < 0.7 ? 0.1 : 0.3;
+      const inc = Math.ceil(a.current * rate);
+      a.current += inc;
+      // 這裡可以用一個虛擬的 key 代表 NPC
+      a.bidder = 'npc_' + randomNpc; 
+      dirty = true;
+      broadcast('auctions', pubAuctions());
+    }
+  });
+}, 5000); // 每 5 秒檢查一次，且機率降低，大幅減少 NPC 出價頻率
+
 /* ---------- PvP ---------- */
 function duel(a, b) {
   let ha = MAX_HP + (a.realm || 0) * 40, hb = MAX_HP + (b.realm || 0) * 40
@@ -183,7 +203,7 @@ const server = http.createServer(async (req, res) => {
       const item = String(b.item || ''), price = num(b.price, 1, 1e7)
       if (!/^[A-Za-z]{1,24}$/.test(item) || price < 1) return json(res, 400, { error: '參數錯誤' })
       if (db.auctions.filter((a) => a.seller === key).length >= 5) return json(res, 400, { error: '最多同時上架 5 件' })
-      const a = { id: 'a' + db.nextId++, seller: key, item, qty: 1, start: price, current: price, bidder: null, inc: Math.max(3, Math.round(price * 0.1)), endsAt: now() + 120000 }
+      const a = { id: 'a' + db.nextId++, seller: key, item, qty: 1, start: price, current: price, bidder: null, inc: Math.max(3, Math.round(price * 0.1)), endsAt: now() + 180000 }
       db.auctions.push(a); dirty = true
       broadcast('auctions', pubAuctions())
       return json(res, 200, { ok: true })
@@ -193,10 +213,20 @@ const server = http.createServer(async (req, res) => {
       if (!a || a.endsAt <= now()) return json(res, 404, { error: '拍賣已結束' })
       if (a.seller === key) return json(res, 400, { error: '不能競標自己的物品' })
       if (a.bidder === key) return json(res, 400, { error: '你已是最高出價者' })
-      const amount = a.bidder ? a.current + a.inc : a.start
+      
+      // 支援前端傳入指定的競標金額，若無則預設為原本邏輯
+      const basePrice = a.bidder ? a.current : a.start;
+      const amount = b.amount ? num(b.amount, basePrice + 1, 1e12) : (a.bidder ? a.current + a.inc : a.start);
+
+      if (amount <= basePrice) return json(res, 400, { error: '出價必須高於目前底價' })
       if (limited(key, 'bid', 400)) return json(res, 429, { error: '操作太快' })
+      
       if (a.bidder) mail(a.bidder, { kind: 'stones', amount: a.current, text: `你在拍賣中被超越，退還 ${a.current} 靈石。` })
-      a.current = amount; a.bidder = key; if (a.endsAt - now() < 10000) a.endsAt += 10000; dirty = true
+      a.current = amount; a.bidder = key; 
+      // 剩餘時間少於 15 秒（15000ms）時，有人出價自動延長 15 秒防搶標（可選）
+      if (a.endsAt - now() < 15000) a.endsAt += 15000; 
+      dirty = true
+      
       broadcast('auctions', pubAuctions())
       return json(res, 200, { ok: true, amount })
     }

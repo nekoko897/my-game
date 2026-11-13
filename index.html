@@ -366,6 +366,19 @@
       </div>
 
       <section class="panel skills" aria-label="功法快捷欄"><ul id="skills"></ul></section>
+      
+    </div>
+  </div>
+</div>
+<!-- 背包彈跳視窗 UI -->
+<div id="bag-modal" class="screen hidden" style="z-index: 50; display: flex; align-items: center; justify-content: center; background: color-mix(in oklch, var(--background) 70%, transparent); backdrop-filter: blur(4px);">
+  <div class="panel" style="width: min(450px, 92vw); max-height: 80vh; display: flex; flex-direction: column; padding: 20px;">
+    <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 14px;">
+      <h2 class="panel-title" style="margin: 0;">修仙行囊</h2>
+      <button type="button" class="small-btn" id="closeBagBtn">關閉</button>
+    </div>
+    <div id="bagModalBody" style="overflow-y: auto; flex: 1; padding-right: 4px;">
+      <!-- 這裡會由 JS 動態填入背包物品 -->
     </div>
   </div>
 </div>
@@ -447,6 +460,21 @@
     // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
   }
 
+document.getElementById('bagModalBody').addEventListener('click', (e) => {
+  const useBtn = e.target.closest('[data-modal-use]');
+  if (useBtn) {
+    useItem(useBtn.dataset.modalUse);
+    openBagModal(); // 動作後重新整理彈窗內容
+    return;
+  }
+  const sellBtn = e.target.closest('[data-modal-sell]');
+  if (sellBtn) {
+    sellItem(sellBtn.dataset.modalSell);
+    openBagModal(); // 動作後重新整理彈窗內容
+    return;
+  }
+});
+  
   /* 交易所「仙品鋪」要賣什麼，就把 ITEMS 裡有設定 buy 價格的道具 id 填進這個陣列 */
   const SHOP_ITEMS = ['qi', 'foundation']
 
@@ -714,7 +742,13 @@
     const cards = net.auctions.map((a) => {
       const def = ITEMS[a.item]; if (!def) return ''
       const mineSell = a.seller.toLowerCase() === me, lead = a.bidder && a.bidder.toLowerCase() === me
-      const target = a.bidder ? a.current + a.inc : a.start
+      
+      // 計算四種百分比的新出價金額 (10%, 30%, 50%, 100%)
+      const basePrice = a.bidder ? a.current : a.start;
+      const bid10 = basePrice + Math.ceil(basePrice * 0.1);
+      const bid30 = basePrice + Math.ceil(basePrice * 0.3);
+      const bid50 = basePrice + Math.ceil(basePrice * 0.5);
+      const bid100 = basePrice + Math.ceil(basePrice * 1.0);
       return `
         <li class="card">
           <div class="row" style="align-items:flex-start">
@@ -723,9 +757,14 @@
               <span class="xs muted">賣家：${esc(a.seller)}${mineSell ? '（你）' : ''} · ${a.bidder ? `最高：${lead ? '你' : esc(a.bidder)}` : '尚無人出價'}</span></div></div>
             <span class="xs muted num" style="white-space:nowrap">剩餘 <span data-ends="${a.endsAt}"></span>s</span>
           </div>
-          <div class="row" style="margin-top:10px">
+          <div class="row" style="margin-top:8px">
             <span class="xs muted">目前 <span class="bold num" style="color:var(--accent)">${a.current}</span> 靈石</span>
-            <button type="button" class="small-btn" data-net-bid="${a.id}" ${mineSell || lead ? 'disabled' : ''}>${mineSell ? '我的拍品' : lead ? '領先中' : `出價 ${target}`}</button>
+          </div>
+          <div class="actions" style="justify-content:flex-start; margin-top:8px; gap:4px; flex-wrap:wrap;">
+            <button type="button" class="small-btn" data-net-bid-rate="${a.id}" data-rate="0.1" ${mineSell || lead ? 'disabled' : ''}>+10% (${bid10})</button>
+            <button type="button" class="small-btn" data-net-bid-rate="${a.id}" data-rate="0.3" ${mineSell || lead ? 'disabled' : ''}>+30% (${bid30})</button>
+            <button type="button" class="small-btn" data-net-bid-rate="${a.id}" data-rate="0.5" ${mineSell || lead ? 'disabled' : ''}>+50% (${bid50})</button>
+            <button type="button" class="small-btn" data-net-bid-rate="${a.id}" data-rate="1.0" ${mineSell || lead ? 'disabled' : ''}>+100% (${bid100})</button>
           </div>
         </li>`
     }).join('') || '<li class="xs muted">目前沒有拍賣品，成為第一個上架的人吧。</li>'
@@ -743,14 +782,19 @@
         </div>
       </div>`
   }
-  async function netBid(id) {
+  async function netBidWithRate(id, rate) {
     const a = net.auctions.find((x) => x.id === id); if (!a) return
-    const target = a.bidder ? a.current + a.inc : a.start
+    const basePrice = a.bidder ? a.current : a.start;
+    const target = basePrice + Math.ceil(basePrice * Number(rate));
+
     if (state.stones < target) { addLog('靈石不足，無法出價。', 'danger'); render(); return }
-    const r = await api('auction/bid', { id })
+    
+    // 向後端發送出價請求，並帶上計算好的金額或百分比
+    const r = await api('auction/bid', { id, amount: target })
     if (!r.ok) { addLog(r.error, 'danger'); return }
+    
     state.stones = Math.max(0, state.stones - r.amount)
-    addLog(`你出價 ${r.amount} 靈石。`, 'gold')
+    addLog(`你出價 ${r.amount} 靈石（加價 ${Number(rate) * 100}%）。`, 'gold')
     render(); pushSave()
   }
   async function netList() {
@@ -969,6 +1013,36 @@
       <h3 class="panel-title" style="font-size:12px;margin:18px 0 8px">物品欄</h3>
       <ul class="item-list">${items}</ul>`
   }
+
+  function openBagModal() {
+  const modal = document.getElementById('bag-modal');
+  const body = document.getElementById('bagModalBody');
+  
+  // 產生背包物品 HTML (複用你原本 renderBag 的邏輯)
+  const entries = Object.entries(state.inventory).filter(([, q]) => q > 0);
+  const itemsHtml = entries.length ? entries.map(([id, qty]) => {
+    const def = ITEMS[id];
+    return `
+      <div class="item-card" style="margin-bottom: 10px;">
+        <div class="item-icon">${def.icon}</div>
+        <div class="col" style="flex:1;min-width:0">
+          <div class="row" style="align-items:baseline">
+            <span class="bold">${def.name}</span>
+            <span class="xs num muted">× ${qty}</span>
+          </div>
+          <span class="xs" style="color:${rarityColor(def.rarity)}">${def.rarity}</span>
+          <p class="xs muted" style="margin-top:2px">${def.desc}</p>
+          <div class="actions" style="justify-content:flex-start;margin-top:6px;gap:8px">
+            ${def.effect ? `<button type="button" class="small-btn" data-modal-use="${id}">使用</button>` : ''}
+            <button type="button" class="small-btn" data-modal-sell="${id}">出售（${def.sell} 靈石）</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('') : '<p class="xs muted">行囊空空，去秘境歷練拾取些物件吧。</p>';
+
+  body.innerHTML = itemsHtml;
+  modal.classList.remove('hidden'); // 顯示彈窗
+}
 
   function renderRealm() {
     if (state.battle) return renderBattle()
@@ -1526,12 +1600,31 @@
   $('btnSave').addEventListener('click', () => saveGame(false))
   $('btnLoad').addEventListener('click', () => loadGame(false))
   $('nav').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-nav]')
-    if (!btn) return
-    state.nav = btn.dataset.nav
-    renderNav()
-    renderInfo()
-  })
+  const btn = e.target.closest('[data-nav]')
+  if (!btn) return
+
+  // 如果點到的是「背包」，就開啟彈跳視窗並結束，不切換右側面板
+  if (btn.dataset.nav === 'bag') {
+    openBagModal()
+    return
+  }
+
+  state.nav = btn.dataset.nav
+  renderNav()
+  renderInfo()
+})
+
+// 綁定彈窗右上角的「關閉」按鈕
+$('closeBagBtn').addEventListener('click', () => {
+  $('bag-modal').classList.add('hidden')
+})
+
+// （選用）點擊彈窗外圍的半透明黑底時，也能自動關閉視窗
+$('bag-modal').addEventListener('click', (e) => {
+  if (e.target === $('bag-modal')) {
+    $('bag-modal').classList.add('hidden')
+  }
+})
   $('infoBody').addEventListener('click', (e) => {
     const useBtn = e.target.closest('[data-use-item]')
     if (useBtn) return useItem(useBtn.dataset.useItem)
