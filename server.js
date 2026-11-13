@@ -265,4 +265,4 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(full).toLowerCase()] || 'application/octet-stream' }); res.end(buf)
   })
 })
-server.listen(PORT, () => console.log(`問道長生 ORPG 已啟動：http://localhost:${PORT}`))
+server.listen(PORT, '0.0.0.0', () => console.log(`問道長生 ORPG 已啟動：http://localhost:${PORT}`))
