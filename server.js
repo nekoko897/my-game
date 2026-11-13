@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000
 const MAX_HP = 260
 
 // ===== Supabase 雲端資料庫設定 =====
-const SUPABASE_HOST = 'iedoalfukazgzpbgdzu.supabase.co'
+const SUPABASE_HOST = 'iedoalfukazgzzpbgdzu.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_AzWFfTrZKE4UDBUPfICxHg_xlcsPvz7'
 
 let db = { players: {}, nextId: 1, auctions: [] }
