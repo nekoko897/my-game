@@ -566,8 +566,17 @@
    *   currency 購買幣別（選填）：'jade' 用仙玉購買，不填預設用靈石
    *   effect   使用效果（選填）：沒有 effect 代表此道具不能使用、只能出售
    *            { type: 'restoreMp', value: 40 }        → 使用後恢復 40 點靈力
+   *            { type: 'restoreHp', value: 80 }        → 恢復 80 點氣血（9999 = 補滿）
+   *            { type: 'restoreAll' }                  → 氣血、靈力全滿
    *            { type: 'addXpPercent', value: 0.3 }    → 使用後增加目前層數 30% 修為
+   *            { type: 'buff', stat, value, sec }      → 限時增益，stat：atk 攻擊／def 減傷／cultivate 修煉速度／petAtk 靈寵攻擊
+   *            { type: 'breakBonus', value: 0.15 }     → 下一次突破機率 +15%（不疊加，取最高）
+   *            { type: 'stones', min, max }            → 開出靈石；{ type: 'jade', min, max } 開出仙玉
+   *            { type: 'lootbox', rolls }              → 從 LOOTBOX_POOL 抽 rolls 次
+   *            effect 也可以是陣列，一次套用多種效果
+   *   sect     宗門專屬（選填）：填宗門 id，只能在該宗門寶庫用貢獻兌換
    *   desc     說明文字
+   *   道具 id 只能用英文字母（連線伺服器只接受英文字母的道具 id）
    * 注意：SHOP_ITEMS 清單中的道具（可在交易所直接買到的）無法在拍賣場上架。
    * ========================================================= */
   const ITEMS = {
@@ -587,6 +596,71 @@
     commonFeed: { name: '普通寵物飼料', icon: '🌾', type: 'feed', rarity: '普通', sell: 8, buy: 30, currency: 'stones', effect: { type: 'feedPet', value: 40 }, desc: '靈寵修為 +40' },
     advancedFeed: { name: '高級寵物飼料', icon: '🍖', type: 'feed', rarity: '精良', sell: 60, effect: { type: 'feedPet', value: 400 }, desc: '靈寵修為 +400，秘境妖獸機率掉落' },
     divineFeed: { name: '神級寵物飼料', icon: '🍑', type: 'feed', rarity: '史詩', sell: 400, effect: { type: 'feedPet', value: 3000 }, desc: '靈寵修為 +3000，討伐世界王機率掉落' },
+
+    // ── 丹藥・符籙 ──
+    hpPill: { name: '療傷丹', icon: '🩹', type: 'pill', rarity: '普通', sell: 12, buy: 35, currency: 'stones', effect: { type: 'restoreHp', value: 80 }, desc: '恢復 80 點氣血' },
+    bigQi: { name: '聚靈丹', icon: '🔵', type: 'pill', rarity: '精良', sell: 30, buy: 90, currency: 'stones', effect: { type: 'restoreMp', value: 120 }, desc: '恢復 120 點靈力' },
+    huichun: { name: '回春丹', icon: '🌸', type: 'pill', rarity: '精良', sell: 60, buy: 160, currency: 'stones', effect: { type: 'restoreAll' }, desc: '氣血、靈力全部恢復' },
+    bigHpPill: { name: '九轉還魂丹', icon: '💖', type: 'pill', rarity: '稀有', sell: 150, effect: { type: 'restoreHp', value: 9999 }, desc: '起死回生，氣血全滿' },
+    xisui: { name: '洗髓丹', icon: '💠', type: 'pill', rarity: '稀有', sell: 200, effect: { type: 'addXpPercent', value: 0.5 }, desc: '洗經伐髓，增加 50% 當前層修為' },
+    ningyuan: { name: '凝元丹', icon: '🔮', type: 'pill', rarity: '史詩', sell: 500, effect: { type: 'addXpPercent', value: 1.0 }, desc: '凝聚元氣，增加 100% 當前層修為' },
+    pojing: { name: '破境丹', icon: '🌀', type: 'pill', rarity: '稀有', sell: 180, effect: { type: 'breakBonus', value: 0.15 }, desc: '下一次突破機率 +15%' },
+    dujie: { name: '渡劫靈符', icon: '🧧', type: 'talisman', rarity: '史詩', sell: 600, effect: { type: 'breakBonus', value: 0.3 }, desc: '下一次突破機率 +30%' },
+    kuangbao: { name: '狂暴丹', icon: '😤', type: 'pill', rarity: '精良', sell: 50, effect: { type: 'buff', stat: 'atk', value: 0.3, sec: 120 }, desc: '120 息內攻擊 +30%' },
+    jinzhong: { name: '金鐘符', icon: '🔔', type: 'talisman', rarity: '精良', sell: 50, effect: { type: 'buff', stat: 'def', value: 0.3, sec: 120 }, desc: '120 息內受到傷害 -30%' },
+    wudaoTea: { name: '悟道茶', icon: '🍵', type: 'pill', rarity: '稀有', sell: 120, effect: { type: 'buff', stat: 'cultivate', value: 0.5, sec: 300 }, desc: '300 息內修煉速度 +50%' },
+    lingzhi: { name: '千年靈芝', icon: '🍄', type: 'pill', rarity: '稀有', sell: 260, effect: [{ type: 'restoreAll' }, { type: 'addXpPercent', value: 0.2 }], desc: '氣血靈力全滿，並增加 20% 當前層修為' },
+    beastPill: { name: '獸元丹', icon: '🟤', type: 'feed', rarity: '精良', sell: 40, effect: { type: 'feedPet', value: 150 }, desc: '靈寵修為 +150' },
+    // ── 錦囊・寶箱 ──
+    stonePouch: { name: '靈石袋', icon: '👝', type: 'bag', rarity: '精良', sell: 50, effect: { type: 'stones', min: 100, max: 500 }, desc: '打開可得 100～500 靈石' },
+    jadePouch: { name: '仙玉袋', icon: '👛', type: 'bag', rarity: '稀有', sell: 100, effect: { type: 'jade', min: 1, max: 5 }, desc: '打開可得 1～5 仙玉' },
+    treasureBox: { name: '秘境寶箱', icon: '🎁', type: 'bag', rarity: '稀有', sell: 120, effect: { type: 'lootbox', rolls: 2 }, desc: '打開可隨機獲得 2 件寶物' },
+    // ── 材料（可出售，或上交宗門任務） ──
+    wolfFang: { name: '狼牙', icon: '🦷', type: 'material', rarity: '普通', sell: 10, desc: '赤血狼的獠牙，鋒利異常' },
+    batWing: { name: '蝠翼', icon: '🪽', type: 'material', rarity: '普通', sell: 10, desc: '夜魘蝠的翼膜，可入毒藥' },
+    blackIron: { name: '玄鐵', icon: '⚙️', type: 'material', rarity: '精良', sell: 30, desc: '沉重的黑色礦石，鑄劍良材' },
+    beastBlood: { name: '妖獸精血', icon: '🩸', type: 'material', rarity: '精良', sell: 35, desc: '妖獸心頭精血，蘊含旺盛生機' },
+    tigerBone: { name: '虎骨', icon: '🦴', type: 'material', rarity: '精良', sell: 40, desc: '玄紋妖虎之骨，可煉強筋健骨之藥' },
+    snakeGall: { name: '蛇膽', icon: '🟢', type: 'material', rarity: '精良', sell: 45, desc: '赤焰蛟的膽囊，至苦亦至補' },
+    golemCore: { name: '傀儡核心', icon: '🔩', type: 'material', rarity: '稀有', sell: 70, desc: '驅動岩甲傀儡的陣法核心' },
+    spiritJade: { name: '靈玉', icon: '🟩', type: 'material', rarity: '稀有', sell: 75, desc: '溫潤含靈的美玉，可用於佈陣' },
+    fireLotus: { name: '火蓮', icon: '🪷', type: 'material', rarity: '稀有', sell: 90, desc: '生於地火之中的蓮花，煉丹聖品' },
+    soulFire: { name: '幽魂火', icon: '👻', type: 'material', rarity: '稀有', sell: 85, desc: '飄忽不定的冥火，鬼道修士視為至寶' },
+    iceSilk: { name: '冰蠶絲', icon: '🧵', type: 'material', rarity: '稀有', sell: 95, desc: '寒淵冰蠶所吐之絲，水火不侵' },
+    ancientCoin: { name: '上古銅錢', icon: '🪙', type: 'material', rarity: '稀有', sell: 100, desc: '鑄有失傳文字的古錢，商盟高價收購' },
+    inkPearl: { name: '墨珠', icon: '⚫', type: 'material', rarity: '稀有', sell: 140, desc: '深淵章鬼體內凝成的墨色寶珠' },
+    starIron: { name: '星辰鐵', icon: '🌠', type: 'material', rarity: '史詩', sell: 200, desc: '天外隕鐵，煉製飛劍的無上材料' },
+    phoenixFeather: { name: '鳳羽', icon: '🪶', type: 'material', rarity: '史詩', sell: 240, desc: '赤羽幻鳳的尾羽，餘溫不散' },
+    dragonScale: { name: '蛟龍鱗', icon: '🐲', type: 'material', rarity: '史詩', sell: 260, desc: '赤焰蛟逆鱗，堅逾精鋼' },
+
+    // ── 宗門專屬天材地寶（只能在所屬宗門寶庫用貢獻兌換） ──
+    jianxinStone: { name: '劍心石', icon: '🗡️', type: 'treasure', rarity: '稀有', sell: 150, sect: 'qingyun', effect: { type: 'buff', stat: 'atk', value: 0.4, sec: 300 }, desc: '劍意凝石，300 息內攻擊 +40%' },
+    qingmingPill: { name: '青冥劍丸', icon: '🟦', type: 'treasure', rarity: '稀有', sell: 250, sect: 'qingyun', effect: { type: 'addXpPercent', value: 0.6 }, desc: '以劍氣淬鍊的丹丸，增加 60% 當前層修為' },
+    wanjianSlip: { name: '萬劍歸宗玉簡', icon: '📘', type: 'treasure', rarity: '史詩', sell: 400, sect: 'qingyun', effect: { type: 'breakBonus', value: 0.25 }, desc: '開山祖師劍意所留，下一次突破機率 +25%' },
+    taiqingDew: { name: '太清靈露', icon: '💧', type: 'treasure', rarity: '稀有', sell: 150, sect: 'xuantian', effect: { type: 'buff', stat: 'cultivate', value: 1.0, sec: 300 }, desc: '300 息內修煉速度 +100%' },
+    xuantianFruit: { name: '玄天道果', icon: '🍐', type: 'treasure', rarity: '史詩', sell: 350, sect: 'xuantian', effect: { type: 'addXpPercent', value: 1.0 }, desc: '道宮古樹千年一結，增加 100% 當前層修為' },
+    zifuTalisman: { name: '紫府仙籙', icon: '📜', type: 'treasure', rarity: '史詩', sell: 450, sect: 'xuantian', effect: { type: 'breakBonus', value: 0.3 }, desc: '下一次突破機率 +30%' },
+    baicaoMarrow: { name: '百草靈髓', icon: '🌱', type: 'treasure', rarity: '稀有', sell: 150, sect: 'danding', effect: [{ type: 'restoreAll' }, { type: 'addXpPercent', value: 0.3 }], desc: '百草精華，氣血靈力全滿並增加 30% 修為' },
+    jiuzhuanPill: { name: '九轉金丹', icon: '🟡', type: 'treasure', rarity: '史詩', sell: 450, sect: 'danding', effect: { type: 'addXpPercent', value: 1.5 }, desc: '丹鼎谷鎮谷之丹，增加 150% 當前層修為' },
+    zaohuaPill: { name: '造化丹', icon: '☯️', type: 'treasure', rarity: '史詩', sell: 400, sect: 'danding', effect: { type: 'breakBonus', value: 0.3 }, desc: '奪天地造化，下一次突破機率 +30%' },
+    sheli: { name: '舍利子', icon: '📿', type: 'treasure', rarity: '稀有', sell: 150, sect: 'jingang', effect: { type: 'buff', stat: 'def', value: 0.5, sec: 300 }, desc: '高僧坐化所留，300 息內受到傷害 -50%' },
+    bodhiSeed: { name: '金剛菩提', icon: '🟠', type: 'treasure', rarity: '稀有', sell: 250, sect: 'jingang', effect: [{ type: 'restoreAll' }, { type: 'addXpPercent', value: 0.4 }], desc: '氣血靈力全滿並增加 40% 修為' },
+    budongTalisman: { name: '不動明王符', icon: '🛕', type: 'treasure', rarity: '史詩', sell: 400, sect: 'jingang', effect: { type: 'breakBonus', value: 0.25 }, desc: '心如不動，下一次突破機率 +25%' },
+    bloodSoulBead: { name: '血魂珠', icon: '🔻', type: 'treasure', rarity: '稀有', sell: 150, sect: 'xuesha', effect: { type: 'buff', stat: 'atk', value: 0.5, sec: 180 }, desc: '凝聚萬千血魂，180 息內攻擊 +50%' },
+    xueshaEssence: { name: '血煞精元', icon: '🫀', type: 'treasure', rarity: '史詩', sell: 280, sect: 'xuesha', effect: { type: 'addXpPercent', value: 0.8 }, desc: '增加 80% 當前層修為' },
+    huaxuePill: { name: '化血神丹', icon: '💉', type: 'treasure', rarity: '稀有', sell: 200, sect: 'xuesha', effect: [{ type: 'restoreHp', value: 9999 }, { type: 'buff', stat: 'atk', value: 0.3, sec: 300 }], desc: '氣血全滿，300 息內攻擊 +30%' },
+    guKing: { name: '萬毒蠱王', icon: '🦂', type: 'treasure', rarity: '稀有', sell: 200, sect: 'wandu', effect: { type: 'buff', stat: 'atk', value: 0.35, sec: 600 }, desc: '萬蠱相殘所剩之王，600 息內攻擊 +35%' },
+    biXuePill: { name: '碧血毒丹', icon: '🧫', type: 'treasure', rarity: '史詩', sell: 260, sect: 'wandu', effect: { type: 'addXpPercent', value: 0.7 }, desc: '以毒攻毒，增加 70% 當前層修為' },
+    wuduBead: { name: '五毒珠', icon: '🟣', type: 'treasure', rarity: '稀有', sell: 200, sect: 'wandu', effect: { type: 'buff', stat: 'def', value: 0.4, sec: 600 }, desc: '百毒不侵，600 息內受到傷害 -40%' },
+    ghostFire: { name: '九幽鬼火', icon: '🔥', type: 'treasure', rarity: '史詩', sell: 450, sect: 'youming', effect: { type: 'breakBonus', value: 0.35 }, desc: '燃燒心魔，下一次突破機率 +35%' },
+    samsaraFruit: { name: '輪迴果', icon: '🍇', type: 'treasure', rarity: '史詩', sell: 400, sect: 'youming', effect: { type: 'addXpPercent', value: 1.2 }, desc: '生於忘川彼岸，增加 120% 當前層修為' },
+    soulBanner: { name: '噬魂幡', icon: '🏴', type: 'treasure', rarity: '稀有', sell: 180, sect: 'youming', effect: { type: 'buff', stat: 'atk', value: 0.4, sec: 300 }, desc: '300 息內攻擊 +40%' },
+    beastSoul: { name: '獸王精魄', icon: '🦁', type: 'treasure', rarity: '稀有', sell: 120, sect: 'yushou', effect: { type: 'feedPet', value: 1500 }, desc: '靈寵修為 +1500' },
+    dragonBlood: { name: '祖龍之血', icon: '🧪', type: 'treasure', rarity: '史詩', sell: 400, sect: 'yushou', effect: { type: 'feedPet', value: 6000 }, desc: '上古祖龍遺血，靈寵修為 +6000' },
+    yushouRing: { name: '御獸金環', icon: '💫', type: 'treasure', rarity: '稀有', sell: 150, sect: 'yushou', effect: { type: 'buff', stat: 'petAtk', value: 0.5, sec: 600 }, desc: '600 息內靈寵攻擊 +50%' },
+    cornucopia: { name: '聚寶盆', icon: '🏺', type: 'treasure', rarity: '稀有', sell: 150, sect: 'wanbao', effect: { type: 'stones', min: 2000, max: 6000 }, desc: '打開可得 2000～6000 靈石' },
+    goldToad: { name: '招財金蟾', icon: '🐸', type: 'treasure', rarity: '史詩', sell: 250, sect: 'wanbao', effect: { type: 'jade', min: 10, max: 30 }, desc: '打開可得 10～30 仙玉' },
+    wanbaoToken: { name: '萬寶令', icon: '🎫', type: 'treasure', rarity: '史詩', sell: 200, sect: 'wanbao', effect: { type: 'lootbox', rolls: 5 }, desc: '商盟秘庫通行令，隨機獲得 5 件寶物' },
     // ↑ 在這裡繼續加新道具，例如：
     // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
   }
@@ -607,15 +681,39 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 });
   
   /* 交易所「仙品鋪」要賣什麼，就把 ITEMS 裡有設定 buy 價格的道具 id 填進這個陣列 */
-  const SHOP_ITEMS = ['qi', 'foundation', 'commonEgg', 'commonFeed']
+  const SHOP_ITEMS = ['qi', 'bigQi', 'hpPill', 'huichun', 'foundation', 'commonEgg', 'commonFeed']
 
   /* NPC 拍賣會從這個池子隨機挑選物品與起標價（base），可自行增減項目或調整價格 */
   const AUCTION_POOL = [
     { item: 'thunderCrystal', base: 150 },
     { item: 'jadeSlip', base: 60 },
     { item: 'demonCore', base: 25 },
-    { item: 'foundation', base: 90 },
     { item: 'advancedFeed', base: 80 },
+    { item: 'xisui', base: 160 },
+    { item: 'pojing', base: 140 },
+    { item: 'wudaoTea', base: 100 },
+    { item: 'starIron', base: 170 },
+    { item: 'dragonScale', base: 220 },
+    { item: 'treasureBox', base: 100 },
+  ]
+
+  /* 寶箱（秘境寶箱、萬寶令）開出的物品池：weight 越大越容易開到 */
+  const LOOTBOX_POOL = [
+    { item: 'stonePouch', weight: 20, min: 1, max: 2 },
+    { item: 'hpPill', weight: 18, min: 2, max: 4 },
+    { item: 'bigQi', weight: 14, min: 1, max: 3 },
+    { item: 'huichun', weight: 10, min: 1, max: 2 },
+    { item: 'kuangbao', weight: 8, min: 1, max: 2 },
+    { item: 'jinzhong', weight: 8, min: 1, max: 2 },
+    { item: 'spiritJade', weight: 8, min: 1, max: 2 },
+    { item: 'ancientCoin', weight: 7, min: 1, max: 2 },
+    { item: 'advancedFeed', weight: 6, min: 1, max: 2 },
+    { item: 'xisui', weight: 5, min: 1, max: 1 },
+    { item: 'pojing', weight: 4, min: 1, max: 1 },
+    { item: 'jadePouch', weight: 4, min: 1, max: 1 },
+    { item: 'starIron', weight: 3, min: 1, max: 1 },
+    { item: 'ningyuan', weight: 1, min: 1, max: 1 },
+    { item: 'dujie', weight: 1, min: 1, max: 1 },
   ]
   /* 拍賣場搶標的 NPC 名字，可自由增減 */
   const BIDDERS = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙', '鐵戟羅漢']
@@ -639,26 +737,26 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       id: 'luoxiagu', name: '落霞谷', icon: '🍂', reqRealm: 0,
       desc: '妖獸出沒的荒谷，適合煉氣期弟子歷練身手。',
       monsters: [
-        { id: 'wolf', name: '赤血狼', icon: '🐺', hp: 60, atkMin: 4, atkMax: 9, exp: 18, loot: [{ item: 'beastHide', chance: 0.6, min: 1, max: 2 }, { item: 'spiritGrass', chance: 0.4, min: 1, max: 1 }] },
-        { id: 'bat', name: '夜魘蝠', icon: '🦇', hp: 45, atkMin: 3, atkMax: 7, exp: 14, loot: [{ item: 'spiritGrass', chance: 0.5, min: 1, max: 2 }] },
-        { id: 'boar', name: '鐵甲野豬', icon: '🐗', hp: 90, atkMin: 6, atkMax: 12, exp: 28, loot: [{ item: 'beastHide', chance: 0.7, min: 1, max: 3 }, { item: 'demonCore', chance: 0.15, min: 1, max: 1 }] },
+        { id: 'wolf', name: '赤血狼', icon: '🐺', hp: 60, atkMin: 4, atkMax: 9, exp: 18, loot: [{ item: 'beastHide', chance: 0.6, min: 1, max: 2 }, { item: 'spiritGrass', chance: 0.4, min: 1, max: 1 }, { item: 'wolfFang', chance: 0.5, min: 1, max: 2 }, { item: 'beastBlood', chance: 0.08, min: 1, max: 1 }] },
+        { id: 'bat', name: '夜魘蝠', icon: '🦇', hp: 45, atkMin: 3, atkMax: 7, exp: 14, loot: [{ item: 'spiritGrass', chance: 0.5, min: 1, max: 2 }, { item: 'batWing', chance: 0.55, min: 1, max: 2 }, { item: 'soulFire', chance: 0.06, min: 1, max: 1 }] },
+        { id: 'boar', name: '鐵甲野豬', icon: '🐗', hp: 90, atkMin: 6, atkMax: 12, exp: 28, loot: [{ item: 'beastHide', chance: 0.7, min: 1, max: 3 }, { item: 'demonCore', chance: 0.15, min: 1, max: 1 }, { item: 'beastBlood', chance: 0.2, min: 1, max: 1 }, { item: 'blackIron', chance: 0.12, min: 1, max: 1 }] },
       ],
     },
     {
       id: 'wanyao', name: '萬妖山脈', icon: '🏔️', reqRealm: 1,
       desc: '妖氣濃郁的連綿山脈，築基期以上弟子方能全身而退。',
       monsters: [
-        { id: 'tiger', name: '玄紋妖虎', icon: '🐯', hp: 160, atkMin: 12, atkMax: 20, exp: 55, loot: [{ item: 'demonCore', chance: 0.4, min: 1, max: 2 }, { item: 'beastHide', chance: 0.5, min: 1, max: 2 }] },
-        { id: 'serpent', name: '赤焰蛟', icon: '🐍', hp: 220, atkMin: 16, atkMax: 26, exp: 75, loot: [{ item: 'demonCore', chance: 0.45, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.1, min: 1, max: 1 }] },
-        { id: 'golem', name: '岩甲傀儡', icon: '🗿', hp: 300, atkMin: 10, atkMax: 18, exp: 65, loot: [{ item: 'thunderCrystal', chance: 0.08, min: 1, max: 1 }, { item: 'beastHide', chance: 0.6, min: 2, max: 4 }] },
+        { id: 'tiger', name: '玄紋妖虎', icon: '🐯', hp: 160, atkMin: 12, atkMax: 20, exp: 55, loot: [{ item: 'demonCore', chance: 0.4, min: 1, max: 2 }, { item: 'beastHide', chance: 0.5, min: 1, max: 2 }, { item: 'tigerBone', chance: 0.35, min: 1, max: 1 }, { item: 'beastBlood', chance: 0.3, min: 1, max: 2 }] },
+        { id: 'serpent', name: '赤焰蛟', icon: '🐍', hp: 220, atkMin: 16, atkMax: 26, exp: 75, loot: [{ item: 'demonCore', chance: 0.45, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.1, min: 1, max: 1 }, { item: 'snakeGall', chance: 0.35, min: 1, max: 1 }, { item: 'fireLotus', chance: 0.1, min: 1, max: 1 }, { item: 'dragonScale', chance: 0.04, min: 1, max: 1 }] },
+        { id: 'golem', name: '岩甲傀儡', icon: '🗿', hp: 300, atkMin: 10, atkMax: 18, exp: 65, loot: [{ item: 'thunderCrystal', chance: 0.08, min: 1, max: 1 }, { item: 'beastHide', chance: 0.6, min: 2, max: 4 }, { item: 'blackIron', chance: 0.5, min: 1, max: 2 }, { item: 'golemCore', chance: 0.25, min: 1, max: 1 }, { item: 'spiritJade', chance: 0.15, min: 1, max: 1 }, { item: 'starIron', chance: 0.04, min: 1, max: 1 }] },
       ],
     },
     {
       id: 'taixu', name: '太虛幻境', icon: '🌌', reqRealm: 2,
       desc: '虛實交錯的秘境，金丹期以上方可窺其堂奧。',
       monsters: [
-        { id: 'phoenix', name: '赤羽幻鳳', icon: '🐦', hp: 480, atkMin: 28, atkMax: 42, exp: 160, loot: [{ item: 'thunderCrystal', chance: 0.25, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.3, min: 1, max: 1 }] },
-        { id: 'kraken', name: '深淵章鬼', icon: '🐙', hp: 560, atkMin: 24, atkMax: 38, exp: 150, loot: [{ item: 'jadeSlip', chance: 0.35, min: 1, max: 2 }] },
+        { id: 'phoenix', name: '赤羽幻鳳', icon: '🐦', hp: 480, atkMin: 28, atkMax: 42, exp: 160, loot: [{ item: 'thunderCrystal', chance: 0.25, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.3, min: 1, max: 1 }, { item: 'phoenixFeather', chance: 0.2, min: 1, max: 1 }, { item: 'fireLotus', chance: 0.3, min: 1, max: 1 }, { item: 'spiritJade', chance: 0.25, min: 1, max: 2 }] },
+        { id: 'kraken', name: '深淵章鬼', icon: '🐙', hp: 560, atkMin: 24, atkMax: 38, exp: 150, loot: [{ item: 'jadeSlip', chance: 0.35, min: 1, max: 2 }, { item: 'inkPearl', chance: 0.25, min: 1, max: 1 }, { item: 'iceSilk', chance: 0.3, min: 1, max: 2 }, { item: 'soulFire', chance: 0.2, min: 1, max: 1 }, { item: 'starIron', chance: 0.06, min: 1, max: 1 }] },
       ],
     },
     // ↑ 在這裡繼續加新地點，記得 reqRealm 對應 REALMS 的索引
@@ -715,7 +813,21 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     { item: 'divineEgg', chance: 0.2, min: 1, max: 1 },
     { item: 'divineFeed', chance: 0.6, min: 1, max: 2 },
   ]
-  LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push(...REALM_PET_LOOT)))
+  // 秘境：所有妖獸共通的稀有掉落（錦囊、寶箱、丹藥）
+  const REALM_COMMON_LOOT = [
+    { item: 'stonePouch', chance: 0.05, min: 1, max: 1 },
+    { item: 'ancientCoin', chance: 0.03, min: 1, max: 1 },
+    { item: 'treasureBox', chance: 0.02, min: 1, max: 1 },
+    { item: 'hpPill', chance: 0.08, min: 1, max: 1 },
+    { item: 'kuangbao', chance: 0.03, min: 1, max: 1 },
+    { item: 'jinzhong', chance: 0.03, min: 1, max: 1 },
+    { item: 'wudaoTea', chance: 0.015, min: 1, max: 1 },
+    { item: 'lingzhi', chance: 0.01, min: 1, max: 1 },
+    { item: 'beastPill', chance: 0.04, min: 1, max: 1 },
+    { item: 'jadePouch', chance: 0.01, min: 1, max: 1 },
+    { item: 'pojing', chance: 0.008, min: 1, max: 1 },
+  ]
+  LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push(...REALM_PET_LOOT, ...REALM_COMMON_LOOT)))
 
   /* 單機模式的世界王（魔蛟幻影）：連線模式由伺服器提供真正的世界王 */
   const LOCAL_BOSS = { name: '魔蛟 · 幻影', maxHp: 2500, respawnSec: 90, dmgMul: 3 }
@@ -728,21 +840,163 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   ]
 
   /* =========================================================
-   * 宗門列表：玩家可在「宗門」分頁點選加入
-   * 新增宗門只要在陣列中加入一筆資料，欄位：
-   *   id      唯一識別字串
-   *   name    宗門名稱
-   *   master  師尊名稱
-   *   desc    宗門介紹
-   *   bonus   特色說明（目前僅顯示用文字，未串接實際數值加成）
+   * 宗門系統
+   * 加入宗門即獲得宗門特色狀態（bonuses）；完成宗門任務得貢獻，貢獻可在宗門寶庫兌換該宗專屬天材地寶。
+   * 離開宗門（或改投他派）貢獻值歸零、進行中的任務作廢。
+   *
+   * SECT_ALIGNS：陣營（顯示分組與顏色）
+   * BONUS_TYPES：宗門特色狀態的種類（數值已實際串接到遊戲邏輯）
+   *   atk 攻擊%｜def 受到傷害減免%｜cultivate 運功/閉關修為%｜breakthrough 突破機率(加算)
+   *   mpRegen 每息靈力回復｜hpRegen 每息氣血回復｜pill 丹藥效果%｜lifesteal 擊殺回復氣血上限%
+   *   loot 秘境掉落機率%｜exp 擊殺修為%｜petAtk 靈寵攻擊%｜petXp 靈寵修為獲取%
+   *   sell 出售價格%｜discount 交易所購買折扣%
+   * SECTS 欄位：
+   *   id（英文字母）、name、align（SECT_ALIGNS 的 key）、master 掌門、desc
+   *   bonuses   [{ type, value }]
+   *   shop      宗門寶庫 [{ item: 道具 id, cost: 貢獻 }]
+   *   quests    宗門任務（可重複接）：
+   *             { id（英文字母，≤18 字）, name, desc, type: 'kill', monster: 怪物 id, qty, reward }
+   *             { id, name, desc, type: 'submit', item: 道具 id, qty, reward }
+   *             reward = { contribution, stones?, xp?(當前層修為比例) }
    * ========================================================= */
+  const SECT_ALIGNS = {
+    righteous: { label: '正道', color: 'var(--primary)' },
+    evil: { label: '邪道', color: 'var(--destructive)' },
+    beast: { label: '靈獸', color: 'oklch(0.78 0.13 130)' },
+    neutral: { label: '中立', color: 'var(--accent)' },
+  }
+  const BONUS_TYPES = {
+    atk: (v) => `攻擊 +${Math.round(v * 100)}%`,
+    def: (v) => `受到傷害 -${Math.round(v * 100)}%`,
+    cultivate: (v) => `修煉速度 +${Math.round(v * 100)}%`,
+    breakthrough: (v) => `突破機率 +${Math.round(v * 100)}%`,
+    mpRegen: (v) => `靈力回復 +${v}/息`,
+    hpRegen: (v) => `氣血回復 +${v}/息`,
+    pill: (v) => `丹藥效果 +${Math.round(v * 100)}%`,
+    lifesteal: (v) => `擊殺妖獸回復 ${Math.round(v * 100)}% 氣血`,
+    loot: (v) => `秘境掉落機率 +${Math.round(v * 100)}%`,
+    exp: (v) => `擊殺修為 +${Math.round(v * 100)}%`,
+    petAtk: (v) => `靈寵攻擊 +${Math.round(v * 100)}%`,
+    petXp: (v) => `靈寵修為獲取 +${Math.round(v * 100)}%`,
+    sell: (v) => `出售價格 +${Math.round(v * 100)}%`,
+    discount: (v) => `交易所購買 -${Math.round(v * 100)}%`,
+  }
   const SECTS = [
-    { id: 'qingyun', name: '青雲宗', master: '玄真子', desc: '正道劍修聖地，劍法凌厲，弟子眾多。', bonus: '劍法攻擊 +10%' },
-    { id: 'wandu', name: '萬毒門', master: '毒仙子', desc: '精於毒術與煉丹之道，手段詭譎難防。', bonus: '煉丹成功率 +15%' },
-    { id: 'tianji', name: '天機閣', master: '天機老人', desc: '擅長陣法推演與秘寶鍛造，藏寶無數。', bonus: '法寶掉落率 +10%' },
-    { id: 'xuanyin', name: '玄陰宗', master: '寒月真人', desc: '修習陰寒功法，根基深厚，防禦無雙。', bonus: '氣血上限 +10%' },
+    // ── 正道 ──
+    {
+      id: 'qingyun', name: '青雲劍宗', align: 'righteous', master: '玄真子',
+      desc: '正道劍修魁首，一劍光寒十九州，弟子以斬妖除魔為己任。',
+      bonuses: [{ type: 'atk', value: 0.1 }, { type: 'breakthrough', value: 0.03 }],
+      shop: [{ item: 'jianxinStone', cost: 150 }, { item: 'qingmingPill', cost: 250 }, { item: 'wanjianSlip', cost: 400 }],
+      quests: [
+        { id: 'qyWolf', name: '斬妖除魔', desc: '落霞谷赤血狼傷及山民，前往斬殺。', type: 'kill', monster: 'wolf', qty: 5, reward: { contribution: 60, stones: 100 } },
+        { id: 'qyIron', name: '鑄劍之材', desc: '劍閣需玄鐵重鑄弟子佩劍。', type: 'submit', item: 'blackIron', qty: 3, reward: { contribution: 80 } },
+        { id: 'qyTiger', name: '試劍萬妖山', desc: '以妖虎磨礪劍意。', type: 'kill', monster: 'tiger', qty: 3, reward: { contribution: 120, xp: 0.2 } },
+        { id: 'qyStar', name: '星辰劍胚', desc: '掌門欲以天外隕鐵煉製鎮宗飛劍。', type: 'submit', item: 'starIron', qty: 1, reward: { contribution: 220 } },
+      ],
+    },
+    {
+      id: 'xuantian', name: '玄天道宮', align: 'righteous', master: '太虛真人',
+      desc: '道門正統，講究清靜無為、吐納天地，修行之速冠絕天下。',
+      bonuses: [{ type: 'cultivate', value: 0.2 }, { type: 'mpRegen', value: 1 }],
+      shop: [{ item: 'taiqingDew', cost: 150 }, { item: 'xuantianFruit', cost: 350 }, { item: 'zifuTalisman', cost: 450 }],
+      quests: [
+        { id: 'xtGrass', name: '採藥童子', desc: '為丹房採集靈草。', type: 'submit', item: 'spiritGrass', qty: 5, reward: { contribution: 50 } },
+        { id: 'xtBat', name: '驅散夜魘', desc: '夜魘蝠擾人清修，前往驅除。', type: 'kill', monster: 'bat', qty: 6, reward: { contribution: 60, stones: 80 } },
+        { id: 'xtJade', name: '護山大陣', desc: '大陣靈玉耗損，需補充。', type: 'submit', item: 'spiritJade', qty: 2, reward: { contribution: 130 } },
+        { id: 'xtKraken', name: '鎮壓章鬼', desc: '太虛幻境深淵章鬼作亂。', type: 'kill', monster: 'kraken', qty: 2, reward: { contribution: 250, xp: 0.3 } },
+      ],
+    },
+    {
+      id: 'danding', name: '丹鼎谷', align: 'righteous', master: '藥王孫思玄',
+      desc: '天下丹道之源，谷中丹爐千年不熄，懸壺濟世。',
+      bonuses: [{ type: 'pill', value: 0.3 }, { type: 'hpRegen', value: 2 }],
+      shop: [{ item: 'baicaoMarrow', cost: 150 }, { item: 'jiuzhuanPill', cost: 450 }, { item: 'zaohuaPill', cost: 400 }],
+      quests: [
+        { id: 'ddGrass', name: '百草入爐', desc: '丹房缺靈草煉製回氣丹。', type: 'submit', item: 'spiritGrass', qty: 8, reward: { contribution: 70 } },
+        { id: 'ddCore', name: '妖丹藥引', desc: '以妖丹為藥引煉製培元丹。', type: 'submit', item: 'demonCore', qty: 3, reward: { contribution: 110 } },
+        { id: 'ddSnake', name: '取膽入藥', desc: '獵殺赤焰蛟取其蛇膽。', type: 'kill', monster: 'serpent', qty: 3, reward: { contribution: 150, stones: 200 } },
+        { id: 'ddLotus', name: '地火金蓮', desc: '谷主閉關煉丹，需火蓮為引。', type: 'submit', item: 'fireLotus', qty: 2, reward: { contribution: 160 } },
+      ],
+    },
+    {
+      id: 'jingang', name: '金剛寺', align: 'righteous', master: '了塵大師',
+      desc: '佛門體修聖地，金身不壞，以慈悲心降妖伏魔。',
+      bonuses: [{ type: 'def', value: 0.15 }, { type: 'hpRegen', value: 2 }],
+      shop: [{ item: 'sheli', cost: 150 }, { item: 'bodhiSeed', cost: 250 }, { item: 'budongTalisman', cost: 400 }],
+      quests: [
+        { id: 'jgBoar', name: '護田降豬', desc: '鐵甲野豬毀壞寺田。', type: 'kill', monster: 'boar', qty: 5, reward: { contribution: 70, stones: 100 } },
+        { id: 'jgHide', name: '縫製僧袍', desc: '為弟子縫製禦寒僧袍。', type: 'submit', item: 'beastHide', qty: 6, reward: { contribution: 60 } },
+        { id: 'jgGolem', name: '破傀儡陣', desc: '萬妖山脈岩甲傀儡擋住朝聖之路。', type: 'kill', monster: 'golem', qty: 3, reward: { contribution: 140, xp: 0.2 } },
+        { id: 'jgCoin', name: '古剎香火', desc: '收集上古銅錢重修古剎。', type: 'submit', item: 'ancientCoin', qty: 2, reward: { contribution: 140 } },
+      ],
+    },
+    // ── 邪道 ──
+    {
+      id: 'xuesha', name: '血煞宗', align: 'evil', master: '血屠老祖',
+      desc: '以殺證道的魔門，越戰越勇，飲血療傷。',
+      bonuses: [{ type: 'atk', value: 0.15 }, { type: 'lifesteal', value: 0.08 }],
+      shop: [{ item: 'bloodSoulBead', cost: 150 }, { item: 'xueshaEssence', cost: 280 }, { item: 'huaxuePill', cost: 200 }],
+      quests: [
+        { id: 'xsWolf', name: '血祭', desc: '以狼血祭煉血旗。', type: 'kill', monster: 'wolf', qty: 8, reward: { contribution: 80, stones: 120 } },
+        { id: 'xsBlood', name: '精血供奉', desc: '上交妖獸精血供老祖修煉。', type: 'submit', item: 'beastBlood', qty: 3, reward: { contribution: 120 } },
+        { id: 'xsBone', name: '白骨魔座', desc: '以虎骨打造魔座。', type: 'submit', item: 'tigerBone', qty: 2, reward: { contribution: 110 } },
+        { id: 'xsPhoenix', name: '獵鳳', desc: '奪幻鳳真血煉製血魂珠。', type: 'kill', monster: 'phoenix', qty: 2, reward: { contribution: 260, xp: 0.3 } },
+      ],
+    },
+    {
+      id: 'wandu', name: '萬毒門', align: 'evil', master: '毒仙子',
+      desc: '精於毒術蠱道，手段詭譎難防，搜刮天下奇物。',
+      bonuses: [{ type: 'atk', value: 0.08 }, { type: 'loot', value: 0.2 }],
+      shop: [{ item: 'guKing', cost: 200 }, { item: 'biXuePill', cost: 260 }, { item: 'wuduBead', cost: 200 }],
+      quests: [
+        { id: 'wdBat', name: '收集毒源', desc: '夜魘蝠體內毒腺可煉蠱。', type: 'kill', monster: 'bat', qty: 6, reward: { contribution: 60, stones: 80 } },
+        { id: 'wdWing', name: '蝠翼毒粉', desc: '上交蝠翼研磨毒粉。', type: 'submit', item: 'batWing', qty: 4, reward: { contribution: 70 } },
+        { id: 'wdGall', name: '蛇膽煉蠱', desc: '以蛇膽餵養蠱王。', type: 'submit', item: 'snakeGall', qty: 2, reward: { contribution: 130 } },
+        { id: 'wdSerpent', name: '毒蛟之爭', desc: '赤焰蛟佔據毒潭，前往剿滅。', type: 'kill', monster: 'serpent', qty: 3, reward: { contribution: 150, xp: 0.2 } },
+      ],
+    },
+    {
+      id: 'youming', name: '幽冥殿', align: 'evil', master: '冥河鬼帝',
+      desc: '鬼道魂修，掌生死輪迴之秘，吞噬魂魄精進修為。',
+      bonuses: [{ type: 'exp', value: 0.25 }, { type: 'breakthrough', value: 0.05 }],
+      shop: [{ item: 'ghostFire', cost: 450 }, { item: 'samsaraFruit', cost: 400 }, { item: 'soulBanner', cost: 180 }],
+      quests: [
+        { id: 'ymBat', name: '收魂', desc: '收取夜魘蝠殘魂。', type: 'kill', monster: 'bat', qty: 8, reward: { contribution: 80, stones: 100 } },
+        { id: 'ymSlip', name: '殘卷尋蹤', desc: '尋回失落的鬼道玉簡。', type: 'submit', item: 'jadeSlip', qty: 1, reward: { contribution: 100 } },
+        { id: 'ymSoul', name: '冥火燃燈', desc: '上交幽魂火點燃引魂燈。', type: 'submit', item: 'soulFire', qty: 2, reward: { contribution: 150 } },
+        { id: 'ymKraken', name: '深淵噬魂', desc: '吞噬深淵章鬼之魂。', type: 'kill', monster: 'kraken', qty: 2, reward: { contribution: 260, xp: 0.3 } },
+      ],
+    },
+    // ── 靈獸宗 ──
+    {
+      id: 'yushou', name: '萬獸山莊', align: 'beast', master: '百獸真君',
+      desc: '御獸一脈，與靈獸同修共生，獸寵戰力冠絕修仙界。',
+      bonuses: [{ type: 'petAtk', value: 0.3 }, { type: 'petXp', value: 0.5 }],
+      shop: [{ item: 'beastSoul', cost: 120 }, { item: 'dragonBlood', cost: 400 }, { item: 'yushouRing', cost: 150 }, { item: 'advancedEgg', cost: 500 }],
+      quests: [
+        { id: 'ysHide', name: '獸欄修繕', desc: '上交靈獸皮修繕獸欄。', type: 'submit', item: 'beastHide', qty: 5, reward: { contribution: 60 } },
+        { id: 'ysBlood', name: '精血育獸', desc: '以妖獸精血餵養幼獸。', type: 'submit', item: 'beastBlood', qty: 2, reward: { contribution: 100 } },
+        { id: 'ysTiger', name: '降服妖虎', desc: '擊敗玄紋妖虎，挫其凶性。', type: 'kill', monster: 'tiger', qty: 3, reward: { contribution: 120, stones: 150 } },
+        { id: 'ysFeather', name: '鳳羽為信', desc: '取得鳳羽，與鳳族結盟。', type: 'submit', item: 'phoenixFeather', qty: 1, reward: { contribution: 230 } },
+      ],
+    },
+    // ── 中立 ──
+    {
+      id: 'wanbao', name: '萬寶商盟', align: 'neutral', master: '金算盤錢百通',
+      desc: '不問正邪、只論買賣的中立商盟，財可通神。',
+      bonuses: [{ type: 'sell', value: 0.2 }, { type: 'discount', value: 0.15 }],
+      shop: [{ item: 'cornucopia', cost: 150 }, { item: 'goldToad', cost: 250 }, { item: 'wanbaoToken', cost: 200 }],
+      quests: [
+        { id: 'wbHide', name: '皮貨收購', desc: '商盟大量收購靈獸皮。', type: 'submit', item: 'beastHide', qty: 10, reward: { contribution: 100, stones: 150 } },
+        { id: 'wbBoar', name: '護送商隊', desc: '清除商路上的鐵甲野豬。', type: 'kill', monster: 'boar', qty: 4, reward: { contribution: 80, stones: 200 } },
+        { id: 'wbCoin', name: '古錢鑑寶', desc: '上交上古銅錢供鑑寶閣研究。', type: 'submit', item: 'ancientCoin', qty: 3, reward: { contribution: 160 } },
+        { id: 'wbPearl', name: '奇珍異寶', desc: '貴客高價求購墨珠。', type: 'submit', item: 'inkPearl', qty: 1, reward: { contribution: 180, stones: 300 } },
+      ],
+    },
     // ↑ 在這裡繼續加新宗門
   ]
+  const MAX_ACTIVE_QUESTS = 3 // 擊殺任務最多同時接取數
 
   /* =========================================================
    * 玩家初始數值：開新遊戲、或找不到存檔時使用的起始狀態
@@ -752,7 +1006,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     stones: 12860, jade: 36, secluded: false,
     cooldowns: {}, nav: 'character',
     inventory: { qi: 5, foundation: 2, spiritGrass: 3, commonEgg: 1, commonFeed: 5 },
-    sect: 'qingyun', contribution: 1280,
+    sect: '', contribution: 0, // 初始為散修，到「宗門」分頁拜入
+    quests: {},     // 已接取的擊殺任務 { 任務id: 進度 }
+    buffs: {},      // 限時增益 { stat: { value, left } }
+    breakBonus: 0,  // 下一次突破額外機率
+    sectTab: 'mine',
     selectedLocation: null, battle: null,
     auctions: [], playerListings: [],
     pets: [], activePet: null, // 靈寵列表、出戰靈寵 uid
@@ -761,9 +1019,17 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   const $ = (id) => document.getElementById(id)
   const required = () => Math.round(100 * Math.pow(1.6, state.realm) * (1 + state.layer * 0.25))
+  /* ---------- 宗門加成／增益 ---------- */
+  const currentSect = () => SECTS.find((s) => s.id === state.sect) || null
+  // 目前宗門某種特色狀態的總值（沒有宗門 = 0）
+  const sectBonus = (type) => { const s = currentSect(); return s ? s.bonuses.filter((b) => b.type === type).reduce((a, b) => a + b.value, 0) : 0 }
+  const buffVal = (stat) => (state.buffs[stat] ? state.buffs[stat].value : 0)
+  const BUFF_LABELS = { atk: '攻擊', def: '減傷', cultivate: '修煉速度', petAtk: '靈寵攻擊' }
+  const sellPrice = (id) => Math.round(ITEMS[id].sell * (1 + sectBonus('sell')))
+  const buyPrice = (id) => Math.max(1, Math.round(ITEMS[id].buy * (1 - sectBonus('discount'))))
   const chance = () => {
     const base = state.layer === MAX_LAYER ? 0.55 - state.realm * 0.05 : 0.92 - state.layer * 0.03
-    return Math.max(0.2, Math.min(0.95, base))
+    return Math.min(0.99, Math.max(0.2, Math.min(0.95, base)) + sectBonus('breakthrough') + (state.breakBonus || 0))
   }
   const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
   const rarityColor = (r) => ({ '普通': 'var(--muted-fg)', '精良': 'var(--primary)', '稀有': 'var(--accent)', '史詩': 'var(--destructive)' }[r] || 'var(--muted-fg)')
@@ -775,14 +1041,24 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     state.inventory[id] = (state.inventory[id] || 0) - qty
     if (state.inventory[id] <= 0) delete state.inventory[id]
   }
-  function rollTable(table) {
+  function rollTable(table, mul = 1) {
     const loot = []
     for (const entry of table) {
-      if (Math.random() < entry.chance) loot.push({ item: entry.item, qty: randomInt(entry.min, entry.max) })
+      if (Math.random() < entry.chance * mul) loot.push({ item: entry.item, qty: randomInt(entry.min, entry.max) })
     }
     return loot
   }
-  const rollLoot = (monster) => rollTable(monster.loot)
+  const rollLoot = (monster) => rollTable(monster.loot, 1 + sectBonus('loot'))
+  function rollLootbox(rolls) {
+    const total = LOOTBOX_POOL.reduce((a, e) => a + e.weight, 0)
+    const got = []
+    for (let i = 0; i < rolls; i++) {
+      let r = Math.random() * total
+      const e = LOOTBOX_POOL.find((x) => (r -= x.weight) < 0) || LOOTBOX_POOL[0]
+      got.push({ item: e.item, qty: randomInt(e.min, e.max) })
+    }
+    return got
+  }
   const lootText = (loot) => loot.map((l) => `${ITEMS[l.item].name} × ${l.qty}`).join('、')
 
   /* ---------- 靈寵 ---------- */
@@ -790,7 +1066,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   const petTpl = (p) => PET_TEMPLATES.find((t) => t.id === p.tpl) || PET_TEMPLATES[0]
   const petRequired = (p) => Math.round(80 * Math.pow(1.6, p.realm) * (1 + p.layer * 0.25))
   const petMaxed = (p) => p.realm >= p.cap && p.layer >= MAX_LAYER
-  const petAtk = (p) => Math.round((4 + p.realm * 7 + p.layer * 1.2) * petTpl(p).atk)
+  const petAtk = (p) => Math.round((4 + p.realm * 7 + p.layer * 1.2) * petTpl(p).atk * (1 + sectBonus('petAtk') + buffVal('petAtk')))
   const petStrike = (p) => { const a = petAtk(p); return randomInt(Math.round(a * 0.8), Math.round(a * 1.2)) }
   const activePet = () => state.pets.find((p) => p.uid === state.activePet) || null
 
@@ -809,8 +1085,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       if (!/^[a-z]{6}$/.test(p.uid)) { const old = p.uid; p.uid = newPetUid(); if (state.activePet === old) state.activePet = p.uid }
       out[PET_KEY + L(p.realm) + L(p.layer - 1) + (p.uid === state.activePet ? 'y' : 'n') + p.uid + p.tpl] = Math.min(99999, Math.floor(p.xp))
     }
+    // 宗門擊殺任務進度也用同樣方式存：key = 'zqqst' + 任務 id，value = 進度
+    for (const [qid, prog] of Object.entries(state.quests || {})) out[QUEST_KEY + qid] = Math.min(99999, prog)
     return out
   }
+  const QUEST_KEY = 'zqqst'
   function decodePets(inv) {
     const pets = []
     let active = null
@@ -845,7 +1124,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   // 增加靈寵修為，滿了自動晉層／晉境，直到資質上限
   function addPetXp(p, amount) {
     if (!p || petMaxed(p)) return
-    p.xp += amount
+    p.xp += Math.round(amount * (1 + sectBonus('petXp')))
     let ups = 0
     while (!petMaxed(p) && p.xp >= petRequired(p)) {
       p.xp -= petRequired(p)
@@ -859,7 +1138,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   function refreshAfterItem() {
     render()
-    if (['bag', 'market', 'auction', 'pets'].includes(state.nav)) renderInfo()
+    if (['bag', 'market', 'auction', 'pets', 'sect', 'character'].includes(state.nav)) renderInfo()
   }
 
   function feedPet(uid, feedId) {
@@ -1165,6 +1444,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       stones: state.stones, jade: state.jade,
       inventory: state.inventory, sect: state.sect, contribution: state.contribution,
       pets: state.pets, activePet: state.activePet,
+      quests: state.quests, buffs: state.buffs, breakBonus: state.breakBonus,
     }
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data))
@@ -1212,7 +1492,21 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     state.pets = state.pets.filter((p) => p && PET_TEMPLATES.some((t) => t.id === p.tpl))
     if (!state.pets.some((p) => p.uid === state.activePet)) state.activePet = null
     if (!state.inventory || typeof state.inventory !== 'object') state.inventory = {}
+    // 連線存檔：宗門任務進度藏在 inventory 裡，解回 state.quests
+    if (!state.quests || typeof state.quests !== 'object') state.quests = {}
+    for (const [k, v] of Object.entries(state.inventory)) {
+      if (!k.startsWith(QUEST_KEY)) continue
+      state.quests[k.slice(QUEST_KEY.length)] = Number(v) || 0
+      delete state.inventory[k]
+    }
     for (const id of Object.keys(state.inventory)) if (!ITEMS[id]) delete state.inventory[id]
+    // 宗門：舊版宗門（天機閣、玄陰宗…）已移除 → 變回散修、貢獻歸零
+    if (!currentSect()) { state.sect = ''; state.contribution = 0; state.quests = {} }
+    const sect = currentSect()
+    for (const qid of Object.keys(state.quests)) if (!sect || !sect.quests.some((q) => q.id === qid && q.type === 'kill')) delete state.quests[qid]
+    if (!state.buffs || typeof state.buffs !== 'object') state.buffs = {}
+    state.breakBonus = Number(state.breakBonus) || 0
+    state.contribution = Math.max(0, Number(state.contribution) || 0)
   }
 
   // 開始畫面 → 登入畫面
@@ -1257,7 +1551,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       addLog('靈氣流轉，你繼續先前的修行進度。', 'gold')
     } else {
       addLog('你於青雲峰洞府中盤膝而坐，靈氣緩緩流轉。');
-      addLog('師尊玄真子傳音：「修行之道，貴在持之以恆。」', 'gold');
+      addLog('一道傳音入耳：「修行之道，貴在持之以恆。散修孤苦，不妨到「宗門」拜入一派。」', 'gold');
     }
     renderNav();
     renderInfo();
@@ -1300,7 +1594,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             <div class="attr-head"><dt>${a.label}</dt><dd>${a.value}</dd></div>
             <div class="mini-track" aria-hidden="true"><div style="width:${a.value}%"></div></div>
             <p class="xs muted">${a.hint}</p>
-          </div>`).join('') + '</dl>'
+          </div>`).join('') + '</dl>' + renderStatus()
         break
       case 'techniques':
         html = '<ul class="stack">' + SKILLS.map((s) => `
@@ -1362,7 +1656,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             <p class="xs muted" style="margin-top:2px">${def.desc}</p>
             <div class="actions" style="justify-content:flex-start;margin-top:6px;gap:8px">
               ${def.effect ? `<button type="button" class="small-btn" data-use-item="${id}">使用</button>` : ''}
-              <button type="button" class="small-btn" data-sell-item="${id}">出售（${def.sell} 靈石）</button>
+              <button type="button" class="small-btn" data-sell-item="${id}">出售（${sellPrice(id)} 靈石）</button>
             </div>
           </div>
         </li>`
@@ -1394,7 +1688,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <p class="xs muted" style="margin-top:2px">${def.desc}</p>
           <div class="actions" style="justify-content:flex-start;margin-top:6px;gap:8px">
             ${def.effect ? `<button type="button" class="small-btn" data-modal-use="${id}">使用</button>` : ''}
-            <button type="button" class="small-btn" data-modal-sell="${id}">出售（${def.sell} 靈石）</button>
+            <button type="button" class="small-btn" data-modal-sell="${id}">出售（${sellPrice(id)} 靈石）</button>
           </div>
         </div>
       </div>`;
@@ -1542,7 +1836,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
               <span class="xs muted">${def.desc}</span>
             </div>
           </div>
-          <button type="button" class="small-btn" data-buy-item="${id}">購買（${def.buy} ${def.currency === 'jade' ? '仙玉' : '靈石'}）</button>
+          <button type="button" class="small-btn" data-buy-item="${id}">購買（${buyPrice(id)} ${def.currency === 'jade' ? '仙玉' : '靈石'}）</button>
         </li>`
     }).join('')
     const entries = Object.entries(state.inventory).filter(([, q]) => q > 0)
@@ -1554,7 +1848,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             <div class="item-icon">${def.icon}</div>
             <span class="bold">${def.name} <span class="xs muted">× ${qty}</span></span>
           </div>
-          <button type="button" class="small-btn" data-sell-item="${id}">出售（${def.sell} 靈石）</button>
+          <button type="button" class="small-btn" data-sell-item="${id}">出售（${sellPrice(id)} 靈石）</button>
         </li>`
     }).join('') : '<li class="xs muted">無可出售物品</li>'
     return `
@@ -1637,24 +1931,204 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <ul class="stack">${myListings}</ul>`
   }
 
+  /* ---------- 宗門畫面 ---------- */
+  const bonusText = (s) => s.bonuses.map((b) => BONUS_TYPES[b.type](b.value)).join('、')
+  const alignTag = (s) => `<span class="xs" style="color:${SECT_ALIGNS[s.align].color};border:1px solid currentColor;border-radius:3px;padding:0 4px;margin-left:6px">${SECT_ALIGNS[s.align].label}</span>`
+  const rewardText = (r) => [`貢獻 ${r.contribution}`, r.stones ? `靈石 ${r.stones}` : '', r.xp ? `修為 ${Math.round(r.xp * 100)}%` : ''].filter(Boolean).join('、')
+  const monsterById = (id) => { for (const l of LOCATIONS) { const m = l.monsters.find((x) => x.id === id); if (m) return { m, loc: l } } return null }
+
   function renderSect() {
-    const cards = SECTS.map((s) => `
-      <li class="card sect-card ${state.sect === s.id ? 'selected' : ''}" data-sect="${s.id}">
-        <div class="row" style="align-items:flex-start">
-          <div class="col">
-            <span class="bold">${s.name}</span>
-            <span class="xs muted" style="margin-top:4px">${s.desc}</span>
-            <span class="xs" style="color:var(--accent);margin-top:4px">${s.bonus}</span>
-          </div>
-          <span class="xs" style="color:${state.sect === s.id ? 'var(--primary)' : 'var(--muted-fg)'};white-space:nowrap">${state.sect === s.id ? '目前宗門' : '點擊加入'}</span>
-        </div>
-      </li>`).join('')
-    const current = SECTS.find((s) => s.id === state.sect) || SECTS[0]
-    const info = [['宗門', current.name], ['職位', '內門弟子'], ['貢獻', state.contribution.toLocaleString()], ['師尊', current.master]]
+    const sect = currentSect()
+    const tab = sect ? state.sectTab : 'list'
+    const tabs = sect ? `
+      <div class="actions" style="justify-content:flex-start;gap:6px;margin-bottom:14px">
+        ${[['mine', '本宗'], ['quests', '任務'], ['shop', '寶庫'], ['list', '宗門列表']].map(([k, label]) =>
+          `<button type="button" class="small-btn" data-sect-tab="${k}" style="${tab === k ? 'background:color-mix(in oklch, var(--primary) 20%, transparent)' : ''}">${label}</button>`).join('')}
+      </div>` : ''
+    let body = ''
+    if (tab === 'mine') body = renderSectMine(sect)
+    else if (tab === 'quests') body = renderSectQuests(sect)
+    else if (tab === 'shop') body = renderSectShop(sect)
+    else body = renderSectList()
+    return tabs + body
+  }
+
+  function renderSectMine(s) {
+    const info = [['陣營', SECT_ALIGNS[s.align].label], ['掌門', s.master], ['貢獻', state.contribution.toLocaleString()], ['進行中任務', `${Object.keys(state.quests).length} / ${MAX_ACTIVE_QUESTS}`]]
     return `
-      <ul class="stack" style="margin-bottom:18px">${cards}</ul>
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">宗門資料</h3>
-      <dl class="sect-grid">${info.map(([k, v]) => `<div class="card"><dt class="xs muted">${k}</dt><dd class="bold">${v}</dd></div>`).join('')}</dl>`
+      <div class="card" style="margin-bottom:12px">
+        <span class="bold" style="font-size:16px">${s.name}</span>${alignTag(s)}
+        <p class="xs muted" style="margin-top:6px;line-height:1.7">${s.desc}</p>
+        <h3 class="xs" style="margin-top:10px;color:var(--accent);letter-spacing:.2em">宗門特色</h3>
+        <ul style="margin-top:4px">${s.bonuses.map((b) => `<li class="xs" style="color:var(--primary)">✦ ${BONUS_TYPES[b.type](b.value)}</li>`).join('')}</ul>
+      </div>
+      <dl class="sect-grid" style="margin-bottom:12px">${info.map(([k, v]) => `<div class="card"><dt class="xs muted">${k}</dt><dd class="bold">${v}</dd></div>`).join('')}</dl>
+      <p class="xs muted" style="line-height:1.7;margin-bottom:10px">完成「任務」獲得貢獻，可在「寶庫」兌換本宗專屬天材地寶。離開宗門貢獻將歸零。</p>
+      <button type="button" class="small-btn" data-sect-leave style="border-color:color-mix(in oklch, var(--destructive) 50%, transparent);color:var(--destructive)">離開宗門</button>`
+  }
+
+  function renderSectQuests(s) {
+    const active = Object.keys(state.quests).length
+    const cards = s.quests.map((q) => {
+      let need, status
+      if (q.type === 'kill') {
+        const info = monsterById(q.monster)
+        const mName = info ? `${info.m.icon} ${info.m.name}` : q.monster
+        const where = info ? `（${info.loc.name}，${REALMS[info.loc.reqRealm]}期可入）` : ''
+        const accepted = q.id in state.quests
+        const prog = state.quests[q.id] || 0
+        need = `擊殺 ${mName} × ${q.qty}${where}`
+        status = !accepted
+          ? `<button type="button" class="small-btn" data-quest-accept="${q.id}" ${active >= MAX_ACTIVE_QUESTS ? 'disabled title="擊殺任務最多同時接 ' + MAX_ACTIVE_QUESTS + ' 個"' : ''}>接取</button>`
+          : `<span class="xs num" style="color:${prog >= q.qty ? 'var(--accent)' : 'var(--muted-fg)'}">${prog} / ${q.qty}</span>
+             ${prog >= q.qty ? `<button type="button" class="small-btn" data-quest-done="${q.id}">交付</button>` : ''}
+             <button type="button" class="small-btn" data-quest-abandon="${q.id}">放棄</button>`
+      } else {
+        const def = ITEMS[q.item], have = state.inventory[q.item] || 0
+        need = `上交 ${def.icon} ${def.name} × ${q.qty}`
+        status = `<span class="xs num" style="color:${have >= q.qty ? 'var(--accent)' : 'var(--muted-fg)'}">持有 ${have} / ${q.qty}</span>
+                  <button type="button" class="small-btn" data-quest-done="${q.id}" ${have >= q.qty ? '' : 'disabled'}>上交</button>`
+      }
+      return `
+        <li class="card">
+          <div class="row" style="align-items:baseline"><span class="bold">${q.name}</span><span class="xs muted">${q.type === 'kill' ? '討伐' : '上交'}</span></div>
+          <p class="xs muted" style="margin-top:4px">${q.desc}</p>
+          <p class="xs" style="margin-top:6px">${need}</p>
+          <p class="xs" style="margin-top:2px;color:var(--accent)">獎勵：${rewardText(q.reward)}</p>
+          <div class="actions" style="justify-content:flex-start;align-items:center;gap:8px;margin-top:8px">${status}</div>
+        </li>`
+    }).join('')
+    return `
+      <p class="xs muted" style="margin-bottom:10px">貢獻：<span class="bold num" style="color:var(--accent)">${state.contribution.toLocaleString()}</span>　任務可重複完成；討伐任務需先接取（同時最多 ${MAX_ACTIVE_QUESTS} 個）。</p>
+      <ul class="stack">${cards}</ul>`
+  }
+
+  function renderSectShop(s) {
+    const cards = s.shop.map(({ item, cost }) => {
+      const def = ITEMS[item], have = state.inventory[item] || 0
+      return `
+        <li class="item-card">
+          <div class="item-icon">${def.icon}</div>
+          <div class="col" style="flex:1;min-width:0">
+            <div class="row" style="align-items:baseline"><span class="bold">${def.name}</span><span class="xs muted">持有 ${have}</span></div>
+            <span class="xs" style="color:${rarityColor(def.rarity)}">${def.rarity}${def.sect ? ' · 本宗專屬' : ''}</span>
+            <p class="xs muted" style="margin-top:2px">${def.desc}</p>
+            <div class="actions" style="justify-content:flex-start;margin-top:6px">
+              <button type="button" class="small-btn" data-sect-buy="${item}" ${state.contribution >= cost ? '' : 'disabled'}>兌換（${cost} 貢獻）</button>
+            </div>
+          </div>
+        </li>`
+    }).join('')
+    return `
+      <p class="xs muted" style="margin-bottom:10px">貢獻：<span class="bold num" style="color:var(--accent)">${state.contribution.toLocaleString()}</span></p>
+      <ul class="item-list">${cards}</ul>`
+  }
+
+  function renderSectList() {
+    const groups = Object.entries(SECT_ALIGNS).map(([key, a]) => {
+      const list = SECTS.filter((s) => s.align === key).map((s) => {
+        const mine = state.sect === s.id
+        return `
+          <li class="card sect-card ${mine ? 'selected' : ''}">
+            <div class="row" style="align-items:flex-start">
+              <div class="col" style="min-width:0">
+                <span class="bold">${s.name}</span>
+                <span class="xs muted" style="margin-top:4px;line-height:1.6">${s.desc}</span>
+                <span class="xs" style="color:var(--accent);margin-top:4px">${bonusText(s)}</span>
+              </div>
+              ${mine ? '<span class="xs" style="color:var(--primary);white-space:nowrap">目前宗門</span>' : `<button type="button" class="small-btn" data-sect="${s.id}">${state.sect ? '改投' : '拜入'}</button>`}
+            </div>
+          </li>`
+      }).join('')
+      return `<h3 class="panel-title" style="font-size:12px;margin:14px 0 8px;color:${a.color}">${a.label}</h3><ul class="stack">${list}</ul>`
+    }).join('')
+    return `${state.sect ? '' : '<p class="xs muted" style="line-height:1.7">你目前是散修。拜入宗門即可獲得宗門特色狀態，並能承接宗門任務、以貢獻兌換天材地寶。</p>'}${groups}`
+  }
+
+  function refreshSect() { render(); if (state.nav === 'sect') renderInfo() }
+
+  // 角色分頁：目前宗門特色與增益狀態
+  function renderStatus() {
+    const s = currentSect()
+    const buffs = Object.entries(state.buffs).map(([k, b]) => `${BUFF_LABELS[k] || k} +${Math.round(b.value * 100)}%（剩 ${b.left} 息）`)
+    if (state.breakBonus) buffs.push(`下一次突破機率 +${Math.round(state.breakBonus * 100)}%`)
+    return `
+      <div class="card" style="margin-top:16px">
+        <h3 class="xs" style="color:var(--accent);letter-spacing:.2em">宗門特色</h3>
+        <p class="xs" style="margin-top:4px;line-height:1.7">${s ? `${s.name}：${bonusText(s)}` : '散修，無宗門加成'}</p>
+        <h3 class="xs" style="color:var(--accent);letter-spacing:.2em;margin-top:10px">增益狀態</h3>
+        <p class="xs muted" style="margin-top:4px;line-height:1.7">${buffs.join('<br>') || '無'}</p>
+      </div>`
+  }
+
+  function joinSect(id) {
+    const s = SECTS.find((x) => x.id === id)
+    if (!s || state.sect === id) return
+    const old = currentSect()
+    if (old && !confirm(`改投「${s.name}」將離開「${old.name}」，目前 ${state.contribution} 點貢獻會歸零、進行中的任務作廢。確定嗎？`)) return
+    if (old) addLog(`你離開了「${old.name}」，宗門貢獻歸零。`, 'danger')
+    state.sect = id; state.contribution = 0; state.quests = {}; state.sectTab = 'mine'
+    addLog(`你拜入「${s.name}」，獲得宗門特色：${bonusText(s)}。`, 'gold')
+    refreshSect()
+  }
+  function leaveSect() {
+    const s = currentSect()
+    if (!s || !confirm(`確定要離開「${s.name}」嗎？目前 ${state.contribution} 點貢獻會歸零、進行中的任務作廢。`)) return
+    state.sect = ''; state.contribution = 0; state.quests = {}
+    addLog(`你離開了「${s.name}」，重歸散修，宗門貢獻歸零。`, 'danger')
+    refreshSect()
+  }
+  const findQuest = (qid) => { const s = currentSect(); return s ? s.quests.find((q) => q.id === qid) : null }
+  function acceptQuest(qid) {
+    const q = findQuest(qid)
+    if (!q || q.type !== 'kill' || qid in state.quests) return
+    if (Object.keys(state.quests).length >= MAX_ACTIVE_QUESTS) { addLog(`討伐任務最多同時接取 ${MAX_ACTIVE_QUESTS} 個。`, 'danger'); return refreshSect() }
+    state.quests[qid] = 0
+    addLog(`接取宗門任務「${q.name}」。`)
+    refreshSect()
+  }
+  function abandonQuest(qid) {
+    const q = findQuest(qid)
+    if (!q || !(qid in state.quests)) return
+    delete state.quests[qid]
+    addLog(`放棄宗門任務「${q.name}」。`)
+    refreshSect()
+  }
+  function completeQuest(qid) {
+    const q = findQuest(qid)
+    if (!q) return
+    if (q.type === 'kill') {
+      if ((state.quests[qid] || 0) < q.qty) return
+      delete state.quests[qid]
+    } else {
+      if ((state.inventory[q.item] || 0) < q.qty) { addLog(`「${ITEMS[q.item].name}」數量不足。`, 'danger'); return refreshSect() }
+      consumeItem(q.item, q.qty)
+    }
+    const r = q.reward
+    state.contribution += r.contribution
+    if (r.stones) state.stones += r.stones
+    if (r.xp) { const req = required(); state.xp = Math.min(req, state.xp + Math.round(req * r.xp)) }
+    addLog(`完成宗門任務「${q.name}」，獲得${rewardText(r)}。`, 'gold')
+    refreshSect()
+  }
+  function buySectItem(item) {
+    const s = currentSect()
+    const entry = s && s.shop.find((x) => x.item === item)
+    if (!entry) return
+    if (state.contribution < entry.cost) { addLog('宗門貢獻不足。', 'danger'); return refreshSect() }
+    state.contribution -= entry.cost
+    addItem(item, 1)
+    addLog(`以 ${entry.cost} 點貢獻兌換「${ITEMS[item].name}」。`, 'gold')
+    refreshSect()
+  }
+  // 擊殺妖獸時推進討伐任務
+  function progressKillQuests(monsterId) {
+    for (const qid of Object.keys(state.quests)) {
+      const q = findQuest(qid)
+      if (!q || q.monster !== monsterId || state.quests[qid] >= q.qty) continue
+      state.quests[qid]++
+      if (state.quests[qid] >= q.qty) addLog(`宗門任務「${q.name}」已達成，回宗門交付吧。`, 'gold')
+    }
   }
 
   function renderSkills() {
@@ -1676,8 +2150,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const ready = state.xp >= req
     const progress = Math.min(1, state.xp / req)
 
-    const currentSect = SECTS.find((s) => s.id === state.sect) || SECTS[0]
-    $('sectBadge').textContent = `${currentSect.name} · 內門弟子`
+    const sect = currentSect()
+    $('sectBadge').textContent = sect ? `${sect.name} · 門下弟子` : '散修'
     $('playerName').textContent = pname()
     $('realmLine').textContent = `${REALMS[state.realm]}期 · 第${NUM[state.layer - 1]}層`
     setBar('hpBar', 'hpVal', state.hp, MAX_HP)
@@ -1702,7 +2176,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const sec = $('btnSeclude')
     sec.textContent = state.secluded ? '出關' : '閉關'
     sec.setAttribute('aria-pressed', state.secluded)
-    $('coreHint').textContent = state.secluded ? '閉關中 · 每息自動吸納天地靈氣' : '運功消耗 5 點靈力，修為圓滿方可突破'
+    const buffs = Object.entries(state.buffs).map(([k, b]) => `${BUFF_LABELS[k] || k}+${Math.round(b.value * 100)}%(${b.left})`)
+    if (state.breakBonus) buffs.push(`突破+${Math.round(state.breakBonus * 100)}%`)
+    $('coreHint').textContent = (state.secluded ? '閉關中 · 每息自動吸納天地靈氣' : '運功消耗 5 點靈力，修為圓滿方可突破') + (buffs.length ? ` ｜ 增益：${buffs.join('、')}` : '')
 
     renderSkills()
     // 拍賣場／戰鬥中的畫面需要每秒即時更新，其餘分頁（背包、交易所…）的刷新由各自的操作函式自行呼叫 renderInfo()
@@ -1712,7 +2188,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function cultivate() {
     const req = required()
     if (state.mp < CULTIVATE_COST || state.xp >= req) return
-    const gain = Math.round(req * (0.06 + Math.random() * 0.06))
+    const gain = Math.round(req * (0.06 + Math.random() * 0.06) * (1 + sectBonus('cultivate') + buffVal('cultivate')))
     state.mp -= CULTIVATE_COST
     state.xp = Math.min(req, state.xp + gain)
     if (Math.random() < 0.35) addLog(`運轉周天，吸納天地靈氣，修為增加 ${gain}。`)
@@ -1721,7 +2197,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   function breakthrough() {
     if (state.xp < required()) return
-    if (Math.random() < chance()) {
+    const ok = Math.random() < chance()
+    if (state.breakBonus) { state.breakBonus = 0; addLog('突破加持之力已消耗。') }
+    if (ok) {
       state.xp = 0
       if (state.layer < MAX_LAYER) {
         addLog(`突破成功！晉入${REALMS[state.realm]}期第${NUM[state.layer]}層。`, 'success')
@@ -1773,26 +2251,47 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return feedPet(p.uid, id)
     }
     consumeItem(id)
-    if (def.effect.type === 'restoreMp') {
-      state.mp = Math.min(MAX_MP, state.mp + def.effect.value)
-      addLog(`服下「${def.name}」，${def.desc}。`, 'success')
-    } else if (def.effect.type === 'addXpPercent') {
-      const req = required()
-      state.xp = Math.min(req, state.xp + req * def.effect.value)
-      addLog(`服下「${def.name}」，${def.desc}。`, 'gold')
+    const effects = Array.isArray(def.effect) ? def.effect : [def.effect]
+    const pillMul = 1 + sectBonus('pill') // 丹鼎谷：丹藥回復與修為效果加成
+    const notes = []
+    for (const ef of effects) {
+      if (ef.type === 'restoreMp') {
+        const v = Math.round(ef.value * pillMul); state.mp = Math.min(MAX_MP, state.mp + v); notes.push(`靈力 +${v}`)
+      } else if (ef.type === 'restoreHp') {
+        const v = Math.round(ef.value * pillMul); state.hp = Math.min(MAX_HP, state.hp + v); notes.push(ef.value >= 9999 ? '氣血全滿' : `氣血 +${v}`)
+      } else if (ef.type === 'restoreAll') {
+        state.hp = MAX_HP; state.mp = MAX_MP; notes.push('氣血靈力全滿')
+      } else if (ef.type === 'addXpPercent') {
+        const req = required(), v = Math.round(req * ef.value * pillMul)
+        state.xp = Math.min(req, state.xp + v); notes.push(`修為 +${v}`)
+      } else if (ef.type === 'buff') {
+        const cur = state.buffs[ef.stat]
+        // 同類增益取數值較高者，並刷新為較長的時間
+        state.buffs[ef.stat] = { value: Math.max(ef.value, cur ? cur.value : 0), left: Math.max(ef.sec, cur ? cur.left : 0) }
+        notes.push(`${BUFF_LABELS[ef.stat]} +${Math.round(ef.value * 100)}%，持續 ${ef.sec} 息`)
+      } else if (ef.type === 'breakBonus') {
+        state.breakBonus = Math.max(state.breakBonus || 0, ef.value); notes.push(`下次突破機率 +${Math.round(state.breakBonus * 100)}%`)
+      } else if (ef.type === 'stones') {
+        const v = randomInt(ef.min, ef.max); state.stones += v; notes.push(`獲得 ${v} 靈石`)
+      } else if (ef.type === 'jade') {
+        const v = randomInt(ef.min, ef.max); state.jade += v; notes.push(`獲得 ${v} 仙玉`)
+      } else if (ef.type === 'lootbox') {
+        const got = rollLootbox(ef.rolls); got.forEach((l) => addItem(l.item, l.qty)); notes.push(`開出 ${lootText(got)}`)
+      }
     }
-    render()
-    if (state.nav === 'bag' || state.nav === 'market') renderInfo()
+    const verb = ['bag', 'treasure'].includes(def.type) && effects.some((e) => ['stones', 'jade', 'lootbox'].includes(e.type)) ? '打開' : '使用'
+    addLog(`${verb}「${def.name}」：${notes.join('，')}。`, effects.some((e) => ['addXpPercent', 'breakBonus', 'lootbox', 'jade'].includes(e.type)) ? 'gold' : 'success')
+    refreshAfterItem()
   }
 
   function sellItem(id) {
     const qty = state.inventory[id] || 0
     const def = ITEMS[id]
     if (qty <= 0 || !def) return
-    state.inventory[id] = qty - 1
-    if (state.inventory[id] <= 0) delete state.inventory[id]
-    state.stones += def.sell
-    addLog(`售出「${def.name}」，獲得 ${def.sell} 靈石。`)
+    consumeItem(id)
+    const price = sellPrice(id)
+    state.stones += price
+    addLog(`售出「${def.name}」，獲得 ${price} 靈石。`)
     render()
     if (state.nav === 'bag' || state.nav === 'market' || state.nav === 'auction') renderInfo()
   }
@@ -1801,15 +2300,16 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const def = ITEMS[id]
     if (!def || !def.buy) return
     const wallet = def.currency === 'jade' ? 'jade' : 'stones'
-    if (state[wallet] < def.buy) {
+    const price = buyPrice(id)
+    if (state[wallet] < price) {
       addLog(`${wallet === 'jade' ? '仙玉' : '靈石'}不足，無法購買「${def.name}」。`, 'danger')
       render()
       if (state.nav === 'market') renderInfo()
       return
     }
-    state[wallet] -= def.buy
+    state[wallet] -= price
     addItem(id, 1)
-    addLog(`花費 ${def.buy} ${wallet === 'jade' ? '仙玉' : '靈石'}，購得「${def.name}」。`, 'gold')
+    addLog(`花費 ${price} ${wallet === 'jade' ? '仙玉' : '靈石'}，購得「${def.name}」。`, 'gold')
     render()
     if (state.nav === 'bag' || state.nav === 'market') renderInfo()
   }
@@ -1848,7 +2348,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     renderInfo()
   }
   function playerAtkRange() {
-    const base = 8 + state.realm * 10 + state.layer * 2
+    const base = Math.round((8 + state.realm * 10 + state.layer * 2) * (1 + sectBonus('atk') + buffVal('atk')))
     const v = Math.round(base * 0.3)
     return [Math.max(1, base - v), base + v]
   }
@@ -1874,7 +2374,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     }
     if (state.battle.monsterHp <= 0) return victory()
     const mitigation = state.realm * 2
-    const mdmg = Math.max(1, randomInt(state.battle.monster.atkMin, state.battle.monster.atkMax) - mitigation)
+    const reduce = Math.min(0.8, sectBonus('def') + buffVal('def')) // 減傷上限 80%
+    const mdmg = Math.max(1, Math.round((randomInt(state.battle.monster.atkMin, state.battle.monster.atkMax) - mitigation) * (1 - reduce)))
     state.hp = Math.max(0, state.hp - mdmg)
     battleLog(`「${state.battle.monster.name}」反擊，你受到 ${mdmg} 點傷害。`)
     if (state.hp <= 0) return defeat()
@@ -1884,11 +2385,15 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function victory() {
     const m = state.battle.monster
     const req = required()
-    state.xp = Math.min(req, state.xp + m.exp)
+    const exp = Math.round(m.exp * (1 + sectBonus('exp')))
+    state.xp = Math.min(req, state.xp + exp)
     const loot = rollLoot(m)
     loot.forEach((l) => addItem(l.item, l.qty))
-    addLog(`擊敗「${m.name}」，獲得 ${m.exp} 點修為${loot.length ? `，拾取 ${lootText(loot)}` : ''}。`, 'success')
+    addLog(`擊敗「${m.name}」，獲得 ${exp} 點修為${loot.length ? `，拾取 ${lootText(loot)}` : ''}。`, 'success')
     if (loot.some((l) => l.item === 'advancedEgg')) addLog('妖獸巢穴中竟藏著一顆高級靈獸蛋！', 'gold')
+    const heal = Math.round(MAX_HP * sectBonus('lifesteal'))
+    if (heal > 0) { state.hp = Math.min(MAX_HP, state.hp + heal); addLog(`血煞之力反哺，回復 ${heal} 點氣血。`, 'danger') }
+    progressKillQuests(m.id)
     addPetXp(activePet(), m.exp)
     state.battle = null
     render()
@@ -1962,25 +2467,19 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     renderInfo()
   }
 
-  function selectSect(id) {
-    if (state.sect === id) return
-    const s = SECTS.find((x) => x.id === id)
-    if (!s) return
-    state.sect = id
-    addLog(`你拜入「${s.name}」，正式成為門下弟子。`, 'gold')
-    render()
-    renderInfo()
-  }
-
   function tick() {
     // 只有在遊戲畫面顯示時才自動運轉
     if ($('game-screen').classList.contains('hidden')) return;
 
-    state.mp = Math.min(MAX_MP, state.mp + (state.secluded ? 1 : 2))
-    state.hp = Math.min(MAX_HP, state.hp + 1)
+    state.mp = Math.min(MAX_MP, state.mp + (state.secluded ? 1 : 2) + sectBonus('mpRegen'))
+    state.hp = Math.min(MAX_HP, state.hp + 1 + sectBonus('hpRegen'))
     for (const k of Object.keys(state.cooldowns)) {
       if (state.cooldowns[k] > 1) state.cooldowns[k]--
       else delete state.cooldowns[k]
+    }
+    // 限時增益倒數
+    for (const [k, b] of Object.entries(state.buffs)) {
+      if (--b.left <= 0) { delete state.buffs[k]; addLog(`${BUFF_LABELS[k] || k}增益的效力消散了。`) }
     }
     if (state.secluded) {
       const req = required()
@@ -1988,7 +2487,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         state.secluded = false
         addLog('修為已至圓滿，你緩緩出關，準備衝擊瓶頸。', 'gold')
       } else {
-        state.xp = Math.min(req, state.xp + req * 0.03)
+        state.xp = Math.min(req, state.xp + req * 0.03 * (1 + sectBonus('cultivate') + buffVal('cultivate')))
         state.stones = Math.max(0, state.stones - 2)
       }
     }
@@ -2107,7 +2606,18 @@ $('bag-modal').addEventListener('click', (e) => {
     const bidBtn = e.target.closest('[data-bid]')
     if (bidBtn) return playerBid(bidBtn.dataset.bid)
     const sectEl = e.target.closest('[data-sect]')
-    if (sectEl) return selectSect(sectEl.dataset.sect)
+    if (sectEl) return joinSect(sectEl.dataset.sect)
+    const sectTab = e.target.closest('[data-sect-tab]')
+    if (sectTab) { state.sectTab = sectTab.dataset.sectTab; return renderInfo() }
+    if (e.target.closest('[data-sect-leave]')) return leaveSect()
+    const qAccept = e.target.closest('[data-quest-accept]')
+    if (qAccept) return acceptQuest(qAccept.dataset.questAccept)
+    const qDone = e.target.closest('[data-quest-done]')
+    if (qDone) return completeQuest(qDone.dataset.questDone)
+    const qAbandon = e.target.closest('[data-quest-abandon]')
+    if (qAbandon) return abandonQuest(qAbandon.dataset.questAbandon)
+    const sectBuy = e.target.closest('[data-sect-buy]')
+    if (sectBuy) return buySectItem(sectBuy.dataset.sectBuy)
     const hatchBtn = e.target.closest('[data-hatch]')
     if (hatchBtn) return useItem(hatchBtn.dataset.hatch)
     const feedBtn = e.target.closest('[data-pet-feed]')
