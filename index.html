@@ -371,7 +371,6 @@
       <p class="xs muted">道號不存在時會自動建立新角色。</p>
       <p class="xs" id="loginErr" style="color:var(--destructive);min-height:1.2em" role="alert"></p>
       <button type="submit" class="btn btn-gold" id="loginBtn" style="width:100%">連線登入</button>
-      <button type="button" class="btn btn-ghost" id="offlineBtn" style="width:100%">單機模式</button>
       <button type="button" class="small-btn" id="loginBack" style="align-self:center">返回</button>
     </div>
   </form>
@@ -391,7 +390,7 @@
             <div class="name-row">
               <h1 id="playerName">雲逸</h1>
               <span class="xs muted" id="sectBadge">青雲宗 · 內門弟子</span>
-              <span class="xs" id="netBadge" style="color:var(--muted-fg)">單機</span>
+              <span class="xs" id="netBadge" style="color:var(--muted-fg)">連線中…</span>
             </div>
             <p class="realm-line" id="realmLine"></p>
           </div>
@@ -428,9 +427,7 @@
           <button type="button" class="icon-btn" id="btnSave" aria-label="儲存進度" title="儲存進度">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7H7v7"/><path d="M7 3v4h8"/></svg>
           </button>
-          <button type="button" class="icon-btn" id="btnLoad" aria-label="讀取進度" title="讀取進度">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-          </button>
+          
           <button type="button" class="icon-btn" aria-label="設定">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -683,20 +680,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   /* 交易所「仙品鋪」要賣什麼，就把 ITEMS 裡有設定 buy 價格的道具 id 填進這個陣列 */
   const SHOP_ITEMS = ['qi', 'bigQi', 'hpPill', 'huichun', 'foundation', 'commonEgg', 'commonFeed']
 
-  /* NPC 拍賣會從這個池子隨機挑選物品與起標價（base），可自行增減項目或調整價格 */
-  const AUCTION_POOL = [
-    { item: 'thunderCrystal', base: 150 },
-    { item: 'jadeSlip', base: 60 },
-    { item: 'demonCore', base: 25 },
-    { item: 'advancedFeed', base: 80 },
-    { item: 'xisui', base: 160 },
-    { item: 'pojing', base: 140 },
-    { item: 'wudaoTea', base: 100 },
-    { item: 'starIron', base: 170 },
-    { item: 'dragonScale', base: 220 },
-    { item: 'treasureBox', base: 100 },
-  ]
-
   /* 寶箱（秘境寶箱、萬寶令）開出的物品池：weight 越大越容易開到 */
   const LOOTBOX_POOL = [
     { item: 'stonePouch', weight: 20, min: 1, max: 2 },
@@ -715,28 +698,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     { item: 'ningyuan', weight: 1, min: 1, max: 1 },
     { item: 'dujie', weight: 1, min: 1, max: 1 },
   ]
-  /* 拍賣場搶標的 NPC 名字，可自由增減 */
-  const BIDDERS = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙', '鐵戟羅漢']
-
-  /* 拍賣場參數
-   *   AUCTION_DURATION      每件拍賣品的拍賣時間（秒）：10 分鐘
-   *   AUCTION_BID_CHANCE    NPC 每分鐘搶標機率，依物品稀有度：普通 15%，越珍貴越高（NPC 與玩家上架的物品通用）
-   *   NPC_LIST_MIN / MAX    NPC 隨機上架的間隔（秒）：5～20 分鐘 */
-  const AUCTION_DURATION = 600
-  const AUCTION_BID_CHANCE = { '普通': 0.15, '精良': 0.22, '稀有': 0.30, '史詩': 0.40 }
-  const NPC_LIST_MIN = 300
-  const NPC_LIST_MAX = 1200
-  /* NPC 出價上限：單件物品的基準價（道具的 sell）× 下列倍率 × 數量。
-   * 搶標後的價格若會超過上限，NPC 就不出價，避免玩家用天價起標賺走 NPC 的靈石 */
-  const AUCTION_PRICE_CAP = { '普通': 1.5, '精良': 2, '稀有': 2.5, '史詩': 3 }
-  const npcMaxPrice = (itemId, qty) => {
-    const d = ITEMS[itemId] || {}
-    return Math.round((d.sell || 0) * (qty || 1) * (AUCTION_PRICE_CAP[d.rarity] || 1.5))
-  }
-  const playerListingInc = (l) => Math.max(3, Math.round(l.currentBid * 0.1))
-  const npcBidChance = (itemId) => AUCTION_BID_CHANCE[(ITEMS[itemId] || {}).rarity] || 0.15
-  const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
-
   /* =========================================================
    * 秘境／狩獵地點：依境界解鎖
    * 新增地點：在陣列中加入一個物件。欄位：
@@ -827,11 +788,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     { item: 'divineEgg', chance: 0.01, min: 1, max: 1 },
     { item: 'divineFeed', chance: 0.05, min: 1, max: 1 },
   ]
-  // 世界王（單機幻影）：擊殺時額外判定一次
-  const BOSS_KILL_PET_LOOT = [
-    { item: 'divineEgg', chance: 0.2, min: 1, max: 1 },
-    { item: 'divineFeed', chance: 0.6, min: 1, max: 2 },
-  ]
   // 秘境：所有妖獸共通的稀有掉落（錦囊、寶箱、丹藥）
   const REALM_COMMON_LOOT = [
     { item: 'stonePouch', chance: 0.05, min: 1, max: 1 },
@@ -848,9 +804,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   ]
   LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push(...REALM_PET_LOOT, ...REALM_COMMON_LOOT)))
 
-  /* 單機模式的世界王（魔蛟幻影）：連線模式由伺服器提供真正的世界王 */
-  const LOCAL_BOSS = { name: '魔蛟 · 幻影', maxHp: 2500, respawnSec: 90, dmgMul: 3 }
-
+  
   /* 已裝備法寶（目前僅顯示用，未串接戰鬥加成） */
   const ARTIFACTS = [
     { name: '青霜劍', grade: '靈器 · 上品', note: '劍氣森寒，可斬妖邪' },
@@ -1031,9 +985,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     breakBonus: 0,  // 下一次突破額外機率
     sectTab: 'mine',
     selectedLocation: null, battle: null,
-    auctions: [], playerListings: [],
     pets: [], activePet: null, // 靈寵列表、出戰靈寵 uid
-    localBoss: { hp: LOCAL_BOSS.maxHp, alive: true, respawnAt: 0, dmg: 0 }, // 單機世界王（不存檔）
   }
 
   const $ = (id) => document.getElementById(id)
@@ -1202,27 +1154,15 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     addLog(`你將「${petTpl(p).name}」放歸山林。`)
     refreshAfterItem()
   }
-  function createAuctionListing(id) {
-    id = id || 'a' + Date.now() + randomInt(0, 999)
-    const pick = AUCTION_POOL[randomInt(0, AUCTION_POOL.length - 1)]
-    const base = Math.max(10, pick.base + randomInt(-5, 15))
-    return { id, item: pick.item, qty: randomInt(1, 2), currentBid: base, highestBidder: null, timeLeft: AUCTION_DURATION, increment: Math.max(5, Math.round(base * 0.12)) }
-  }
-
-  // 開局先有一件 NPC 拍賣品，之後每 5～20 分鐘會有 NPC 隨機再上架一件（需在 randomInt / createAuctionListing 定義之後執行）
-  state.auctions = [createAuctionListing()]
-  state.nextNpcListIn = randomInt(NPC_LIST_MIN, NPC_LIST_MAX)
-
   /* =========================================================
    * 連線層（ORPG）：登入、SSE 即時推送、聊天、PvP、共享拍賣、世界 Boss
-   * net.token 有值 = 連線模式；沒有 = 單機模式
+   * 連線模式：登入後 net.token 才有值
    * ========================================================= */
   const net = { token: null, name: null, es: null, up: false, online: [], auctions: [], boss: null, chat: [], offset: 0, seenMail: new Set(), tickN: 0 }
   const isOnline = () => !!net.token
   const pname = () => net.name || '雲逸'
   const serverNow = () => Date.now() + net.offset
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
-  const offlineNotice = () => '<p class="xs muted" style="line-height:1.8">此功能需要連線登入後使用。你目前是單機模式，重新整理頁面並選擇「連線登入」即可加入修仙界。</p>'
 
   async function api(path, payload) {
     try {
@@ -1238,8 +1178,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function setNet(up) {
     net.up = up
     const b = $('netBadge'); if (!b) return
-    b.textContent = isOnline() ? (up ? `在線 · ${net.online.length} 人` : '重新連線中…') : '單機'
-    b.style.color = isOnline() ? (up ? 'var(--primary)' : 'var(--destructive)') : 'var(--muted-fg)'
+    b.textContent = up ? `在線 · ${net.online.length} 人` : '連線中…'
+    b.style.color = up ? 'var(--primary)' : 'var(--destructive)'
   }
 
   function applyMail(list) {
@@ -1299,7 +1239,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     }).join('')
   }
   function renderWorld() {
-    if (!isOnline()) return offlineNotice()
     return `
       <div class="card" style="margin-bottom:12px">
         <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:8px">線上修士<span id="onlineCount"></span></h3>
@@ -1321,8 +1260,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
 
   function renderBoss() {
-    const lb = state.localBoss
-    const b = isOnline() ? net.boss : { name: LOCAL_BOSS.name, hp: lb.hp, maxHp: LOCAL_BOSS.maxHp, alive: lb.alive, respawnAt: lb.respawnAt, top: lb.dmg ? [{ name: pname(), dmg: lb.dmg }] : [] }
+    const b = net.boss
     if (!b) return '<p class="xs muted">正在感應魔蛟氣息…</p>'
     const pct = Math.max(0, Math.min(100, (b.hp / b.maxHp) * 100))
     const top = (b.top || []).map((t, i) => `<li class="row xs"><span>${i + 1}. ${esc(t.name)}</span><span class="num muted">${t.dmg.toLocaleString()}</span></li>`).join('') || '<li class="xs muted">尚無人出手</li>'
@@ -1337,43 +1275,15 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       </div>
       <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">傷害榜</h3>
       <ul class="stack" style="gap:8px">${top}</ul>
-      <p class="xs muted" style="margin-top:12px;line-height:1.7">${isOnline()
-        ? '擊殺獎勵：全體參與者依傷害占比獲得靈石與修為；最後一擊得雷晶，傷害第一得破損玉簡。'
-        : `單機幻影：擊殺可得靈石與修為，並有 ${Math.round(BOSS_KILL_PET_LOOT[0].chance * 100)}% 機率獲得神獸蛋；${LOCAL_BOSS.respawnSec} 秒後重生。`}</p>
+      <p class="xs muted" style="margin-top:12px;line-height:1.7">擊殺獎勵：全體參與者依傷害占比獲得靈石與修為；最後一擊得雷晶，傷害第一得破損玉簡。</p>
       <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--accent)">每次出手皆有機緣：神獸蛋 ${+(BOSS_PET_LOOT[0].chance * 100).toFixed(2)}%、神級寵物飼料 ${+(BOSS_PET_LOOT[1].chance * 100).toFixed(2)}%。出戰靈寵會協同攻擊。</p>`
   }
   async function attackBoss() {
     if (state.mp < 10) { addLog('靈力不足，無法出手。', 'danger'); render(); return }
-    const pet = activePet()
-    if (isOnline()) {
-      const r = await api('boss/attack')
-      if (!r.ok) { addLog(r.error, 'danger'); return }
-      state.mp -= 10
-      addLog(`你向「${net.boss ? net.boss.name : '魔蛟'}」發出一擊，造成 ${r.dmg} 點傷害。`, 'success')
-    } else {
-      const lb = state.localBoss
-      if (!lb.alive) return
-      const [lo, hi] = playerAtkRange()
-      const myDmg = randomInt(lo, hi) * LOCAL_BOSS.dmgMul
-      const petDmg = pet ? petStrike(pet) * LOCAL_BOSS.dmgMul : 0
-      const dmg = Math.min(lb.hp, myDmg + petDmg)
-      state.mp -= 10
-      lb.hp -= dmg
-      lb.dmg += dmg
-      addLog(`你向「${LOCAL_BOSS.name}」發出一擊${pet ? `，「${petTpl(pet).name}」協同撲擊` : ''}，共造成 ${dmg} 點傷害。`, 'success')
-      if (lb.hp <= 0) {
-        lb.alive = false
-        lb.respawnAt = Date.now() + LOCAL_BOSS.respawnSec * 1000
-        const stones = 300 + state.realm * 150
-        const req = required(), xp = xpGain(req * 0.3)
-        state.stones += stones
-        state.xp = Math.min(req, state.xp + xp)
-        if (pet) addPetXp(pet, 200 + state.realm * 100)
-        const kill = rollTable(BOSS_KILL_PET_LOOT)
-        kill.forEach((l) => addItem(l.item, l.qty))
-        addLog(`魔蛟幻影潰散！獲得 ${stones} 靈石、${xp} 修為${kill.length ? `，並拾得 ${lootText(kill)}` : ''}。`, 'gold')
-      }
-    }
+    const r = await api('boss/attack')
+    if (!r.ok) { addLog(r.error, 'danger'); return }
+    state.mp -= 10
+    addLog(`你向「${net.boss ? net.boss.name : '魔蛟'}」發出一擊，造成 ${r.dmg} 點傷害。`, 'success')
     const drops = rollTable(BOSS_PET_LOOT)
     if (drops.length) {
       drops.forEach((l) => addItem(l.item, l.qty))
@@ -1381,7 +1291,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     }
     render()
     if (state.nav === 'boss') renderInfo()
-    if (isOnline()) pushSave()
+    pushSave()
   }
   async function challengePlayer(name) {
     const r = await api('pvp', { target: name })
@@ -1469,63 +1379,15 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     document.querySelectorAll('[data-respawn]').forEach((el) => { el.textContent = Math.max(0, Math.ceil((Number(el.dataset.respawn) - serverNow()) / 1000)) + 's' })
   }
 
-  /* =========================================================
-   * 存檔／讀檔：使用瀏覽器 localStorage
-   * 想調整要保存哪些欄位，改 saveGame() 裡 data 物件的內容即可
-   * ========================================================= */
-  const SAVE_KEY = 'xiuxian-save-v1'
+  /* 存檔：進度存於伺服器（Supabase），這裡只負責同步 */
   function saveGame(silent) {
-    if (isOnline()) { pushSave(); if (!silent) addLog('已同步進度到伺服器。', 'gold'); return }
-    const data = {
-      realm: state.realm, layer: state.layer, xp: state.xp, hp: state.hp, mp: state.mp,
-      stones: state.stones, jade: state.jade,
-      inventory: state.inventory, sect: state.sect, contribution: state.contribution,
-      pets: state.pets, activePet: state.activePet,
-      quests: state.quests, buffs: state.buffs, breakBonus: state.breakBonus,
-      auctions: state.auctions, playerListings: state.playerListings, nextNpcListIn: state.nextNpcListIn,
-    }
-    try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(data))
-      if (!silent) addLog('已儲存目前進度。', 'gold')
-    } catch (e) {
-      if (!silent) addLog('儲存失敗，瀏覽器可能不支援本機儲存。', 'danger')
-    }
-  }
-  function loadGame(silent) {
-    if (isOnline()) { if (!silent) { addLog('連線模式下進度由伺服器自動保存，無需手動讀取。'); render() } return false }
-    let raw
-    try {
-      raw = localStorage.getItem(SAVE_KEY)
-    } catch (e) {
-      raw = null
-    }
-    if (!raw) {
-      if (!silent) { addLog('尚未找到任何存檔。', 'danger'); render() }
-      return false
-    }
-    try {
-      const data = JSON.parse(raw)
-      Object.assign(state, data)
-      normalizeState()
-      state.selectedLocation = null
-      state.battle = null
-      if (!silent) addLog('已讀取存檔進度。', 'gold')
-      renderNav(); renderInfo(); render()
-      return true
-    } catch (e) {
-      if (!silent) { addLog('讀取存檔失敗，存檔資料可能已損毀。', 'danger'); render() }
-      return false
-    }
+    pushSave()
+    if (!silent) addLog('已同步進度到伺服器。', 'gold')
   }
 
   // 舊存檔沒有靈寵欄位、或資料不完整時補齊
   function normalizeState() {
     if (!Array.isArray(state.pets)) state.pets = []
-    if (!Array.isArray(state.auctions)) state.auctions = []
-    if (!Array.isArray(state.playerListings)) state.playerListings = []
-    state.auctions = state.auctions.filter((a) => a && ITEMS[a.item])
-    state.playerListings = state.playerListings.filter((l) => l && ITEMS[l.item])
-    if (!Number.isFinite(state.nextNpcListIn)) state.nextNpcListIn = randomInt(NPC_LIST_MIN, NPC_LIST_MAX)
     // 連線存檔：靈寵以編碼 key 藏在 inventory 裡，解回 state.pets
     if (state.inventory && Object.keys(state.inventory).some((k) => k.startsWith(PET_KEY))) {
       const d = decodePets(state.inventory)
@@ -1559,7 +1421,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('loginName').focus()
   }
   $('loginBack').addEventListener('click', () => { $('login-screen').classList.add('hidden'); $('start-screen').classList.remove('hidden') })
-  $('offlineBtn').addEventListener('click', () => { $('login-screen').classList.add('hidden'); enterGame() })
   $('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault()
     const err = $('loginErr'), btn = $('loginBtn')
@@ -1584,23 +1445,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     renderNav(); renderInfo(); render(); setNet(false)
     connectStream()
     applyMail(r.mail)
-  }
-
-  // 單機模式進入遊戲
-  function enterGame() {
-    $('start-screen').classList.add('hidden');
-    $('game-screen').classList.remove('hidden');
-    $('game-screen').classList.remove('hidden');
-    const loaded = loadGame(true)
-    if (loaded) {
-      addLog('靈氣流轉，你繼續先前的修行進度。', 'gold')
-    } else {
-      addLog('你於青雲峰洞府中盤膝而坐，靈氣緩緩流轉。');
-      addLog('一道傳音入耳：「修行之道，貴在持之以恆。散修孤苦，不妨到「宗門」拜入一派。」', 'gold');
-    }
-    renderNav();
-    renderInfo();
-    render();
   }
 
   function addLog(text, tone = 'normal') {
@@ -1676,7 +1520,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('infoBody').innerHTML = html
     for (const [id, v] of Object.entries(keep)) { const el = $(id); if (el) el.value = v }
     if (focusId && $(focusId)) $(focusId).focus()
-    if (state.nav === 'world' && isOnline()) { updateChat(); updateOnline() }
+    if (state.nav === 'world') { updateChat(); updateOnline() }
     tickTimers()
   }
 
@@ -1911,71 +1755,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
 
   function renderAuction() {
-    if (isOnline()) return renderNetAuction()
-    const npcCards = state.auctions.map((a) => {
-      const def = ITEMS[a.item]
-      const mine = a.highestBidder === 'player'
-      const target = a.highestBidder ? a.currentBid + a.increment : a.currentBid
-      return `
-        <li class="card">
-          <div class="row" style="align-items:flex-start">
-            <div class="cluster">
-              <div class="item-icon">${def.icon}</div>
-              <div class="col">
-                <span class="bold">${def.name} <span class="xs muted">× ${a.qty}</span></span>
-                <span class="xs muted">${a.highestBidder ? `目前最高：${mine ? '你' : a.highestBidder}` : '尚無人出價'}</span>
-              </div>
-            </div>
-            <span class="xs muted num" style="white-space:nowrap">剩餘 ${fmtTime(a.timeLeft)}</span>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <span class="xs muted">目前出價 <span class="bold num" style="color:var(--accent)">${a.currentBid}</span> 靈石</span>
-            <button type="button" class="small-btn" data-bid="${a.id}" ${mine ? 'disabled' : ''}>${mine ? '領先中' : `出價 ${target}`}</button>
-          </div>
-        </li>`
-    }).join('') || '<li class="xs muted">目前沒有 NPC 拍賣品，過一陣子會有人上架。</li>'
-
-    // 可上架拍賣的物品：排除 SHOP_ITEMS（交易所買得到的丹藥無法上架）
-    const eligible = Object.entries(state.inventory).filter(([id, q]) => q > 0 && !SHOP_ITEMS.includes(id))
-    const options = eligible.length
-      ? eligible.map(([id, q]) => `<option value="${id}">${ITEMS[id].icon} ${ITEMS[id].name}（持有 ${q}）</option>`).join('')
-      : `<option value="">（目前沒有可上架的物品）</option>`
-
-    const myListings = state.playerListings.length
-      ? state.playerListings.map((l) => {
-          const def = ITEMS[l.item]
-          return `
-            <li class="card">
-              <div class="row" style="align-items:flex-start">
-                <div class="cluster">
-                  <div class="item-icon">${def.icon}</div>
-                  <div class="col">
-                    <span class="bold">${def.name} <span class="xs muted">× ${l.qty}</span></span>
-                    <span class="xs muted">${l.highestBidder ? `目前出價者：${l.highestBidder}` : '尚無人出價'}</span>
-                  </div>
-                </div>
-                <span class="xs muted num" style="white-space:nowrap">剩餘 ${fmtTime(l.timeLeft)}</span>
-              </div>
-              <p class="xs muted" style="margin-top:8px">起標 ${l.startPrice} 靈石${l.qty > 1 ? `（每件 ${l.unitPrice || Math.round(l.startPrice / l.qty)}）` : ''} · 目前總價 <span class="bold num" style="color:var(--accent)">${l.currentBid}</span> 靈石${l.qty > 1 ? `（每件約 ${Math.round(l.currentBid / l.qty)}）` : ''}</p>
-              ${l.currentBid + playerListingInc(l) > npcMaxPrice(l.item, l.qty) ? `<p class="xs" style="margin-top:4px;color:var(--destructive)">價格已超過 NPC 願意出的上限（${npcMaxPrice(l.item, l.qty)} 靈石），不會有人搶標，可能流拍。</p>` : ''}
-            </li>`
-        }).join('')
-      : '<li class="xs muted">尚未上架任何物品</li>'
-
-    return `
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">各方拍賣</h3>
-      <ul class="stack" style="margin-bottom:18px">${npcCards}</ul>
-      <div class="card" style="margin-bottom:18px">
-        <h3 class="xs muted" style="letter-spacing:.2em;margin-bottom:10px">上架我的物品（可選數量，價格為每件單價；交易所販售的丹藥無法上架）</h3>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <select id="listItemSelect" class="exchange-input" style="flex:2;min-width:140px">${options}</select>
-          <input id="listQty" class="exchange-input" type="number" min="1" step="1" value="1" placeholder="數量" style="flex:0 0 70px;min-width:60px" aria-label="上架數量" />
-          <input id="listPrice" class="exchange-input" type="number" min="1" placeholder="每件起標靈石" style="flex:1;min-width:100px" aria-label="每件起標價格" />
-          <button type="button" class="small-btn" data-list-item>上架</button>
-        </div>
-      </div>
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">我的拍賣中</h3>
-      <ul class="stack">${myListings}</ul>`
+    return renderNetAuction()
   }
 
   /* ---------- 宗門畫面 ---------- */
@@ -2229,7 +2009,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
     renderSkills()
     // 拍賣場／戰鬥中的畫面需要每秒即時更新，其餘分頁（背包、交易所…）的刷新由各自的操作函式自行呼叫 renderInfo()
-    if ((state.nav === 'auction' && !isOnline()) || (state.nav === 'realm' && state.battle)) renderInfo()
+    if (state.nav === 'realm' && state.battle) renderInfo()
   }
 
   function cultivate() {
@@ -2460,61 +2240,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     renderInfo()
   }
 
-  function npcBidAuction(a) {
-    if (a.highestBidder === 'player') state.stones += a.currentBid
-    const bidder = BIDDERS[randomInt(0, BIDDERS.length - 1)]
-    a.currentBid += a.increment
-    a.highestBidder = bidder
-  }
-  function playerBid(id) {
-    const a = state.auctions.find((x) => x.id === id)
-    if (!a || a.timeLeft <= 0 || a.highestBidder === 'player') return
-    const target = a.highestBidder ? a.currentBid + a.increment : a.currentBid
-    if (state.stones < target) {
-      addLog('靈石不足，無法出價。', 'danger')
-      render()
-      return
-    }
-    state.stones -= target
-    a.currentBid = target
-    a.highestBidder = 'player'
-    addLog(`你於拍賣場出價 ${target} 靈石，競得「${ITEMS[a.item].name}」目前最高價。`, 'gold')
-    render()
-  }
-  function resolveAuction(a) {
-    if (a.highestBidder === 'player') {
-      addItem(a.item, a.qty)
-      addLog(`拍賣結束！你以 ${a.currentBid} 靈石標得「${ITEMS[a.item].name}」× ${a.qty}。`, 'gold')
-    } else if (a.highestBidder) {
-      addLog(`拍賣結束，「${ITEMS[a.item].name}」被${a.highestBidder}以 ${a.currentBid} 靈石標走。`)
-    } else {
-      addLog(`「${ITEMS[a.item].name}」流拍，無人出價。`)
-    }
-  }
-
-  // 玩家上架物品到拍賣場：交易所有在賣的道具（SHOP_ITEMS）不能上架
-  function listPlayerItem() {
-    const select = $('listItemSelect')
-    const priceInput = $('listPrice')
-    const itemId = select && select.value
-    const price = Math.max(0, Math.floor(Number(priceInput && priceInput.value) || 0))
-    if (!itemId) { addLog('沒有可上架的物品。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    if (SHOP_ITEMS.includes(itemId)) { addLog('交易所販售的道具無法上架拍賣場。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    const qty = Math.max(1, Math.floor(Number($('listQty') && $('listQty').value) || 1))
-    if ((state.inventory[itemId] || 0) < qty) { addLog('物品數量不足，無法上架這麼多。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    if (price <= 0) { addLog('請輸入有效的每件起標價格。', 'danger'); render(); if (state.nav === 'auction') renderInfo(); return }
-    const total = price * qty // 起標總價 = 每件單價 × 數量
-    consumeItem(itemId, qty)
-    state.playerListings.push({
-      id: 'p' + Date.now() + Math.random().toString(16).slice(2, 6),
-      item: itemId, qty, unitPrice: price, startPrice: total, currentBid: total,
-      highestBidder: null, timeLeft: AUCTION_DURATION,
-    })
-    addLog(`將「${ITEMS[itemId].name}」× ${qty} 送上拍賣場，每件 ${price} 靈石，起標總價 ${total} 靈石。`, 'gold')
-    render()
-    renderInfo()
-  }
-
   function tick() {
     // 只有在遊戲畫面顯示時才自動運轉
     if ($('game-screen').classList.contains('hidden')) return;
@@ -2541,56 +2266,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       }
     }
 
-    // NPC 隨機上架、拍賣倒數與搶標（連線模式改用全服拍賣，此處略過）
-    if (!isOnline()) {
-      if (--state.nextNpcListIn <= 0) {
-        const l = createAuctionListing()
-        state.auctions.push(l)
-        state.nextNpcListIn = randomInt(NPC_LIST_MIN, NPC_LIST_MAX)
-        addLog(`有人在拍賣場上架了「${ITEMS[l.item].name}」× ${l.qty}，起標 ${l.currentBid} 靈石。`)
-      }
-      state.auctions = state.auctions.filter((a) => {
-        a.timeLeft--
-        // 每過一分鐘，其他 NPC 依物品稀有度判定一次搶標
-        if (a.timeLeft % 60 === 0 && Math.random() < npcBidChance(a.item) && a.currentBid + a.increment <= npcMaxPrice(a.item, a.qty)) npcBidAuction(a)
-        if (a.timeLeft > 0) return true
-        resolveAuction(a)
-        return false
-      })
-    }
-
-    // 玩家自己上架的拍賣物品：倒數、NPC 隨機搶標、結標後結算
-    if (!isOnline()) state.playerListings = state.playerListings.filter((l) => {
-      if (l.timeLeft > 0) {
-        l.timeLeft--
-        // 價格超過 NPC 願意出的上限就不會搶標
-        if (l.timeLeft % 60 === 0 && Math.random() < npcBidChance(l.item) && l.currentBid + playerListingInc(l) <= npcMaxPrice(l.item, l.qty)) {
-          const bidder = BIDDERS[randomInt(0, BIDDERS.length - 1)]
-          l.currentBid += playerListingInc(l)
-          l.highestBidder = bidder
-        }
-      }
-      if (l.timeLeft > 0) return true
-      if (l.highestBidder) {
-        state.stones += l.currentBid
-        addLog(`你上架的「${ITEMS[l.item].name}」被${l.highestBidder}以 ${l.currentBid} 靈石標走，所得已入帳。`, 'gold')
-      } else {
-        addItem(l.item, l.qty)
-        addLog(`你上架的「${ITEMS[l.item].name}」流拍，已退回背包。`)
-      }
-      return false
-    })
-
-    // 單機世界王重生
-    if (!isOnline() && !state.localBoss.alive && Date.now() >= state.localBoss.respawnAt) {
-      Object.assign(state.localBoss, { hp: LOCAL_BOSS.maxHp, alive: true, respawnAt: 0, dmg: 0 })
-      addLog(`${LOCAL_BOSS.name}再度現世，魔氣沖天！`, 'danger')
-      if (state.nav === 'boss') renderInfo()
-    }
-
-    if (isOnline()) {
-      if (++net.tickN % 5 === 0) pushSave() // 連線模式：每 5 秒同步到伺服器
-    } else saveGame(true) // 單機模式：每秒自動存檔（靜默）
+    if (++net.tickN % 5 === 0) pushSave() // 每 5 秒同步到伺服器
     tickTimers()
     render()
   }
@@ -2599,7 +2275,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   $('btnBreak').addEventListener('click', breakthrough)
   $('btnSeclude').addEventListener('click', toggleSeclusion)
   $('btnSave').addEventListener('click', () => saveGame(false))
-  $('btnLoad').addEventListener('click', () => loadGame(false))
   $('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-nav]')
   if (!btn) return
@@ -2641,8 +2316,6 @@ $('bag-modal').addEventListener('click', (e) => {
       const amt = Math.max(0, Math.floor(Number(input && input.value) || 0))
       return exchangeCurrency(amt)
     }
-    const listBtn = e.target.closest('[data-list-item]')
-    if (listBtn) return listPlayerItem()
     const locBtn = e.target.closest('[data-location]')
     if (locBtn) return enterLocation(locBtn.dataset.location)
     const backBtn = e.target.closest('[data-back-location]')
@@ -2658,8 +2331,6 @@ $('bag-modal').addEventListener('click', (e) => {
     if (atkBtn) return attackMonster()
     const fleeBtn = e.target.closest('[data-flee]')
     if (fleeBtn) return fleeBattle()
-    const bidBtn = e.target.closest('[data-bid]')
-    if (bidBtn) return playerBid(bidBtn.dataset.bid)
     const sectEl = e.target.closest('[data-sect]')
     if (sectEl) return joinSect(sectEl.dataset.sect)
     const sectTab = e.target.closest('[data-sect-tab]')
@@ -2681,8 +2352,6 @@ $('bag-modal').addEventListener('click', (e) => {
     if (petActBtn) return toggleActivePet(petActBtn.dataset.petActive)
     const petRelBtn = e.target.closest('[data-pet-release]')
     if (petRelBtn) return releasePet(petRelBtn.dataset.petRelease)
-    const nb = e.target.closest('[data-net-bid]')
-    if (nb) return netBid(nb.dataset.netBid)
     if (e.target.closest('[data-net-list]')) return netList()
     const pv = e.target.closest('[data-pvp]')
     if (pv) return challengePlayer(pv.dataset.pvp)
@@ -2707,7 +2376,6 @@ $('bag-modal').addEventListener('click', (e) => {
   })
   window.addEventListener('beforeunload', () => {
     if (isOnline()) navigator.sendBeacon('/api/save', new Blob([JSON.stringify({ token: net.token, save: snapshot() })], { type: 'application/json' }))
-    else saveGame(true)
   })
 
   setInterval(tick, 1000)
