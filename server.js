@@ -131,7 +131,9 @@ function mail(key, m) {
   m.id = db.nextId++; p.mail = p.mail || []; p.mail.push(m); dirty = true
   sendTo(key, 'mail', { mail: [m] })
 }
-const nameOf = (k) => (db.players[k] || {}).name || k
+const NPC_PREFIX = 'npc_'
+const isNpc = (k) => typeof k === 'string' && k.startsWith(NPC_PREFIX)
+const nameOf = (k) => (db.players[k] || {}).name || (isNpc(k) ? k.slice(NPC_PREFIX.length) : k)
 const pubAuctions = () => db.auctions.map((a) => ({ id: a.id, seller: nameOf(a.seller), item: a.item, qty: a.qty, start: a.start, current: a.current, bidder: a.bidder ? nameOf(a.bidder) : null, inc: a.inc, endsAt: a.endsAt }))
 const pubBoss = () => ({ name: boss.name, maxHp: boss.maxHp, hp: boss.hp, alive: boss.alive, respawnAt: boss.respawnAt, top: topDamage(5) })
 
@@ -164,7 +166,7 @@ setInterval(() => {
     if (a.endsAt > t) return true
     changed = true; dirty = true
     if (a.bidder) {
-      mail(a.seller, { kind: 'stones', amount: a.current, text: `你上架的物品被「${(db.players[a.bidder] || {}).name}」以 ${a.current} 靈石標走。` })
+      mail(a.seller, { kind: 'stones', amount: a.current, text: `你上架的物品被「${nameOf(a.bidder)}」以 ${a.current} 靈石標走。` })
       mail(a.bidder, { kind: 'item', item: a.item, qty: a.qty, text: `你以 ${a.current} 靈石標得拍賣品。` })
     } else mail(a.seller, { kind: 'item', item: a.item, qty: a.qty, text: '你上架的物品流拍，已退回。' })
     return false
@@ -172,17 +174,74 @@ setInterval(() => {
   if (changed) broadcast('auctions', pubAuctions())
 }, 1000)
 
+/* ---------- 全服拍賣 NPC 隨機上架 ----------
+ * 每隔 1～5 分鐘（隨機）會有一位 NPC 上架一件物品；物品越高級，被選中的機率越低。
+ * 物品清單直接從 index.html 的 ITEMS 讀取（交易所販售的 SHOP_ITEMS 除外），之後在 index.html 新增道具會自動納入。
+ * 調整頻率改 NPC_LIST_MIN／NPC_LIST_MAX（秒）；調整稀有度機率改 NPC_RARITY_WEIGHT。 */
+const NPC_NAMES = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙']
+const NPC_LIST_MIN = 60, NPC_LIST_MAX = 300
+const NPC_RARITY_WEIGHT = { '普通': 60, '精良': 25, '稀有': 10, '史詩': 3 }   // 相對權重：越高級越低
+const NPC_RARITY_QTY = { '普通': [1, 6], '精良': [1, 4], '稀有': [1, 2], '史詩': [1, 1] }  // 上架數量範圍
+const NPC_MAX_LISTINGS = 6                                                      // NPC 同時上架的上限
+let NPC_POOL = []
+function loadNpcPool() {
+  try {
+    const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8')
+    const start = src.indexOf('const ITEMS = {')
+    if (start < 0) throw new Error('找不到 ITEMS')
+    // 逐字掃描找出 ITEMS 物件結尾的大括號（略過字串內容）
+    let i = src.indexOf('{', start), depth = 0, quote = null, end = -1
+    for (; i < src.length; i++) {
+      const c = src[i]
+      if (quote) { if (c === '\\') i++; else if (c === quote) quote = null; continue }
+      if (c === "'" || c === '"' || c === '`') { quote = c; continue }
+      if (c === '/' && src[i + 1] === '/') { i = src.indexOf('\n', i); if (i < 0) break; continue }
+      if (c === '{') depth++
+      else if (c === '}' && --depth === 0) { end = i; break }
+    }
+    if (end < 0) throw new Error('ITEMS 結尾不明')
+    const items = require('vm').runInNewContext('(' + src.slice(src.indexOf('{', start), end + 1) + ')')
+    const shop = (/const SHOP_ITEMS = \[([^\]]*)\]/.exec(src) || [, ''])[1].match(/[A-Za-z]+/g) || []
+    NPC_POOL = Object.entries(items)
+      .filter(([id, d]) => /^[A-Za-z]{1,24}$/.test(id) && !shop.includes(id) && NPC_RARITY_WEIGHT[d.rarity] && d.sell > 0)
+      .map(([id, d]) => ({ id, name: d.name || id, icon: d.icon || '', rarity: d.rarity, sell: d.sell, w: NPC_RARITY_WEIGHT[d.rarity] }))
+    // 以「稀有度」為單位分配機率（普通約 60%、史詩約 3%…），同稀有度內平均分配，不受該稀有度道具種類多寡影響
+    const cnt = {}; NPC_POOL.forEach((x) => { cnt[x.rarity] = (cnt[x.rarity] || 0) + 1 })
+    NPC_POOL.forEach((x) => { x.w = NPC_RARITY_WEIGHT[x.rarity] / cnt[x.rarity] })
+    console.log(`拍賣 NPC 物品池：${NPC_POOL.length} 種`)
+  } catch (e) { console.error('載入 NPC 拍賣物品池失敗，NPC 不會上架：', e.message) }
+}
+loadNpcPool()
+let nextNpcListAt = now() + rnd(NPC_LIST_MIN, NPC_LIST_MAX) * 1000
+setInterval(() => {
+  const t = now()
+  if (t < nextNpcListAt) return
+  nextNpcListAt = t + rnd(NPC_LIST_MIN, NPC_LIST_MAX) * 1000
+  if (!NPC_POOL.length || !clients.size) return                                  // 沒人在線就不上架，避免無人理會
+  if (db.auctions.filter((a) => isNpc(a.seller)).length >= NPC_MAX_LISTINGS) return
+  let roll = Math.random() * NPC_POOL.reduce((n, x) => n + x.w, 0)
+  const pick = NPC_POOL.find((x) => (roll -= x.w) < 0) || NPC_POOL[0]
+  const [qlo, qhi] = NPC_RARITY_QTY[pick.rarity]
+  const qty = rnd(qlo, qhi)
+  const unit = Math.max(1, Math.round(pick.sell * (0.8 + Math.random() * 0.8)))  // 每件約為出售價的 0.8～1.6 倍
+  const price = unit * qty
+  const npc = NPC_PREFIX + NPC_NAMES[rnd(0, NPC_NAMES.length - 1)]
+  db.auctions.push({ id: 'a' + db.nextId++, seller: npc, item: pick.id, qty, start: price, current: price, bidder: null, inc: Math.max(3, Math.round(price * 0.1)), endsAt: t + 180000 })
+  dirty = true
+  broadcast('auctions', pubAuctions())
+  sysChat(`「${nameOf(npc)}」在拍賣場上架了 ${pick.icon}「${pick.name}」× ${qty}，起標 ${price} 靈石。`)
+}, 1000)
+
 /* ---------- 全服拍賣 NPC 隨機競標（降低頻率）---------- */
 setInterval(() => {
   const t = now();
   db.auctions.forEach(a => {
-    if (a.endsAt > t && !a.bidder && Math.random() < 0.01) {
-      const npcNames = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙'];
-      const randomNpc = npcNames[Math.floor(Math.random() * npcNames.length)];
+    if (a.endsAt > t && !a.bidder && !isNpc(a.seller) && Math.random() < 0.01) {
+      const randomNpc = NPC_NAMES[Math.floor(Math.random() * NPC_NAMES.length)];
       const rate = Math.random() < 0.7 ? 0.1 : 0.3;
       const inc = Math.ceil(a.current * rate);
       a.current += inc;
-      a.bidder = 'npc_' + randomNpc; 
+      a.bidder = NPC_PREFIX + randomNpc; 
       dirty = true;
       broadcast('auctions', pubAuctions());
     }
@@ -250,6 +309,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/login') {
       if (limited(req.socket.remoteAddress || '', 'login', 500)) return json(res, 429, { error: '操作太頻繁' })
       const name = cleanName(b.name), pw = String(b.password || '')
+      if (name.toLowerCase().startsWith(NPC_PREFIX)) return json(res, 400, { error: '道號不可使用此前綴' })
       if (name.length < 2) return json(res, 400, { error: '道號需 2–12 字' })
       if (pw.length < 4) return json(res, 400, { error: '密碼至少 4 字元' })
       const key = name.toLowerCase()

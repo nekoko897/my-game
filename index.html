@@ -489,7 +489,7 @@
   </div>
 </div>
 <!-- 背包彈跳視窗 UI -->
-<div id="bag-modal" class="screen hidden" style="z-index: 50; display: flex; align-items: center; justify-content: center; background: color-mix(in oklch, var(--background) 70%, transparent); backdrop-filter: blur(4px);">
+<div id="bag-modal" class="screen hidden" style="z-index: 50; display: flex; align-items: center; justify-content: flex-start; padding-left: 12px; box-sizing: border-box; background: color-mix(in oklch, var(--background) 70%, transparent); backdrop-filter: blur(4px);">
   <div class="panel" style="width: min(450px, 92vw); max-height: 80vh; display: flex; flex-direction: column; padding: 20px;">
     <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 14px;">
       <h2 class="panel-title" style="margin: 0;">修仙行囊</h2>
@@ -524,20 +524,97 @@
   const CIRC = 2 * Math.PI * 120
 
   /* =========================================================
-   * 功法列表（快捷欄）
-   * 新增一筆就會多一個功法按鈕。欄位：
-   *   id         唯一識別字串
-   *   name       功法名稱
-   *   element    顯示在圖示圓圈裡的文字（通常是一個字）
+   * 功法系統
+   * 功法分三個品階（grade）：
+   *   basic     基礎功法：所有人（含散修）都會，永遠可用
+   *   sect      宗門功法：拜入某宗門即自動習得，離開／改投後封存（回到原宗門又可使用）
+   *   advanced  高階功法：需在「所屬宗門寶庫」用貢獻兌換（shopCost），兌換後永久習得，但只在該宗門門下才能施展
+   * 欄位：
+   *   id         唯一識別字串，只能是英文字母、最多 19 字（連線存檔會把已習得功法編碼進背包欄位）
+   *   name、element（圖示裡的字）、description
+   *   grade      品階（見上）
+   *   sect       所屬宗門 id（grade 為 sect／advanced 時必填，須對應 SECTS 的 id）
+   *   type       attack 攻伐｜heal 回復｜guard 護體｜buff 增益（僅用於顯示分類）
    *   cost       消耗靈力
-   *   cooldown   冷卻秒數
-   *   description 說明文字
+   *   cooldown   冷卻（息）
+   *   req        施展所需境界（REALMS 索引：0=煉氣期即可，1=築基期…）
+   *   shopCost   寶庫兌換所需貢獻（grade 為 advanced 時必填）
+   *   effects    效果清單，可組合：
+   *                fxDmg(倍率)            戰鬥中對妖獸造成「普通攻擊 × 倍率」傷害（含此效果的功法只能在戰鬥中施展）
+   *                fxHeal(比例)           回復氣血上限的 比例
+   *                fxMp(比例)             回復靈力上限的 比例
+   *                fxBuff(屬性, 數值, 息)  限時增益；屬性：atk 攻擊｜def 減傷｜petAtk 靈寵攻擊｜cultivate 修煉速度
    * ========================================================= */
+  const SKILL_GRADES = {
+    basic: { label: '基礎', color: 'var(--muted-fg)' },
+    sect: { label: '宗門', color: 'var(--primary)' },
+    advanced: { label: '高階', color: 'var(--destructive)' },
+  }
+  const SKILL_TYPES = { attack: '攻伐', heal: '回復', guard: '護體', buff: '增益' }
+  const fxDmg = (mult) => ({ t: 'dmg', mult })
+  const fxHeal = (pct) => ({ t: 'heal', pct })
+  const fxMp = (pct) => ({ t: 'mp', pct })
+  const fxBuff = (stat, value, sec) => ({ t: 'buff', stat, value, sec })
   const SKILLS = [
-    { id: 'flame', name: '赤焰訣', element: '火', cost: 12, cooldown: 3, description: '凝聚丹火，焚盡妖邪' },
-    { id: 'wind', name: '御風術', element: '風', cost: 8, cooldown: 2, description: '踏風而行，身輕如燕' },
-    { id: 'thunder', name: '九霄雷引', element: '雷', cost: 25, cooldown: 6, description: '引動天雷，威震八方' },
-    { id: 'water', name: '玄水護體', element: '水', cost: 15, cooldown: 5, description: '玄水環身，萬法不侵' },
+    // ── 基礎功法（散修也會） ──
+    { id: 'flame', name: '赤焰訣', element: '火', grade: 'basic', type: 'attack', cost: 12, cooldown: 3, req: 0, description: '凝聚丹火，焚盡妖邪', effects: [fxDmg(1.6)] },
+    { id: 'wind', name: '御風術', element: '風', grade: 'basic', type: 'guard', cost: 8, cooldown: 2, req: 0, description: '踏風而行，身輕如燕，閃避來襲之力', effects: [fxBuff('def', 0.25, 15)] },
+    { id: 'thunder', name: '九霄雷引', element: '雷', grade: 'basic', type: 'attack', cost: 25, cooldown: 6, req: 0, description: '引動天雷，威震八方', effects: [fxDmg(2.6)] },
+    { id: 'water', name: '玄水護體', element: '水', grade: 'basic', type: 'heal', cost: 15, cooldown: 5, req: 0, description: '玄水環身，療傷護體，萬法不侵', effects: [fxHeal(0.15), fxBuff('def', 0.3, 10)] },
+
+    // ── 青雲劍宗 ──
+    { id: 'qyJian', name: '青雲劍訣', element: '劍', grade: 'sect', sect: 'qingyun', type: 'attack', cost: 14, cooldown: 3, req: 0, description: '宗門入門劍訣，劍氣縱橫三尺', effects: [fxDmg(1.8)] },
+    { id: 'qyGang', name: '劍罡訣', element: '罡', grade: 'sect', sect: 'qingyun', type: 'guard', cost: 12, cooldown: 8, req: 0, description: '以劍氣凝成罡罩護身', effects: [fxBuff('def', 0.3, 20)] },
+    { id: 'qyWanjian', name: '萬劍歸宗', element: '劍', grade: 'advanced', sect: 'qingyun', type: 'attack', cost: 40, cooldown: 10, req: 1, shopCost: 500, description: '萬道劍影同出，鎮宗絕學', effects: [fxDmg(3.6)] },
+    { id: 'qyFeixian', name: '天外飛仙', element: '仙', grade: 'advanced', sect: 'qingyun', type: 'attack', cost: 70, cooldown: 18, req: 2, shopCost: 1000, description: '人劍合一，一劍破天，劍意加身', effects: [fxDmg(5.6), fxBuff('atk', 0.3, 15)] },
+
+    // ── 玄天道宮 ──
+    { id: 'xtTuna', name: '太清吐納', element: '清', grade: 'sect', sect: 'xuantian', type: 'heal', cost: 0, cooldown: 15, req: 0, description: '吐納天地清氣，不耗靈力即可回氣', effects: [fxMp(0.3)] },
+    { id: 'xtLei', name: '紫霄神雷', element: '雷', grade: 'sect', sect: 'xuantian', type: 'attack', cost: 16, cooldown: 4, req: 0, description: '道門正宗雷法', effects: [fxDmg(2.0)] },
+    { id: 'xtZhao', name: '玄天靈罩', element: '罩', grade: 'advanced', sect: 'xuantian', type: 'guard', cost: 45, cooldown: 14, req: 1, shopCost: 500, description: '道宮護山靈罩縮影，療傷並大幅減傷', effects: [fxHeal(0.4), fxBuff('def', 0.4, 20)] },
+    { id: 'xtSanhua', name: '三花聚頂', element: '花', grade: 'advanced', sect: 'xuantian', type: 'buff', cost: 30, cooldown: 25, req: 2, shopCost: 1000, description: '精氣神三花聚頂，回氣並大幅提升攻擊', effects: [fxMp(0.5), fxBuff('atk', 0.6, 30)] },
+
+    // ── 丹鼎谷 ──
+    { id: 'ddHui', name: '回春訣', element: '春', grade: 'sect', sect: 'danding', type: 'heal', cost: 14, cooldown: 6, req: 0, description: '丹道生機之術，催動草木精華療傷', effects: [fxHeal(0.25)] },
+    { id: 'ddHuo', name: '丹火焚天', element: '火', grade: 'sect', sect: 'danding', type: 'attack', cost: 16, cooldown: 4, req: 0, description: '以煉丹地火焚敵', effects: [fxDmg(1.9)] },
+    { id: 'ddHuan', name: '九轉還魂訣', element: '魂', grade: 'advanced', sect: 'danding', type: 'heal', cost: 40, cooldown: 16, req: 1, shopCost: 500, description: '九轉丹道秘術，氣血靈力同回', effects: [fxHeal(0.6), fxMp(0.3)] },
+    { id: 'ddZhen', name: '煉丹真火', element: '爐', grade: 'advanced', sect: 'danding', type: 'attack', cost: 60, cooldown: 14, req: 2, shopCost: 1000, description: '谷主所傳本命真火，焚敵並反哺自身', effects: [fxDmg(4.2), fxHeal(0.1)] },
+
+    // ── 金剛寺 ──
+    { id: 'jgShen', name: '金剛護體', element: '金', grade: 'sect', sect: 'jingang', type: 'guard', cost: 12, cooldown: 8, req: 0, description: '運轉金剛不壞神功', effects: [fxBuff('def', 0.35, 20)] },
+    { id: 'jgQuan', name: '羅漢拳', element: '拳', grade: 'sect', sect: 'jingang', type: 'attack', cost: 14, cooldown: 3, req: 0, description: '剛猛樸實的佛門拳法', effects: [fxDmg(1.8)] },
+    { id: 'jgBu', name: '不動明王身', element: '王', grade: 'advanced', sect: 'jingang', type: 'guard', cost: 45, cooldown: 18, req: 1, shopCost: 500, description: '心如不動，金身巍然，並回復氣血', effects: [fxBuff('def', 0.5, 25), fxHeal(0.2)] },
+    { id: 'jgZhang', name: '大力金剛掌', element: '掌', grade: 'advanced', sect: 'jingang', type: 'attack', cost: 65, cooldown: 14, req: 2, shopCost: 1000, description: '一掌開碑裂石，鎮寺神功', effects: [fxDmg(4.8)] },
+
+    // ── 血煞宗 ──
+    { id: 'xsYing', name: '血影斬', element: '血', grade: 'sect', sect: 'xuesha', type: 'attack', cost: 15, cooldown: 3, req: 0, description: '化作血影一斬，飲血回氣', effects: [fxDmg(1.9), fxHeal(0.05)] },
+    { id: 'xsKuang', name: '嗜血狂化', element: '狂', grade: 'sect', sect: 'xuesha', type: 'buff', cost: 14, cooldown: 12, req: 0, description: '激發嗜血本能，攻擊大增', effects: [fxBuff('atk', 0.4, 20)] },
+    { id: 'xsHai', name: '血海滔天', element: '海', grade: 'advanced', sect: 'xuesha', type: 'attack', cost: 45, cooldown: 10, req: 1, shopCost: 500, description: '血海翻湧淹沒敵人，吸取其精血', effects: [fxDmg(3.8), fxHeal(0.15)] },
+    { id: 'xsGui', name: '萬血歸元', element: '元', grade: 'advanced', sect: 'xuesha', type: 'buff', cost: 70, cooldown: 22, req: 2, shopCost: 1000, description: '萬千血魂歸體，攻擊暴漲並大幅療傷', effects: [fxBuff('atk', 0.8, 25), fxHeal(0.3)] },
+
+    // ── 萬毒門 ──
+    { id: 'wdYan', name: '蝕骨毒煙', element: '毒', grade: 'sect', sect: 'wandu', type: 'attack', cost: 14, cooldown: 3, req: 0, description: '釋放蝕骨毒煙', effects: [fxDmg(1.8)] },
+    { id: 'wdGu', name: '蠱蟲護身', element: '蠱', grade: 'sect', sect: 'wandu', type: 'guard', cost: 14, cooldown: 10, req: 0, description: '驅蠱蟲環繞周身，兼具攻守', effects: [fxBuff('def', 0.25, 20), fxBuff('atk', 0.15, 20)] },
+    { id: 'wdXin', name: '萬蠱噬心', element: '蠱', grade: 'advanced', sect: 'wandu', type: 'attack', cost: 42, cooldown: 10, req: 1, shopCost: 500, description: '萬蠱齊出噬心奪魄', effects: [fxDmg(3.7)] },
+    { id: 'wdBu', name: '百毒不侵身', element: '毒', grade: 'advanced', sect: 'wandu', type: 'guard', cost: 65, cooldown: 22, req: 2, shopCost: 1000, description: '以毒養身，毒功大成，攻守皆強', effects: [fxBuff('def', 0.5, 30), fxBuff('atk', 0.3, 30)] },
+
+    // ── 幽冥殿 ──
+    { id: 'ymZhua', name: '幽冥鬼爪', element: '冥', grade: 'sect', sect: 'youming', type: 'attack', cost: 15, cooldown: 3, req: 0, description: '鬼爪撕裂神魂', effects: [fxDmg(1.9)] },
+    { id: 'ymShi', name: '噬魂訣', element: '魂', grade: 'sect', sect: 'youming', type: 'heal', cost: 0, cooldown: 14, req: 0, description: '吞噬殘魂以補自身，不耗靈力', effects: [fxMp(0.25), fxHeal(0.1)] },
+    { id: 'ymYu', name: '九幽鬼域', element: '域', grade: 'advanced', sect: 'youming', type: 'attack', cost: 45, cooldown: 11, req: 1, shopCost: 500, description: '展開九幽鬼域，萬鬼噬敵', effects: [fxDmg(3.9)] },
+    { id: 'ymLun', name: '輪迴印', element: '印', grade: 'advanced', sect: 'youming', type: 'attack', cost: 70, cooldown: 18, req: 2, shopCost: 1000, description: '引生死輪迴之力轟擊，並汲取其生機', effects: [fxDmg(5.2), fxHeal(0.2)] },
+
+    // ── 萬獸山莊 ──
+    { id: 'ysYu', name: '馭獸訣', element: '獸', grade: 'sect', sect: 'yushou', type: 'buff', cost: 12, cooldown: 15, req: 0, description: '與靈寵心神相通，靈寵攻擊大增', effects: [fxBuff('petAtk', 0.4, 30)] },
+    { id: 'ysHou', name: '獸王咆哮', element: '吼', grade: 'sect', sect: 'yushou', type: 'attack', cost: 16, cooldown: 4, req: 0, description: '一聲咆哮震敵膽，靈寵士氣大振', effects: [fxDmg(1.7), fxBuff('petAtk', 0.2, 15)] },
+    { id: 'ysBen', name: '百獸奔騰', element: '奔', grade: 'advanced', sect: 'yushou', type: 'attack', cost: 45, cooldown: 12, req: 1, shopCost: 500, description: '百獸奔騰踐踏，靈寵同受鼓舞', effects: [fxDmg(3.5), fxBuff('petAtk', 0.5, 20)] },
+    { id: 'ysLong', name: '祖龍附體', element: '龍', grade: 'advanced', sect: 'yushou', type: 'buff', cost: 70, cooldown: 25, req: 2, shopCost: 1000, description: '祖龍之魂附體，人寵攻擊大增並療傷', effects: [fxBuff('atk', 0.6, 30), fxBuff('petAtk', 0.8, 30), fxHeal(0.2)] },
+
+    // ── 萬寶商盟 ──
+    { id: 'wbBiao', name: '金錢鏢', element: '鏢', grade: 'sect', sect: 'wanbao', type: 'attack', cost: 14, cooldown: 3, req: 0, description: '以金錢鏢暗器傷敵', effects: [fxDmg(1.7)] },
+    { id: 'wbHu', name: '破財消災', element: '財', grade: 'sect', sect: 'wanbao', type: 'guard', cost: 12, cooldown: 9, req: 0, description: '財氣護體，消災解厄', effects: [fxBuff('def', 0.3, 20)] },
+    { id: 'wbCai', name: '天降橫財', element: '財', grade: 'advanced', sect: 'wanbao', type: 'attack', cost: 42, cooldown: 10, req: 1, shopCost: 500, description: '萬貫銅錢從天而降砸向敵人', effects: [fxDmg(3.6)] },
+    { id: 'wbBao', name: '萬寶護體', element: '寶', grade: 'advanced', sect: 'wanbao', type: 'guard', cost: 65, cooldown: 22, req: 2, shopCost: 1000, description: '祭出萬寶護身，攻守兼備', effects: [fxBuff('def', 0.45, 30), fxBuff('atk', 0.4, 30)] },
   ]
 
   /* 角色屬性（僅顯示用，value 建議填 0-100 之間） */
@@ -1076,6 +1153,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     cooldowns: {}, nav: 'character',
     inventory: { qi: 5, foundation: 2, spiritGrass: 3, commonEgg: 1, commonFeed: 5 },
     sect: '', contribution: 0, // 初始為散修，到「宗門」分頁拜入
+    learned: {},    // 已在宗門寶庫兌換的高階功法 { 功法id: true }
     quests: {},     // 已接取的擊殺任務 { 任務id: 進度 }
     buffs: {},      // 限時增益 { stat: { value, left } }
     breakBonus: 0,  // 下一次突破額外機率
@@ -1097,6 +1175,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   /* ---------- 宗門加成／增益 ---------- */
   const currentSect = () => SECTS.find((s) => s.id === state.sect) || null
   // 目前宗門某種特色狀態的總值（沒有宗門 = 0）
+  /* ---------- 功法可用性 ---------- */
+  // 目前可施展：基礎功法 + 現任宗門的宗門功法 + 現任宗門且已兌換的高階功法（依 SKILLS 順序，也是快捷欄 1~9 號鍵順序）
+  const usableSkills = () => SKILLS.filter((s) => s.grade === 'basic' || (state.sect && s.sect === state.sect && (s.grade === 'sect' || state.learned[s.id])))
+  const skillEffectText = (s) => s.effects.map((e) =>
+    e.t === 'dmg' ? `造成 ${Math.round(e.mult * 100)}% 傷害`
+    : e.t === 'heal' ? `回復 ${Math.round(e.pct * 100)}% 氣血`
+    : e.t === 'mp' ? `回復 ${Math.round(e.pct * 100)}% 靈力`
+    : `${BUFF_LABELS[e.stat] || e.stat} +${Math.round(e.value * 100)}%（${e.sec} 息）`).join('、')
   const sectBonus = (type) => { const s = currentSect(); return s ? s.bonuses.filter((b) => b.type === type).reduce((a, b) => a + b.value, 0) : 0 }
   const buffVal = (stat) => (state.buffs[stat] ? state.buffs[stat].value : 0)
   const BUFF_LABELS = { atk: '攻擊', def: '減傷', cultivate: '修煉速度', petAtk: '靈寵攻擊' }
@@ -1167,9 +1253,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     }
     // 宗門擊殺任務進度也用同樣方式存：key = 'zqqst' + 任務 id，value = 進度
     for (const [qid, prog] of Object.entries(state.quests || {})) out[QUEST_KEY + qid] = Math.min(99999, prog)
+    // 已兌換的高階功法：key = 'zqskl' + 功法 id，value = 1
+    for (const id of Object.keys(state.learned || {})) if (state.learned[id]) out[SKILL_KEY + id] = 1
     return out
   }
   const QUEST_KEY = 'zqqst'
+  const SKILL_KEY = 'zqskl'
   function decodePets(inv) {
     const pets = []
     let active = null
@@ -1543,6 +1632,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (!state.inventory || typeof state.inventory !== 'object') state.inventory = {}
     // 連線存檔：宗門任務進度藏在 inventory 裡，解回 state.quests
     if (!state.quests || typeof state.quests !== 'object') state.quests = {}
+    if (!state.learned || typeof state.learned !== 'object') state.learned = {}
+    for (const k of Object.keys(state.inventory)) {
+      if (!k.startsWith(SKILL_KEY)) continue
+      const sid = k.slice(SKILL_KEY.length)
+      if (SKILLS.some((s) => s.id === sid && s.grade === 'advanced')) state.learned[sid] = true
+      delete state.inventory[k]
+    }
+    for (const sid of Object.keys(state.learned)) if (!SKILLS.some((s) => s.id === sid && s.grade === 'advanced')) delete state.learned[sid]
     for (const [k, v] of Object.entries(state.inventory)) {
       if (!k.startsWith(QUEST_KEY)) continue
       state.quests[k.slice(QUEST_KEY.length)] = Number(v) || 0
@@ -1630,11 +1727,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           </div>`).join('') + '</dl>' + renderStatus()
         break
       case 'techniques':
-        html = '<ul class="stack">' + SKILLS.map((s) => `
-          <li class="tech">
-            <span class="seal" aria-hidden="true">${s.element}</span>
-            <div class="col"><span class="bold">${s.name}</span><span class="xs muted" style="line-height:1.6">${s.description} · 冷卻 ${s.cooldown} 息</span></div>
-          </li>`).join('') + '</ul>'
+        html = renderTechniques()
         break
       case 'bag':
         html = renderBag()
@@ -1666,6 +1759,41 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (focusId && $(focusId)) $(focusId).focus()
     if (state.nav === 'world') { updateChat(); updateOnline() }
     tickTimers()
+  }
+
+  function skillCard(s, extra = '') {
+    const g = SKILL_GRADES[s.grade]
+    const battleOnly = s.effects.some((e) => e.t === 'dmg')
+    return `
+      <li class="tech">
+        <span class="seal" aria-hidden="true" style="color:${g.color};border-color:${g.color}">${s.element}</span>
+        <div class="col" style="flex:1;min-width:0">
+          <div class="row" style="align-items:baseline"><span class="bold">${s.name}</span><span class="xs" style="color:${g.color}">${g.label} · ${SKILL_TYPES[s.type]}</span></div>
+          <span class="xs muted" style="line-height:1.6">${s.description}</span>
+          <span class="xs" style="color:var(--accent);line-height:1.6">${skillEffectText(s)}</span>
+          <span class="xs muted">消耗 ${s.cost} 靈力 · 冷卻 ${s.cooldown} 息 · ${REALMS[s.req]}期可用${battleOnly ? ' · 僅戰鬥中' : ''}</span>
+          ${extra}
+        </div>
+      </li>`
+  }
+  function renderTechniques() {
+    const sect = currentSect()
+    const title = (t) => `<h3 class="panel-title" style="font-size:12px;margin:14px 0 8px">${t}</h3>`
+    const basics = SKILLS.filter((s) => s.grade === 'basic')
+    let html = title('基礎功法') + '<ul class="stack">' + basics.map((s) => skillCard(s)).join('') + '</ul>'
+    if (!sect) {
+      html += title('宗門功法') + '<p class="xs muted" style="line-height:1.7">你目前是散修，只會基礎功法。拜入宗門即可習得宗門專屬功法，並能以貢獻在宗門寶庫兌換高階功法。</p>'
+      return html
+    }
+    const own = SKILLS.filter((s) => s.sect === sect.id)
+    html += title(`${sect.name} · 宗門功法`) + '<ul class="stack">' + own.filter((s) => s.grade === 'sect').map((s) => skillCard(s)).join('') + '</ul>'
+    html += title(`${sect.name} · 高階功法`) + '<ul class="stack">' + own.filter((s) => s.grade === 'advanced').map((s) => skillCard(s,
+      state.learned[s.id]
+        ? '<span class="xs" style="color:var(--primary);margin-top:2px">已習得</span>'
+        : `<span class="xs" style="color:var(--destructive);margin-top:2px">尚未習得 · 於宗門寶庫以 ${s.shopCost} 貢獻兌換</span>`)).join('') + '</ul>'
+    const sealed = SKILLS.filter((s) => s.grade === 'advanced' && state.learned[s.id] && s.sect !== sect.id)
+    if (sealed.length) html += title('封存中的高階功法') + `<p class="xs muted" style="line-height:1.7">${sealed.map((s) => `${s.name}（${(SECTS.find((x) => x.id === s.sect) || {}).name}）`).join('、')}：只有回到原宗門才能施展。</p>`
+    return html
   }
 
   function renderBag() {
@@ -1934,7 +2062,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         <ul style="margin-top:4px">${s.bonuses.map((b) => `<li class="xs" style="color:var(--primary)">✦ ${BONUS_TYPES[b.type](b.value)}</li>`).join('')}</ul>
       </div>
       <dl class="sect-grid" style="margin-bottom:12px">${info.map(([k, v]) => `<div class="card"><dt class="xs muted">${k}</dt><dd class="bold">${v}</dd></div>`).join('')}</dl>
-      <p class="xs muted" style="line-height:1.7;margin-bottom:10px">完成「任務」獲得貢獻，可在「寶庫」兌換本宗專屬天材地寶。離開宗門貢獻將歸零。</p>
+      <div class="card" style="margin-bottom:12px">
+        <h3 class="xs" style="color:var(--accent);letter-spacing:.2em">宗門功法</h3>
+        <ul style="margin-top:4px">${SKILLS.filter((k) => k.sect === s.id && k.grade === 'sect').map((k) => `<li class="xs" style="color:var(--primary)">✦ ${k.name}　<span class="muted">${skillEffectText(k)}</span></li>`).join('')}</ul>
+      </div>
+      <p class="xs muted" style="line-height:1.7;margin-bottom:10px">完成「任務」獲得貢獻，可在「寶庫」兌換本宗專屬天材地寶與高階功法。離開宗門貢獻將歸零，宗門功法會封存。</p>
       <button type="button" class="small-btn" data-sect-leave style="border-color:color-mix(in oklch, var(--destructive) 50%, transparent);color:var(--destructive)">離開宗門</button>`
   }
 
@@ -1990,9 +2122,19 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           </div>
         </li>`
     }).join('')
+    const skillCards = SKILLS.filter((k) => k.grade === 'advanced' && k.sect === s.id).map((k) => {
+      const learned = !!state.learned[k.id]
+      return skillCard(k, `
+        <div class="actions" style="justify-content:flex-start;margin-top:6px">
+          ${learned ? '<span class="xs" style="color:var(--primary)">已習得</span>' : `<button type="button" class="small-btn" data-sect-skill="${k.id}" ${state.contribution >= k.shopCost ? '' : 'disabled'}>兌換（${k.shopCost} 貢獻）</button>`}
+        </div>`)
+    }).join('')
     return `
       <p class="xs muted" style="margin-bottom:10px">貢獻：<span class="bold num" style="color:var(--accent)">${state.contribution.toLocaleString()}</span></p>
-      <ul class="item-list">${cards}</ul>`
+      <ul class="item-list">${cards}</ul>
+      <h3 class="panel-title" style="font-size:12px;margin:18px 0 8px">高階功法</h3>
+      <p class="xs muted" style="line-height:1.7;margin-bottom:10px">兌換後永久習得，但只有身在「${s.name}」門下才能施展；改投他派會封存，重回本宗即可再用。</p>
+      <ul class="stack">${skillCards}</ul>`
   }
 
   function renderSectList() {
@@ -2040,13 +2182,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (old) addLog(`你離開了「${old.name}」，宗門貢獻歸零。`, 'danger')
     state.sect = id; state.contribution = 0; state.quests = {}; state.sectTab = 'mine'
     addLog(`你拜入「${s.name}」，獲得宗門特色：${bonusText(s)}。`, 'gold')
+    addLog(`習得宗門功法：${SKILLS.filter((k) => k.sect === id && k.grade === 'sect').map((k) => `「${k.name}」`).join('、')}。`, 'gold')
     refreshSect()
   }
   function leaveSect() {
     const s = currentSect()
     if (!s || !confirm(`確定要離開「${s.name}」嗎？目前 ${state.contribution} 點貢獻會歸零、進行中的任務作廢。`)) return
     state.sect = ''; state.contribution = 0; state.quests = {}
-    addLog(`你離開了「${s.name}」，重歸散修，宗門貢獻歸零。`, 'danger')
+    addLog(`你離開了「${s.name}」，重歸散修，宗門貢獻歸零，宗門功法暫時封存。`, 'danger')
     refreshSect()
   }
   const findQuest = (qid) => { const s = currentSect(); return s ? s.quests.find((q) => q.id === qid) : null }
@@ -2082,6 +2225,17 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     addLog(`完成宗門任務「${q.name}」，獲得${rewardText(r)}。`, 'gold')
     refreshSect()
   }
+  function buySectSkill(id) {
+    const s = currentSect()
+    const k = s && SKILLS.find((x) => x.id === id && x.grade === 'advanced' && x.sect === s.id)
+    if (!k || state.learned[id]) return
+    if (state.contribution < k.shopCost) { addLog('宗門貢獻不足。', 'danger'); return refreshSect() }
+    state.contribution -= k.shopCost
+    state.learned[id] = true
+    addLog(`以 ${k.shopCost} 點貢獻兌換高階功法「${k.name}」${k.req > state.realm ? `（需${REALMS[k.req]}期方能施展）` : '，已可施展'}。`, 'gold')
+    pushSave()
+    refreshSect()
+  }
   function buySectItem(item) {
     const s = currentSect()
     const entry = s && s.shop.find((x) => x.item === item)
@@ -2103,14 +2257,16 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
 
   function renderSkills() {
-    $('skills').innerHTML = SKILLS.map((s, i) => {
+    $('skills').innerHTML = usableSkills().map((s, i) => {
       const cd = state.cooldowns[s.id] || 0
-      const disabled = cd > 0 || state.mp < s.cost
+      const locked = (s.req || 0) > state.realm
+      const disabled = cd > 0 || state.mp < s.cost || locked
+      const g = SKILL_GRADES[s.grade]
       return `
-        <li><button type="button" class="skill" data-skill="${i}" ${disabled ? 'disabled' : ''}
-            aria-label="${s.name}，消耗 ${s.cost} 靈力${cd > 0 ? `，冷卻 ${cd} 秒` : ''}">
-          <span class="seal" aria-hidden="true">${s.element}</span>
-          <span class="skill-text"><span class="bold">${s.name}</span><span class="xs muted">${s.cost} 靈力 · <kbd>${i + 1}</kbd></span></span>
+        <li><button type="button" class="skill" data-skill="${i}" ${disabled ? 'disabled' : ''} title="${s.name}：${skillEffectText(s)}"
+            aria-label="${s.name}，消耗 ${s.cost} 靈力${cd > 0 ? `，冷卻 ${cd} 秒` : ''}${locked ? `，需${REALMS[s.req]}期` : ''}">
+          <span class="seal" aria-hidden="true" style="color:${g.color};border-color:${g.color}">${s.element}</span>
+          <span class="skill-text"><span class="bold">${s.name}</span><span class="xs muted">${locked ? `需${REALMS[s.req]}期` : `${s.cost} 靈力`} · <kbd>${i + 1}</kbd></span></span>
           ${cd > 0 ? `<span class="cd" aria-hidden="true">${cd}</span>` : ''}
         </button></li>`
     }).join('')
@@ -2202,11 +2358,34 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
 
   function castSkill(skill) {
+    if (!skill || !usableSkills().includes(skill)) return
     if ((state.cooldowns[skill.id] || 0) > 0 || state.mp < skill.cost) return
+    if ((skill.req || 0) > state.realm) { addLog(`「${skill.name}」需達到${REALMS[skill.req]}期方能施展。`, 'danger'); return }
+    const dmgFx = skill.effects.find((e) => e.t === 'dmg')
+    if (dmgFx && !state.battle) { addLog(`「${skill.name}」是攻伐功法，需在秘境戰鬥中施展。`, 'danger'); return }
     state.mp -= skill.cost
     state.cooldowns[skill.id] = skill.cooldown
-    addLog(`施展「${skill.name}」—— ${skill.description}。`, 'success')
+    const notes = []
+    for (const ef of skill.effects) {
+      if (ef.t === 'heal') {
+        const v = Math.round(maxHp() * ef.pct); state.hp = Math.min(maxHp(), state.hp + v); notes.push(`氣血 +${v}`)
+      } else if (ef.t === 'mp') {
+        const v = Math.round(maxMp() * ef.pct); state.mp = Math.min(maxMp(), state.mp + v); notes.push(`靈力 +${v}`)
+      } else if (ef.t === 'buff') {
+        const cur = state.buffs[ef.stat]
+        // 同類增益取數值較高者，並刷新為較長的時間
+        state.buffs[ef.stat] = { value: Math.max(ef.value, cur ? cur.value : 0), left: Math.max(ef.sec, cur ? cur.left : 0) }
+        notes.push(`${BUFF_LABELS[ef.stat]} +${Math.round(ef.value * 100)}%，${ef.sec} 息`)
+      }
+    }
+    if (dmgFx) {
+      addLog(`施展「${skill.name}」—— ${skill.description}${notes.length ? `（${notes.join('，')}）` : ''}。`, 'success')
+      return attackMonster(dmgFx.mult, skill)
+    }
+    addLog(`施展「${skill.name}」—— ${skill.description}（${notes.join('，')}）。`, 'success')
+    if (state.battle) { battleLog(`你施展「${skill.name}」。`); if (monsterTurn()) return }
     render()
+    if (state.battle || state.nav === 'techniques') renderInfo()
   }
 
   function useItem(id) {
@@ -2336,12 +2515,23 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     state.battle.log.unshift(text)
     if (state.battle.log.length > 6) state.battle.log.pop()
   }
-  function attackMonster() {
+  // 妖獸反擊；玩家倒下回傳 true（已處理敗北）
+  function monsterTurn() {
+    const mitigation = Math.round(state.realm * 2 * hpRatio())
+    const reduce = Math.min(0.8, sectBonus('def') + buffVal('def')) // 減傷上限 80%
+    const mdmg = Math.max(1, Math.round((randomInt(state.battle.monster.atkMin, state.battle.monster.atkMax) - mitigation) * (1 - reduce)))
+    state.hp = Math.max(0, state.hp - mdmg)
+    battleLog(`「${state.battle.monster.name}」反擊，你受到 ${mdmg} 點傷害。`)
+    if (state.hp <= 0) { defeat(); return true }
+    return false
+  }
+  // mult：傷害倍率（普通攻擊 = 1）；skill：以功法出手時帶入
+  function attackMonster(mult = 1, skill = null) {
     if (!state.battle) return
     const [lo, hi] = playerAtkRange()
-    const dmg = randomInt(lo, hi)
+    const dmg = Math.max(1, Math.round(randomInt(lo, hi) * mult))
     state.battle.monsterHp = Math.max(0, state.battle.monsterHp - dmg)
-    battleLog(`你攻擊「${state.battle.monster.name}」，造成 ${dmg} 點傷害。`)
+    battleLog(skill ? `你施展「${skill.name}」，造成 ${dmg} 點傷害。` : `你攻擊「${state.battle.monster.name}」，造成 ${dmg} 點傷害。`)
     const pet = activePet()
     if (pet && state.battle.monsterHp > 0) {
       const pd = petStrike(pet)
@@ -2349,12 +2539,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       battleLog(`靈寵「${petTpl(pet).name}」撲擊，造成 ${pd} 點傷害。`)
     }
     if (state.battle.monsterHp <= 0) return victory()
-    const mitigation = Math.round(state.realm * 2 * hpRatio())
-    const reduce = Math.min(0.8, sectBonus('def') + buffVal('def')) // 減傷上限 80%
-    const mdmg = Math.max(1, Math.round((randomInt(state.battle.monster.atkMin, state.battle.monster.atkMax) - mitigation) * (1 - reduce)))
-    state.hp = Math.max(0, state.hp - mdmg)
-    battleLog(`「${state.battle.monster.name}」反擊，你受到 ${mdmg} 點傷害。`)
-    if (state.hp <= 0) return defeat()
+    if (monsterTurn()) return
     render()
     renderInfo()
   }
@@ -2493,6 +2678,8 @@ $('bag-modal').addEventListener('click', (e) => {
     if (qAbandon) return abandonQuest(qAbandon.dataset.questAbandon)
     const sectBuy = e.target.closest('[data-sect-buy]')
     if (sectBuy) return buySectItem(sectBuy.dataset.sectBuy)
+    const sectSkill = e.target.closest('[data-sect-skill]')
+    if (sectSkill) return buySectSkill(sectSkill.dataset.sectSkill)
     const hatchBtn = e.target.closest('[data-hatch]')
     if (hatchBtn) return useItem(hatchBtn.dataset.hatch)
     const feedBtn = e.target.closest('[data-pet-feed]')
@@ -2516,12 +2703,13 @@ $('bag-modal').addEventListener('click', (e) => {
   })
   $('skills').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-skill]')
-    if (btn) castSkill(SKILLS[Number(btn.dataset.skill)])
+    if (btn) castSkill(usableSkills()[Number(btn.dataset.skill)])
   })
   window.addEventListener('keydown', (e) => {
     if (e.target.closest('input, textarea, [contenteditable="true"]')) return
     const i = Number(e.key) - 1
-    if (i >= 0 && i < SKILLS.length) castSkill(SKILLS[i])
+    const list = usableSkills()
+    if (i >= 0 && i < list.length) castSkill(list[i])
   })
   window.addEventListener('beforeunload', () => {
     if (isOnline()) navigator.sendBeacon('/api/save', new Blob([JSON.stringify({ token: net.token, save: snapshot() })], { type: 'application/json' }))
