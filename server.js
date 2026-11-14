@@ -4,7 +4,11 @@
  */
 const http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), crypto = require('crypto')
 const PORT = process.env.PORT || 3000
-const MAX_HP = 260
+// 氣血／靈力上限隨修為成長（須與 index.html 的 hpAt／mpAt 公式一致）
+const BASE_HP = 260, BASE_MP = 120, HP_PER_LV = 20, MP_PER_LV = 4
+const lvIdx = (s) => (s.realm || 0) * 9 + (s.layer || 1) - 1
+const hpOf = (s) => BASE_HP + lvIdx(s) * HP_PER_LV
+const mpOf = (s) => BASE_MP + lvIdx(s) * MP_PER_LV
 
 // ===== GM 帳號 =====
 // GM 道號（小寫比對）與密碼。強烈建議在部署環境用環境變數 GM_PASSWORD 設定密碼，不要把真密碼寫進程式碼。
@@ -132,7 +136,7 @@ const pubAuctions = () => db.auctions.map((a) => ({ id: a.id, seller: nameOf(a.s
 const pubBoss = () => ({ name: boss.name, maxHp: boss.maxHp, hp: boss.hp, alive: boss.alive, respawnAt: boss.respawnAt, top: topDamage(5) })
 
 /* ---------- 世界 Boss ---------- */
-const boss = { name: '九幽魔蛟', maxHp: 30000, hp: 30000, alive: true, respawnAt: 0, damage: {}, lastHit: null }
+const boss = { name: '九幽魔蛟', maxHp: 50000, hp: 50000, alive: true, respawnAt: 0, damage: {}, lastHit: null }
 function topDamage(n) { return Object.entries(boss.damage).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, d]) => ({ name: (db.players[k] || {}).name || k, dmg: d })) }
 function atkRange(s) { const base = 8 + (s.realm || 0) * 10 + (s.layer || 1) * 2, v = Math.round(base * 0.3); return [Math.max(1, base - v), base + v] }
 function killBoss() {
@@ -187,13 +191,13 @@ setInterval(() => {
 
 /* ---------- PvP ---------- */
 function duel(a, b) {
-  let ha = MAX_HP + (a.realm || 0) * 40, hb = MAX_HP + (b.realm || 0) * 40
+  let ha = hpOf(a), hb = hpOf(b)
   const ra = atkRange(a), rb = atkRange(b)
   for (let i = 0; i < 40; i++) {
     hb -= rnd(ra[0], ra[1]); if (hb <= 0) return true
     ha -= rnd(rb[0], rb[1]); if (ha <= 0) return false
   }
-  return ha / (MAX_HP + (a.realm || 0) * 40) >= hb / (MAX_HP + (b.realm || 0) * 40)
+  return ha / hpOf(a) >= hb / hpOf(b)
 }
 
 /* ---------- HTTP ---------- */
@@ -212,8 +216,9 @@ function sanitizeSave(s) {
   if (!s || typeof s !== 'object') return null
   const inv = {}
   for (const [k, v] of Object.entries(s.inventory || {})) if (/^[A-Za-z]{1,24}$/.test(k)) inv[k] = num(v, 0, 99999)
+  const realm = num(s.realm, 0, 6), layer = num(s.layer, 1, 9), cap = { realm, layer }
   return {
-    realm: num(s.realm, 0, 6), layer: num(s.layer, 1, 9), xp: num(s.xp, 0, 1e9), hp: num(s.hp, 0, 1e5), mp: num(s.mp, 0, 1e5),
+    realm, layer, xp: num(s.xp, 0, 1e9), hp: num(s.hp, 0, hpOf(cap)), mp: num(s.mp, 0, mpOf(cap)),
     stones: num(s.stones, 0, 1e12), jade: num(s.jade, 0, 1e9), inventory: inv,
     sect: String(s.sect || 'qingyun').slice(0, 16), contribution: num(s.contribution, 0, 1e9),
   }

@@ -508,7 +508,19 @@
    * ========================================================= */
   const REALMS = ['煉氣', '築基', '金丹', '元嬰', '化神', '渡劫', '大乘']
   const NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九']
-  const MAX_LAYER = 9, MAX_HP = 260, MAX_MP = 120, CULTIVATE_COST = 5
+  const MAX_LAYER = 9, CULTIVATE_COST = 5
+  /* 氣血／靈力上限：隨境界與層數成長（總層數 lv = 境界 × 9 + 層數 − 1，大乘九層時 lv = 62）
+   *   氣血上限 = BASE_HP + lv × HP_PER_LV（煉氣一層 260 → 大乘九層 1500）
+   *   靈力上限 = BASE_MP + lv × MP_PER_LV（煉氣一層 120 → 大乘九層 368）
+   * 伺服器 server.js 有同一組公式，修改時兩邊要一起改。 */
+  const BASE_HP = 260, BASE_MP = 120, HP_PER_LV = 20, MP_PER_LV = 4
+  const lvIdx = (realm, layer) => realm * MAX_LAYER + layer - 1
+  const hpAt = (realm, layer) => BASE_HP + lvIdx(realm, layer) * HP_PER_LV
+  const mpAt = (realm, layer) => BASE_MP + lvIdx(realm, layer) * MP_PER_LV
+  const maxHp = () => hpAt(state.realm, state.layer)
+  const maxMp = () => mpAt(state.realm, state.layer)
+  const hpRatio = () => maxHp() / BASE_HP // 目前氣血上限是起始值的幾倍（丹藥、回復量、減傷都以此放大）
+  const mpRatio = () => maxMp() / BASE_MP
   const CIRC = 2 * Math.PI * 120
 
   /* =========================================================
@@ -577,7 +589,7 @@
    * 注意：SHOP_ITEMS 清單中的道具（可在交易所直接買到的）無法在拍賣場上架。
    * ========================================================= */
   const ITEMS = {
-    qi: { name: '回氣丹', icon: '💊', type: 'pill', rarity: '普通', sell: 15, buy: 40, currency: 'stones', effect: { type: 'restoreMp', value: 40 }, desc: '恢復 40 點靈力' },
+    qi: { name: '回氣丹', icon: '💊', type: 'pill', rarity: '普通', sell: 15, buy: 40, currency: 'stones', effect: { type: 'restoreMp', value: 40 }, desc: '恢復 40 點靈力（隨靈力上限成長）' },
     foundation: { name: '培元丹', icon: '🧪', type: 'pill', rarity: '精良', sell: 60, buy: 150, currency: 'stones', effect: { type: 'addXpPercent', value: 0.20 }, desc: '增加 20% 當前層修為' },
     spiritGrass: { name: '靈草', icon: '🌿', type: 'material', rarity: '普通', sell: 8, desc: '生長於靈氣濃郁之地的草藥，煉丹常用材料' },
     beastHide: { name: '靈獸皮', icon: '🦴', type: 'material', rarity: '普通', sell: 12, desc: '堅韌的靈獸毛皮，可用於製作法袍' },
@@ -595,8 +607,8 @@
     divineFeed: { name: '神級寵物飼料', icon: '🍑', type: 'feed', rarity: '史詩', sell: 400, effect: { type: 'feedPet', value: 3000 }, desc: '靈寵修為 +3000，討伐世界王機率掉落' },
 
     // ── 丹藥・符籙 ──
-    hpPill: { name: '療傷丹', icon: '🩹', type: 'pill', rarity: '普通', sell: 12, buy: 35, currency: 'stones', effect: { type: 'restoreHp', value: 80 }, desc: '恢復 80 點氣血' },
-    bigQi: { name: '聚靈丹', icon: '🔵', type: 'pill', rarity: '精良', sell: 30, buy: 90, currency: 'stones', effect: { type: 'restoreMp', value: 120 }, desc: '恢復 120 點靈力' },
+    hpPill: { name: '療傷丹', icon: '🩹', type: 'pill', rarity: '普通', sell: 12, buy: 35, currency: 'stones', effect: { type: 'restoreHp', value: 80 }, desc: '恢復 80 點氣血（隨氣血上限成長）' },
+    bigQi: { name: '聚靈丹', icon: '🔵', type: 'pill', rarity: '精良', sell: 30, buy: 90, currency: 'stones', effect: { type: 'restoreMp', value: 120 }, desc: '恢復 120 點靈力（隨靈力上限成長）' },
     huichun: { name: '回春丹', icon: '🌸', type: 'pill', rarity: '精良', sell: 60, buy: 160, currency: 'stones', effect: { type: 'restoreAll' }, desc: '氣血、靈力全部恢復' },
     bigHpPill: { name: '九轉還魂丹', icon: '💖', type: 'pill', rarity: '稀有', sell: 150, effect: { type: 'restoreHp', value: 9999 }, desc: '起死回生，氣血全滿' },
     xisui: { name: '洗髓丹', icon: '💠', type: 'pill', rarity: '稀有', sell: 200, effect: { type: 'addXpPercent', value: 0.5 }, desc: '洗經伐髓，增加 50% 當前層修為' },
@@ -658,6 +670,18 @@
     cornucopia: { name: '聚寶盆', icon: '🏺', type: 'treasure', rarity: '稀有', sell: 150, sect: 'wanbao', effect: { type: 'stones', min: 2000, max: 6000 }, desc: '打開可得 2000～6000 靈石' },
     goldToad: { name: '招財金蟾', icon: '🐸', type: 'treasure', rarity: '史詩', sell: 250, sect: 'wanbao', effect: { type: 'jade', min: 10, max: 30 }, desc: '打開可得 10～30 仙玉' },
     wanbaoToken: { name: '萬寶令', icon: '🎫', type: 'treasure', rarity: '史詩', sell: 200, sect: 'wanbao', effect: { type: 'lootbox', rolls: 5 }, desc: '商盟秘庫通行令，隨機獲得 5 件寶物' },
+    // ── 新秘境材料 ──
+    toadVenom: { name: '蟾毒囊', icon: '☠️', type: 'material', rarity: '普通', sell: 14, desc: '毒瘴蟾腹中的毒囊，煉毒藥的基礎材料' },
+    crocScale: { name: '鱷鱗', icon: '🐊', type: 'material', rarity: '普通', sell: 18, desc: '沼澤鱷妖背上的厚鱗，刀劍難傷' },
+    boneShard: { name: '白骨碎', icon: '💀', type: 'material', rarity: '精良', sell: 42, desc: '白骨衛士身上剝落的骨片，浸染陰氣' },
+    ghostJade: { name: '鬼玉', icon: '🪬', type: 'material', rarity: '稀有', sell: 80, desc: '冥氣凝結的幽綠玉石，鬼修爭相搶購' },
+    lavaCore: { name: '熔岩之心', icon: '🌋', type: 'material', rarity: '稀有', sell: 110, desc: '熔岩蜥體內不熄的地火核心' },
+    lionMane: { name: '烈焰獅鬃', icon: '🦁', type: 'material', rarity: '精良', sell: 60, desc: '烈焰獅頸間燃燒的鬃毛，觸手生溫' },
+    frostCrystal: { name: '寒魄晶', icon: '🧊', type: 'material', rarity: '史詩', sell: 230, desc: '九幽冰原千年不化的玄冰精華' },
+    thunderEssence: { name: '雷霆精魄', icon: '🌩️', type: 'material', rarity: '史詩', sell: 320, desc: '九天雷澤妖獸體內凝聚的雷霆本源' },
+    chaosShard: { name: '混沌碎片', icon: '🌑', type: 'material', rarity: '史詩', sell: 480, desc: '混沌虛空中崩落的世界殘片' },
+    voidPearl: { name: '虛空珠', icon: '🫧', type: 'material', rarity: '史詩', sell: 520, desc: '虛空之眼凝成的寶珠，映照萬象' },
+    ancientRelic: { name: '太古神器殘片', icon: '🗝️', type: 'material', rarity: '史詩', sell: 800, desc: '上古神墟中遺落的神器碎片，價值連城' },
     // ↑ 在這裡繼續加新道具，例如：
     // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
   }
@@ -739,6 +763,64 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         { id: 'kraken', name: '深淵章鬼', icon: '🐙', hp: 560, atkMin: 24, atkMax: 38, exp: 150, loot: [{ item: 'jadeSlip', chance: 0.35, min: 1, max: 2 }, { item: 'inkPearl', chance: 0.25, min: 1, max: 1 }, { item: 'iceSilk', chance: 0.3, min: 1, max: 2 }, { item: 'soulFire', chance: 0.2, min: 1, max: 1 }, { item: 'starIron', chance: 0.06, min: 1, max: 1 }] },
       ],
     },
+    {
+      id: 'miwu', name: '迷霧沼澤', icon: '🌫️', reqRealm: 0,
+      desc: '終年瘴氣瀰漫的濕地，毒物遍布，卻也盛產靈草，適合初入道途者磨練。',
+      monsters: [
+        { id: 'toad', name: '毒瘴蟾', icon: '🐸', hp: 70, atkMin: 5, atkMax: 10, exp: 20, loot: [{ item: 'toadVenom', chance: 0.55, min: 1, max: 2 }, { item: 'spiritGrass', chance: 0.5, min: 1, max: 2 }, { item: 'beastBlood', chance: 0.06, min: 1, max: 1 }] },
+        { id: 'leech', name: '泥沼水蛭', icon: '🪱', hp: 55, atkMin: 4, atkMax: 8, exp: 15, loot: [{ item: 'spiritGrass', chance: 0.55, min: 1, max: 2 }, { item: 'beastHide', chance: 0.3, min: 1, max: 1 }, { item: 'soulFire', chance: 0.04, min: 1, max: 1 }] },
+        { id: 'croc', name: '沼澤鱷妖', icon: '🐊', hp: 120, atkMin: 8, atkMax: 14, exp: 36, loot: [{ item: 'crocScale', chance: 0.6, min: 1, max: 2 }, { item: 'demonCore', chance: 0.15, min: 1, max: 1 }, { item: 'blackIron', chance: 0.12, min: 1, max: 1 }, { item: 'beastBlood', chance: 0.15, min: 1, max: 1 }] },
+      ],
+    },
+    {
+      id: 'youming', name: '幽冥鬼域', icon: '🪦', reqRealm: 1,
+      desc: '陰風慘慘的亂葬荒原，遊魂白骨徘徊不去，築基期以上方敢涉足。',
+      monsters: [
+        { id: 'wraith', name: '遊魂', icon: '👻', hp: 190, atkMin: 14, atkMax: 22, exp: 60, loot: [{ item: 'soulFire', chance: 0.35, min: 1, max: 1 }, { item: 'ghostJade', chance: 0.08, min: 1, max: 1 }, { item: 'jadeSlip', chance: 0.08, min: 1, max: 1 }] },
+        { id: 'skeleton', name: '白骨衛士', icon: '💀', hp: 260, atkMin: 12, atkMax: 20, exp: 70, loot: [{ item: 'boneShard', chance: 0.5, min: 1, max: 2 }, { item: 'blackIron', chance: 0.4, min: 1, max: 2 }, { item: 'ancientCoin', chance: 0.1, min: 1, max: 1 }] },
+        { id: 'ghoul', name: '血屍', icon: '🧟', hp: 340, atkMin: 16, atkMax: 24, exp: 88, loot: [{ item: 'demonCore', chance: 0.4, min: 1, max: 2 }, { item: 'ghostJade', chance: 0.2, min: 1, max: 1 }, { item: 'beastBlood', chance: 0.35, min: 1, max: 2 }, { item: 'soulFire', chance: 0.2, min: 1, max: 1 }] },
+      ],
+    },
+    {
+      id: 'fentian', name: '焚天火山', icon: '🌋', reqRealm: 2,
+      desc: '地火噴湧、岩漿奔流的絕地，唯有金丹期的護體靈力才撐得住酷熱。',
+      monsters: [
+        { id: 'lizard', name: '熔岩蜥', icon: '🦎', hp: 353, atkMin: 33, atkMax: 44, exp: 107, loot: [{ item: 'lavaCore', chance: 0.2, min: 1, max: 1 }, { item: 'fireLotus', chance: 0.3, min: 1, max: 1 }, { item: 'spiritJade', chance: 0.2, min: 1, max: 2 }, { item: 'starIron', chance: 0.05, min: 1, max: 1 }] },
+        { id: 'lion', name: '烈焰獅', icon: '🦁', hp: 409, atkMin: 32, atkMax: 44, exp: 118, loot: [{ item: 'lionMane', chance: 0.45, min: 1, max: 2 }, { item: 'fireLotus', chance: 0.3, min: 1, max: 1 }, { item: 'thunderCrystal', chance: 0.15, min: 1, max: 1 }, { item: 'phoenixFeather', chance: 0.08, min: 1, max: 1 }] },
+      ],
+    },
+    {
+      id: 'jiuyouice', name: '九幽冰原', icon: '❄️', reqRealm: 3,
+      desc: '極北寒域，冰風蝕骨。元嬰期修士方能以元神抵禦刺骨寒意。',
+      monsters: [
+        { id: 'snowleopard', name: '霜牙雪豹', icon: '🐆', hp: 537, atkMin: 22, atkMax: 30, exp: 152, loot: [{ item: 'iceSilk', chance: 0.4, min: 1, max: 2 }, { item: 'frostCrystal', chance: 0.1, min: 1, max: 1 }, { item: 'inkPearl', chance: 0.12, min: 1, max: 1 }, { item: 'starIron', chance: 0.08, min: 1, max: 1 }] },
+        { id: 'icebear', name: '冰晶巨熊', icon: '🐻‍❄️', hp: 632, atkMin: 24, atkMax: 32, exp: 174, loot: [{ item: 'frostCrystal', chance: 0.18, min: 1, max: 1 }, { item: 'iceSilk', chance: 0.35, min: 1, max: 2 }, { item: 'dragonScale', chance: 0.08, min: 1, max: 1 }, { item: 'jadeSlip', chance: 0.3, min: 1, max: 2 }] },
+      ],
+    },
+    {
+      id: 'jiutianlei', name: '九天雷澤', icon: '⚡', reqRealm: 4,
+      desc: '雷霆終日不歇的天外澤國，化神期修士才能在雷罰中立足。',
+      monsters: [
+        { id: 'thunderhawk', name: '雷翼鷹', icon: '🦅', hp: 617, atkMin: 25, atkMax: 33, exp: 218, loot: [{ item: 'thunderCrystal', chance: 0.4, min: 1, max: 2 }, { item: 'thunderEssence', chance: 0.12, min: 1, max: 1 }, { item: 'phoenixFeather', chance: 0.12, min: 1, max: 1 }, { item: 'starIron', chance: 0.1, min: 1, max: 1 }] },
+        { id: 'thunderrhino', name: '雷霆犀', icon: '🦏', hp: 720, atkMin: 26, atkMax: 35, exp: 251, loot: [{ item: 'thunderEssence', chance: 0.2, min: 1, max: 1 }, { item: 'thunderCrystal', chance: 0.35, min: 1, max: 2 }, { item: 'dragonScale', chance: 0.12, min: 1, max: 1 }, { item: 'ningyuan', chance: 0.015, min: 1, max: 1 }] },
+      ],
+    },
+    {
+      id: 'hundunvoid', name: '混沌虛空', icon: '🕳️', reqRealm: 5,
+      desc: '天地未分的混沌夾縫，法則錯亂。渡劫期大能方可窺其一隅。',
+      monsters: [
+        { id: 'voideye', name: '虛空之眼', icon: '👁️', hp: 693, atkMin: 27, atkMax: 37, exp: 316, loot: [{ item: 'voidPearl', chance: 0.15, min: 1, max: 1 }, { item: 'chaosShard', chance: 0.2, min: 1, max: 1 }, { item: 'inkPearl', chance: 0.3, min: 1, max: 2 }, { item: 'starIron', chance: 0.15, min: 1, max: 1 }] },
+        { id: 'shadow', name: '混沌魔影', icon: '🌑', hp: 802, atkMin: 29, atkMax: 39, exp: 364, loot: [{ item: 'chaosShard', chance: 0.3, min: 1, max: 2 }, { item: 'voidPearl', chance: 0.12, min: 1, max: 1 }, { item: 'thunderEssence', chance: 0.15, min: 1, max: 1 }, { item: 'dujie', chance: 0.02, min: 1, max: 1 }] },
+      ],
+    },
+    {
+      id: 'shangguxu', name: '上古神墟', icon: '🏛️', reqRealm: 6,
+      desc: '上古大戰後遺留的神魔廢墟，唯有大乘期至尊敢踏入，亦是世間機緣所在。',
+      monsters: [
+        { id: 'guardian', name: '神墟守衛', icon: '🛡️', hp: 765, atkMin: 30, atkMax: 40, exp: 463, loot: [{ item: 'ancientRelic', chance: 0.15, min: 1, max: 1 }, { item: 'chaosShard', chance: 0.25, min: 1, max: 2 }, { item: 'frostCrystal', chance: 0.2, min: 1, max: 1 }, { item: 'treasureBox', chance: 0.08, min: 1, max: 1 }] },
+        { id: 'emperor', name: '太古妖皇', icon: '👹', hp: 918, atkMin: 30, atkMax: 41, exp: 532, loot: [{ item: 'ancientRelic', chance: 0.3, min: 1, max: 1 }, { item: 'voidPearl', chance: 0.2, min: 1, max: 1 }, { item: 'divineFeed', chance: 0.05, min: 1, max: 1 }, { item: 'ningyuan', chance: 0.03, min: 1, max: 1 }, { item: 'dujie', chance: 0.03, min: 1, max: 1 }] },
+      ],
+    },
     // ↑ 在這裡繼續加新地點，記得 reqRealm 對應 REALMS 的索引
   ]
 
@@ -802,6 +884,20 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     { item: 'jadePouch', chance: 0.01, min: 1, max: 1 },
     { item: 'pojing', chance: 0.008, min: 1, max: 1 },
   ]
+  LOCATIONS.sort((a, b) => a.reqRealm - b.reqRealm) // 依解鎖境界排序
+  /* 妖獸成長：玩家氣血上限隨境界提高，妖獸數值也要跟著放大。
+   * 以「該秘境解鎖境界、第一層」的氣血上限相對起始值的倍率 k 為基準：
+   *   攻擊 × (1 + (k-1) × MON_ATK_GROW)　氣血 × (1 + (k-1) × MON_HP_GROW)　修為 × 氣血倍率
+   * 上面 LOCATIONS 內寫的是基礎值，實際數值在這裡換算（介面顯示的是換算後的數字）。 */
+  const MON_ATK_GROW = 0.85, MON_HP_GROW = 0.25
+  LOCATIONS.forEach((loc) => {
+    const k = hpAt(loc.reqRealm, 1) / BASE_HP
+    const ka = 1 + (k - 1) * MON_ATK_GROW, kh = 1 + (k - 1) * MON_HP_GROW
+    loc.monsters.forEach((m) => {
+      m.hp = Math.round(m.hp * kh); m.exp = Math.round(m.exp * kh)
+      m.atkMin = Math.round(m.atkMin * ka); m.atkMax = Math.round(m.atkMax * ka)
+    })
+  })
   LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push(...REALM_PET_LOOT, ...REALM_COMMON_LOOT)))
 
   
@@ -1271,24 +1367,72 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         <div class="track" style="margin:10px 0 4px"><div class="fill" style="background:var(--destructive);width:${pct}%"></div></div>
         <span class="xs muted num">${b.hp.toLocaleString()} / ${b.maxHp.toLocaleString()}</span>
         ${b.alive ? '' : `<p class="xs" style="color:var(--accent);margin-top:8px">已被擊殺 · <span data-respawn="${b.respawnAt}"></span> 後再現</p>`}
-        <div class="actions" style="margin-top:12px"><button type="button" class="btn btn-gold" data-boss-attack ${b.alive ? '' : 'disabled'}>出手<small>10 靈力</small></button></div>
+        ${b.alive && b.hp / b.maxHp < 0.3 ? '<p class="xs" style="color:var(--destructive);margin-top:8px">魔蛟已陷入狂暴，反擊傷害 ×1.5！</p>' : ''}
+        <div class="track" style="margin:12px auto 4px;width:60%"><div class="fill" style="background:var(--primary);width:${Math.max(0, Math.min(100, (state.hp / maxHp()) * 100))}%"></div></div>
+        <span class="xs muted num">你的氣血 ${state.hp} / ${maxHp()}　靈力 ${state.mp} / ${maxMp()}</span>
+        <div class="actions" style="margin-top:12px"><button type="button" class="btn btn-gold" data-boss-attack ${b.alive ? '' : 'disabled'}>出手<small>${bossAtkCost()} 靈力</small></button></div>
+        ${net.bossLog.length ? `<ol class="battle-log xs muted" style="margin-top:12px;text-align:left">${net.bossLog.map((l) => `<li>${esc(l)}</li>`).join('')}</ol>` : ''}
       </div>
       <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">傷害榜</h3>
       <ul class="stack" style="gap:8px">${top}</ul>
       <p class="xs muted" style="margin-top:12px;line-height:1.7">擊殺獎勵：全體參與者依傷害占比獲得靈石與修為；最後一擊得雷晶，傷害第一得破損玉簡。</p>
-      <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--accent)">每次出手皆有機緣：神獸蛋 ${+(BOSS_PET_LOOT[0].chance * 100).toFixed(2)}%、神級寵物飼料 ${+(BOSS_PET_LOOT[1].chance * 100).toFixed(2)}%。出戰靈寵會協同攻擊。</p>`
+      <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--accent)">每次出手皆有機緣：神獸蛋 ${+(BOSS_PET_LOOT[0].chance * 100).toFixed(2)}%、神級寵物飼料 ${+(BOSS_PET_LOOT[1].chance * 100).toFixed(2)}%。出戰靈寵會協同攻擊。</p>
+      <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--destructive)">魔蛟會在你出手後反擊（蛟尾橫掃、噬魂利爪、滅世龍息、蛟嘯震魂）。氣血低於 ${Math.ceil(maxHp() * BOSS_MIN_HP_RATIO)} 時無法出手，記得備好療傷丹。</p>`
+  }
+  /* 世界王反擊：每次你出手後，魔蛟會隨機施展一種招式回敬。
+   *   w 權重（越大越常出現）｜mul 傷害倍率｜mp 額外削減的靈力
+   * 魔蛟氣血低於 30% 會進入狂暴，傷害 ×1.5 */
+  const BOSS_SKILLS = [
+    { name: '蛟尾橫掃', w: 55, mul: 1.0 },
+    { name: '噬魂利爪', w: 25, mul: 1.4 },
+    { name: '滅世龍息', w: 12, mul: 2.2 },
+    { name: '蛟嘯震魂', w: 8, mul: 0.6, mp: 20 },
+  ]
+  const BOSS_DMG_PCT = [0.08, 0.13] // 基礎傷害 = 你的氣血上限的 8%～13%（再乘招式倍率、狂暴倍率）
+  const bossAtkCost = () => Math.round(10 * mpRatio()) // 出手消耗靈力，隨靈力上限放大
+  const BOSS_MIN_HP_RATIO = 0.25              // 氣血低於此比例，不可再向世界王出手
+  net.bossLog = []
+  const bossLogPush = (t) => { net.bossLog.unshift(t); if (net.bossLog.length > 6) net.bossLog.pop() }
+  function bossCounter() {
+    const b = net.boss
+    const bn = b ? b.name : '魔蛟'
+    const rage = !!(b && b.maxHp && b.hp / b.maxHp < 0.3)
+    let roll = Math.random() * BOSS_SKILLS.reduce((a, k) => a + k.w, 0)
+    const sk = BOSS_SKILLS.find((k) => (roll -= k.w) < 0) || BOSS_SKILLS[0]
+    const reduce = Math.min(0.8, sectBonus('def') + buffVal('def'))
+    const baseDmg = maxHp() * (BOSS_DMG_PCT[0] + Math.random() * (BOSS_DMG_PCT[1] - BOSS_DMG_PCT[0]))
+    let dmg = Math.max(1, Math.round((baseDmg * sk.mul * (rage ? 1.5 : 1) - state.realm * 2 * hpRatio()) * (1 - reduce)))
+    let text = `${rage ? '【狂暴】' : ''}「${bn}」施展「${sk.name}」`
+    const pet = activePet()
+    if (pet && Math.random() < 0.25) {
+      dmg = Math.max(1, Math.round(dmg * 0.4))
+      text += `，靈寵「${petTpl(pet).name}」捨身擋下大半`
+    }
+    state.hp = Math.max(0, state.hp - dmg)
+    text += `，你受到 ${dmg} 點傷害`
+    if (sk.mp) { const lost = Math.min(state.mp, Math.round(sk.mp * mpRatio())); state.mp -= lost; if (lost) text += `，靈力被震散 ${lost} 點` }
+    text += '。'
+    if (state.hp <= 0) {
+      state.hp = 1
+      text += `你被${bn}重創，僅存一口氣，需先調息或服丹再戰！`
+    }
+    addLog(text, 'danger')
+    bossLogPush(text)
   }
   async function attackBoss() {
-    if (state.mp < 10) { addLog('靈力不足，無法出手。', 'danger'); render(); return }
+    if (state.mp < bossAtkCost()) { addLog('靈力不足，無法出手。', 'danger'); render(); return }
+    if (state.hp < maxHp() * BOSS_MIN_HP_RATIO) { addLog(`氣血過低（需高於 ${Math.ceil(maxHp() * BOSS_MIN_HP_RATIO)}），再戰恐有性命之憂，先服丹療傷吧。`, 'danger'); render(); return }
     const r = await api('boss/attack')
     if (!r.ok) { addLog(r.error, 'danger'); return }
-    state.mp -= 10
+    state.mp -= bossAtkCost()
     addLog(`你向「${net.boss ? net.boss.name : '魔蛟'}」發出一擊，造成 ${r.dmg} 點傷害。`, 'success')
+    bossLogPush(`你出手造成 ${r.dmg} 點傷害。`)
     const drops = rollTable(BOSS_PET_LOOT)
     if (drops.length) {
       drops.forEach((l) => addItem(l.item, l.qty))
       addLog(`魔蛟鱗甲崩落之間，你眼明手快拾得 ${lootText(drops)}！`, 'gold')
     }
+    if (!r.killed && !(net.boss && net.boss.alive === false)) bossCounter()
     render()
     if (state.nav === 'boss') renderInfo()
     pushSave()
@@ -1685,7 +1829,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   function renderBattle() {
     const b = state.battle
-    const hpPct = Math.max(0, Math.min(100, (state.hp / MAX_HP) * 100))
+    const hpPct = Math.max(0, Math.min(100, (state.hp / maxHp()) * 100))
     const mPct = Math.max(0, Math.min(100, (b.monsterHp / b.monster.hp) * 100))
     return `
       <div class="battle">
@@ -1694,7 +1838,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             <div class="avatar" style="width:64px;height:64px"><img src="./img/cultivator.png" alt="" onerror="this.outerHTML='&lt;div class=&quot;avatar-fallback&quot;&gt;仙&lt;/div&gt;'" /></div>
             <span class="bold xs">${esc(pname())}</span>
             <div class="track" style="width:110px"><div class="fill" style="background:var(--destructive);width:${hpPct}%"></div></div>
-            <span class="xs muted num">${state.hp}/${MAX_HP}</span>
+            <span class="xs muted num">${state.hp}/${maxHp()}</span>
           </div>
           <span class="xs muted serif">VS</span>
           <div class="combatant">
@@ -1981,8 +2125,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('sectBadge').textContent = sect ? `${sect.name} · 門下弟子` : '散修'
     $('playerName').textContent = pname()
     $('realmLine').textContent = `${REALMS[state.realm]}期 · 第${NUM[state.layer - 1]}層`
-    setBar('hpBar', 'hpVal', state.hp, MAX_HP)
-    setBar('mpBar', 'mpVal', state.mp, MAX_MP)
+    setBar('hpBar', 'hpVal', state.hp, maxHp())
+    setBar('mpBar', 'mpVal', state.mp, maxMp())
     $('stones').textContent = state.stones.toLocaleString()
     $('jade').textContent = state.jade.toLocaleString()
 
@@ -2025,6 +2169,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function breakthrough() {
     if (state.xp < required()) return
     const ok = Math.random() < chance()
+    const oldHp = maxHp(), oldMp = maxMp()
     if (state.breakBonus) { state.breakBonus = 0; addLog('突破加持之力已消耗。') }
     if (ok) {
       state.xp = 0
@@ -2040,8 +2185,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       }
     } else {
       state.xp = Math.floor(state.xp * 0.6)
-      state.hp = Math.max(1, state.hp - 40)
+      state.hp = Math.max(1, state.hp - Math.round(40 * hpRatio()))
       addLog('衝擊瓶頸失敗，靈氣逆衝經脈，氣血受損。', 'danger')
+    }
+    if (ok) { // 氣血、靈力上限提高，增加的部分一併補滿
+      state.hp = Math.min(maxHp(), state.hp + Math.max(0, maxHp() - oldHp))
+      state.mp = Math.min(maxMp(), state.mp + Math.max(0, maxMp() - oldMp))
     }
     render()
   }
@@ -2083,11 +2232,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const notes = []
     for (const ef of effects) {
       if (ef.type === 'restoreMp') {
-        const v = Math.round(ef.value * pillMul); state.mp = Math.min(MAX_MP, state.mp + v); notes.push(`靈力 +${v}`)
+        const v = Math.round(ef.value * pillMul * mpRatio()); state.mp = Math.min(maxMp(), state.mp + v); notes.push(`靈力 +${v}`)
       } else if (ef.type === 'restoreHp') {
-        const v = Math.round(ef.value * pillMul); state.hp = Math.min(MAX_HP, state.hp + v); notes.push(ef.value >= 9999 ? '氣血全滿' : `氣血 +${v}`)
+        const v = Math.round(ef.value * pillMul * hpRatio()); state.hp = Math.min(maxHp(), state.hp + v); notes.push(ef.value >= 9999 ? '氣血全滿' : `氣血 +${v}`)
       } else if (ef.type === 'restoreAll') {
-        state.hp = MAX_HP; state.mp = MAX_MP; notes.push('氣血靈力全滿')
+        state.hp = maxHp(); state.mp = maxMp(); notes.push('氣血靈力全滿')
       } else if (ef.type === 'addXpPercent') {
         const req = required(), v = xpGain(req * ef.value * pillMul)
         state.xp = Math.min(req, state.xp + v); notes.push(`修為 +${v}`)
@@ -2200,7 +2349,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       battleLog(`靈寵「${petTpl(pet).name}」撲擊，造成 ${pd} 點傷害。`)
     }
     if (state.battle.monsterHp <= 0) return victory()
-    const mitigation = state.realm * 2
+    const mitigation = Math.round(state.realm * 2 * hpRatio())
     const reduce = Math.min(0.8, sectBonus('def') + buffVal('def')) // 減傷上限 80%
     const mdmg = Math.max(1, Math.round((randomInt(state.battle.monster.atkMin, state.battle.monster.atkMax) - mitigation) * (1 - reduce)))
     state.hp = Math.max(0, state.hp - mdmg)
@@ -2218,8 +2367,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     loot.forEach((l) => addItem(l.item, l.qty))
     addLog(`擊敗「${m.name}」，獲得 ${exp} 點修為${loot.length ? `，拾取 ${lootText(loot)}` : ''}。`, 'success')
     if (loot.some((l) => l.item === 'advancedEgg')) addLog('妖獸巢穴中竟藏著一顆高級靈獸蛋！', 'gold')
-    const heal = Math.round(MAX_HP * sectBonus('lifesteal'))
-    if (heal > 0) { state.hp = Math.min(MAX_HP, state.hp + heal); addLog(`血煞之力反哺，回復 ${heal} 點氣血。`, 'danger') }
+    const heal = Math.round(maxHp() * sectBonus('lifesteal'))
+    if (heal > 0) { state.hp = Math.min(maxHp(), state.hp + heal); addLog(`血煞之力反哺，回復 ${heal} 點氣血。`, 'danger') }
     progressKillQuests(m.id)
     addPetXp(activePet(), m.exp)
     state.battle = null
@@ -2228,7 +2377,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
   function defeat() {
     addLog(`不敵「${state.battle.monster.name}」，你身受重傷，狼狽撤退。`, 'danger')
-    state.hp = Math.max(1, Math.round(MAX_HP * 0.2))
+    state.hp = Math.max(1, Math.round(maxHp() * 0.2))
     state.battle = null
     render()
     renderInfo()
@@ -2245,8 +2394,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if ($('game-screen').classList.contains('hidden')) return;
 
     if (state.isGM) fillGMInventory()
-    state.mp = Math.min(MAX_MP, state.mp + (state.secluded ? 1 : 2) + sectBonus('mpRegen'))
-    state.hp = Math.min(MAX_HP, state.hp + 1 + sectBonus('hpRegen'))
+    state.mp = Math.min(maxMp(), state.mp + Math.max(1, Math.round(((state.secluded ? 1 : 2) + sectBonus('mpRegen')) * mpRatio())))
+    state.hp = Math.min(maxHp(), state.hp + Math.max(1, Math.round((1 + sectBonus('hpRegen')) * hpRatio())))
     for (const k of Object.keys(state.cooldowns)) {
       if (state.cooldowns[k] > 1) state.cooldowns[k]--
       else delete state.cooldowns[k]
