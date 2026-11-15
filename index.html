@@ -3020,13 +3020,21 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     renderInfo()
   }
 
+  /* 氣血／靈力自然回復速度倍率（1 = 原速，數字越小越慢）。丹藥因此更有價值。 */
+  const REGEN_SCALE = 0.2
+  const regenAcc = { hp: 0, mp: 0 }
   function tick() {
     // 只有在遊戲畫面顯示時才自動運轉
     if ($('game-screen').classList.contains('hidden')) return;
 
     if (state.isGM) fillGMInventory()
-    state.mp = Math.min(maxMp(), state.mp + Math.max(1, Math.round(((state.secluded ? 1 : 2) + sectBonus('mpRegen')) * mpRatio())))
-    state.hp = Math.min(maxHp(), state.hp + Math.max(1, Math.round((1 + sectBonus('hpRegen')) * hpRatio())))
+    // 自然回復放慢：每息只回原本的 REGEN_SCALE 倍，小數部分累積起來，湊滿 1 點才實際回復
+    regenAcc.mp += ((state.secluded ? 1 : 2) + sectBonus('mpRegen')) * mpRatio() * REGEN_SCALE
+    regenAcc.hp += (1 + sectBonus('hpRegen')) * hpRatio() * REGEN_SCALE
+    const gMp = Math.floor(regenAcc.mp), gHp = Math.floor(regenAcc.hp)
+    regenAcc.mp -= gMp; regenAcc.hp -= gHp
+    state.mp = Math.min(maxMp(), state.mp + gMp)
+    state.hp = Math.min(maxHp(), state.hp + gHp)
     for (const k of Object.keys(state.cooldowns)) {
       if (state.cooldowns[k] > 1) state.cooldowns[k]--
       else delete state.cooldowns[k]
