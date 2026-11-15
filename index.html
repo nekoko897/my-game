@@ -104,6 +104,7 @@
   .veil { position: absolute; inset: 0; background: color-mix(in oklch, var(--background) 55%, transparent); }
   .shell { position: relative; max-width: 1280px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; gap: 16px; padding: 12px; }
   .grid { flex: 1; min-height: 0; display: grid; gap: 16px; }
+  .grid.bag-open > aside:first-child .nav { width: 200px; }
   @media (min-width: 768px) { .shell { padding: 16px; } }
   @media (min-width: 1024px) {
     .shell { height: 100dvh; }
@@ -1942,16 +1943,28 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     }).join('') : '<p class="xs muted">行囊空空，去秘境歷練拾取些物件吧。</p>'
     if (force || html !== bagHtmlCache) { const st = body.scrollTop; body.innerHTML = html; body.scrollTop = st; bagHtmlCache = html }
   }
-  // 視窗貼在導覽列右側（桌面）或導覽列下方（手機）
+  // 桌面（≥1200px）：把左欄加寬，背包視窗貼在導覽列右側，中間的修為圓盤只是被擠窄、不會被蓋住
+  // 窄螢幕：背包改成貼在畫面底部的面板，高度只佔修為區塊下方的空間，修為與進度條仍看得到
   function placeBagPanel() {
-    const m = $('bag-modal'), nav = document.querySelector('.nav'); if (!nav) return
-    const r = nav.getBoundingClientRect()
-    if (window.innerWidth >= 1024) { m.style.left = (r.right + 12) + 'px'; m.style.top = r.top + 'px' }
-    else { m.style.left = '8px'; m.style.top = (r.bottom + 8) + 'px' }
-    m.style.maxHeight = Math.max(200, window.innerHeight - parseFloat(m.style.top) - 12) + 'px'
+    const m = $('bag-modal'), grid = document.querySelector('.grid'), main = grid.querySelector('main'), nav = document.querySelector('.nav')
+    grid.classList.remove('bag-open'); grid.style.gridTemplateColumns = ''
+    if (window.innerWidth >= 1200) {
+      const w = Math.max(280, Math.min(360, main.getBoundingClientRect().width - 340 - 12))
+      grid.style.gridTemplateColumns = `${200 + 12 + w}px 1fr 300px`
+      grid.classList.add('bag-open')
+      const r = nav.getBoundingClientRect()
+      Object.assign(m.style, { width: w + 'px', left: (r.right + 12) + 'px', right: 'auto', top: r.top + 'px', bottom: 'auto', maxHeight: Math.max(200, window.innerHeight - r.top - 12) + 'px' })
+    } else {
+      // 高度只用「修為區塊」下方剩餘的空間，確保圓盤、進度與運功按鈕不被蓋住（空間太小時至少留 160px）
+      const room = window.innerHeight - $('core').getBoundingClientRect().bottom - 16
+      Object.assign(m.style, { width: 'auto', left: '8px', right: '8px', top: 'auto', bottom: '8px', maxHeight: Math.max(160, Math.min(room, window.innerHeight * 0.5)) + 'px' })
+    }
   }
-  function openBagModal() { placeBagPanel(); $('bag-modal').classList.remove('hidden'); renderBagPanel(true) }
-  function closeBagPanel() { $('bag-modal').classList.add('hidden'); bagHtmlCache = '' }
+  function openBagModal() { $('bag-modal').classList.remove('hidden'); placeBagPanel(); renderBagPanel(true) }
+  function closeBagPanel() {
+    $('bag-modal').classList.add('hidden'); bagHtmlCache = ''
+    const grid = document.querySelector('.grid'); grid.classList.remove('bag-open'); grid.style.gridTemplateColumns = ''
+  }
   const toggleBagPanel = () => (bagOpen() ? closeBagPanel() : openBagModal())
 
   function renderPets() {
