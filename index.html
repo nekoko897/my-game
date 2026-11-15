@@ -1948,13 +1948,18 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function placeBagPanel() {
     const m = $('bag-modal'), grid = document.querySelector('.grid'), main = grid.querySelector('main'), nav = document.querySelector('.nav')
     grid.classList.remove('bag-open'); grid.style.gridTemplateColumns = ''
+    let docked = false
     if (window.innerWidth >= 1200) {
       const w = Math.max(280, Math.min(360, main.getBoundingClientRect().width - 340 - 12))
       grid.style.gridTemplateColumns = `${200 + 12 + w}px 1fr 300px`
       grid.classList.add('bag-open')
       const r = nav.getBoundingClientRect()
       Object.assign(m.style, { width: w + 'px', left: (r.right + 12) + 'px', right: 'auto', top: r.top + 'px', bottom: 'auto', maxHeight: Math.max(200, window.innerHeight - r.top - 12) + 'px' })
-    } else {
+      // 保險：若版面沒有真的把修為區塊讓開（例如被其他樣式覆蓋），就退回底部面板
+      docked = m.getBoundingClientRect().right <= $('core').getBoundingClientRect().left + 4
+      if (!docked) { grid.classList.remove('bag-open'); grid.style.gridTemplateColumns = '' }
+    }
+    if (!docked) {
       // 高度只用「修為區塊」下方剩餘的空間，確保圓盤、進度與運功按鈕不被蓋住（空間太小時至少留 160px）
       const room = window.innerHeight - $('core').getBoundingClientRect().bottom - 16
       Object.assign(m.style, { width: 'auto', left: '8px', right: '8px', top: 'auto', bottom: '8px', maxHeight: Math.max(160, Math.min(room, window.innerHeight * 0.5)) + 'px' })
@@ -2097,15 +2102,13 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const buy = SHOP_ITEMS.map((id) => {
       const def = ITEMS[id]
       return `
-        <li class="card row">
-          <div class="cluster">
-            <div class="item-icon">${def.icon}</div>
-            <div class="col">
-              <span class="bold">${def.name}</span>
-              ${itemInfo(id)}
-            </div>
+        <li class="card">
+          <div class="cluster"><div class="item-icon">${def.icon}</div><span class="bold">${def.name}</span></div>
+          <div style="margin-top:6px">${itemInfo(id)}</div>
+          <div class="row" style="margin-top:8px;align-items:center">
+            <span class="xs muted">價格　<span class="bold num" style="color:var(--accent)">${buyPrice(id)}</span> ${def.currency === 'jade' ? '仙玉' : '靈石'}</span>
+            <button type="button" class="small-btn" data-buy-item="${id}">購買</button>
           </div>
-          <button type="button" class="small-btn" data-buy-item="${id}">購買（${buyPrice(id)} ${def.currency === 'jade' ? '仙玉' : '靈石'}）</button>
         </li>`
     }).join('')
     const entries = Object.entries(state.inventory).filter(([, q]) => q > 0)
