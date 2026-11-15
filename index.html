@@ -514,7 +514,7 @@
   const lvIdx = (realm, layer) => realm * MAX_LAYER + layer - 1
   const hpAt = (realm, layer) => BASE_HP + lvIdx(realm, layer) * HP_PER_LV
   const mpAt = (realm, layer) => BASE_MP + lvIdx(realm, layer) * MP_PER_LV
-  const maxHp = () => Math.round(hpAt(state.realm, state.layer) * (1 + statBonus('root')))
+  const maxHp = () => Math.round(hpAt(state.realm, state.layer) * (1 + statBonus('root') + gearBonus('hp')))
   const maxMp = () => mpAt(state.realm, state.layer)
   const hpRatio = () => maxHp() / BASE_HP // 目前氣血上限是起始值的幾倍（丹藥、回復量、減傷都以此放大）
   const mpRatio = () => maxMp() / BASE_MP
@@ -633,6 +633,8 @@
   }
   const statPts = (k) => Math.min(STAT_CAP, (state.attrs && state.attrs[k]) || 0)
   const statBonus = (k) => statPts(k) * STAT_META[k].per
+  // 已穿戴裝備提供的某種加成總值（type 同 BONUS_TYPES）
+  const gearBonus = (type) => Object.values(state.equipped || {}).reduce((sum, id) => { const e = ITEMS[id] && ITEMS[id].equip; return sum + (e ? e.bonuses.filter((b) => b.type === type).reduce((a, b) => a + b.value, 0) : 0) }, 0)
   const ICON = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`
 
   /* 左側導覽列：要新增分頁，就在這裡加一筆，並在 renderInfo() 的 switch 裡加對應 case */
@@ -781,6 +783,64 @@
     chaosShard: { name: '混沌碎片', icon: '🌑', type: 'material', rarity: '史詩', sell: 480, desc: '混沌虛空中崩落的世界殘片' },
     voidPearl: { name: '虛空珠', icon: '🫧', type: 'material', rarity: '史詩', sell: 520, desc: '虛空之眼凝成的寶珠，映照萬象' },
     ancientRelic: { name: '太古神器殘片', icon: '🗝️', type: 'material', rarity: '史詩', sell: 800, desc: '上古神墟中遺落的神器碎片，價值連城' },
+    // ── 煉器材料（秘境妖獸掉落，宗門「煉器工坊」煉製裝備用） ──
+    forgeCoal: { name: '赤炭', icon: '🪨', type: 'material', rarity: '普通', sell: 9, desc: '地火餘燼壓成的炭塊，煉器起爐必備的燃料' },
+    pigIron: { name: '生鐵', icon: '⛓️', type: 'material', rarity: '普通', sell: 14, desc: '尚未淬鍊的粗鐵，是鑄造器胚的基底' },
+    steelIngot: { name: '百煉精鋼', icon: '🔩', type: 'material', rarity: '精良', sell: 48, desc: '千錘百煉後的精鋼錠，中階法器的骨架' },
+    spiritSand: { name: '靈砂', icon: '✨', type: 'material', rarity: '精良', sell: 40, desc: '蘊含靈氣的細砂，煉器時摻入可穩固靈紋' },
+    fireCrystal: { name: '離火晶', icon: '🔥', type: 'material', rarity: '稀有', sell: 125, desc: '離火精華凝成的赤紅晶石，灼手生煙' },
+    iceIronEssence: { name: '玄冰鐵精', icon: '🧊', type: 'material', rarity: '稀有', sell: 135, desc: '寒鐵千年提煉出的精華，觸之刺骨' },
+    thunderWood: { name: '雷擊木', icon: '🪵', type: 'material', rarity: '稀有', sell: 150, desc: '遭天雷劈過仍不死的靈木，木心蘊藏雷意' },
+    skyGold: { name: '九天玄金', icon: '🟨', type: 'material', rarity: '史詩', sell: 420, desc: '九天罡風淬鍊的神金，輕如鴻毛、堅不可摧' },
+    divineForgeStone: { name: '神鑄石', icon: '💎', type: 'material', rarity: '史詩', sell: 700, desc: '上古神匠遺留的鑄器靈石，能令凡鐵蛻變為道器' },
+    // ── 裝備模板（type: 'equip'） ──
+    //   equip { slot, req, bonuses }：slot 部位（見 EQUIP_SLOTS）｜req 佩戴所需境界（REALMS 索引）
+    //   bonuses 為 [{ type, value }]，type 與宗門特色相同（見 BONUS_TYPES；另有 hp 氣血上限%），穿上後直接加進角色
+    //   要新增裝備：在這裡加一筆，再到 FORGE_RECIPES（通用）或 SECT_FORGE（宗門專屬）加一筆煉製配方
+    //   裝備 id 只能用英文字母且最多 19 字（連線存檔會把已穿戴的裝備編成背包欄位）
+    // 法器（築基前可用）
+    ironSword: { name: '玄鐵劍', icon: '⚔️', type: 'equip', rarity: '精良', sell: 90, equip: { slot: 'weapon', req: 0, bonuses: [{ type: 'atk', value: 0.05 }] }, desc: '以玄鐵鍛成的入門飛劍，鋒口樸實無華' },
+    hideRobe: { name: '靈皮法袍', icon: '🥋', type: 'equip', rarity: '精良', sell: 80, equip: { slot: 'armor', req: 0, bonuses: [{ type: 'def', value: 0.04 }] }, desc: '以靈獸皮縫製的法袍，能卸去幾分衝擊' },
+    ironCrown: { name: '精鐵道冠', icon: '👑', type: 'equip', rarity: '精良', sell: 80, equip: { slot: 'head', req: 0, bonuses: [{ type: 'hp', value: 0.05 }] }, desc: '束髮護頂的鐵冠，內刻簡易聚氣紋' },
+    wolfBoots: { name: '狼筋靴', icon: '👢', type: 'equip', rarity: '精良', sell: 70, equip: { slot: 'boots', req: 0, bonuses: [{ type: 'hpRegen', value: 1 }] }, desc: '縫入狼筋的長靴，行走間氣血自然流轉' },
+    boneCharm: { name: '護身骨符', icon: '📿', type: 'equip', rarity: '精良', sell: 85, equip: { slot: 'charm', req: 0, bonuses: [{ type: 'cultivate', value: 0.04 }] }, desc: '妖丹磨粉混入骨符，佩之心神略定' },
+    // 靈器（金丹期可用）
+    fireBlade: { name: '赤焰飛劍', icon: '🔥', type: 'equip', rarity: '稀有', sell: 300, equip: { slot: 'weapon', req: 2, bonuses: [{ type: 'atk', value: 0.12 }] }, desc: '劍身繞離火，出鞘如赤虹貫日' },
+    scaleArmor: { name: '玄鱗護甲', icon: '🛡️', type: 'equip', rarity: '稀有', sell: 260, equip: { slot: 'armor', req: 2, bonuses: [{ type: 'def', value: 0.09 }] }, desc: '層層玄鱗疊成的護甲，刀劍難入' },
+    spiritCrown: { name: '凝神玉冠', icon: '👑', type: 'equip', rarity: '稀有', sell: 260, equip: { slot: 'head', req: 2, bonuses: [{ type: 'hp', value: 0.12 }] }, desc: '靈玉嵌冠，戴上後精氣神自然充盈' },
+    windBoots: { name: '御風靴', icon: '👢', type: 'equip', rarity: '稀有', sell: 230, equip: { slot: 'boots', req: 2, bonuses: [{ type: 'hpRegen', value: 2 }] }, desc: '冰蠶絲織就的輕靴，步步生風' },
+    jadePendant: { name: '靜心玉佩', icon: '📿', type: 'equip', rarity: '稀有', sell: 280, equip: { slot: 'charm', req: 2, bonuses: [{ type: 'cultivate', value: 0.09 }] }, desc: '溫玉佩於胸前，雜念不生' },
+    // 寶器（化神期可用）
+    thunderSword: { name: '九霄雷劍', icon: '⚡', type: 'equip', rarity: '史詩', sell: 900, equip: { slot: 'weapon', req: 4, bonuses: [{ type: 'atk', value: 0.22 }] }, desc: '雷擊木為柄、雷晶為刃，揮動時雷鳴隱隱' },
+    dragonArmor: { name: '蛟龍鎧', icon: '🐲', type: 'equip', rarity: '史詩', sell: 800, equip: { slot: 'armor', req: 4, bonuses: [{ type: 'def', value: 0.16 }] }, desc: '以蛟龍逆鱗鍛成的重鎧，龍威護體' },
+    phoenixCrown: { name: '鳳羽冠', icon: '🪶', type: 'equip', rarity: '史詩', sell: 800, equip: { slot: 'head', req: 4, bonuses: [{ type: 'hp', value: 0.22 }] }, desc: '鳳羽織冠，浴火不滅的生機盡納其中' },
+    frostBoots: { name: '寒霜履', icon: '👢', type: 'equip', rarity: '史詩', sell: 700, equip: { slot: 'boots', req: 4, bonuses: [{ type: 'hpRegen', value: 4 }] }, desc: '寒魄晶為底的戰靴，踏過之處凝霜成冰' },
+    voidCharm: { name: '虛空靈佩', icon: '🫧', type: 'equip', rarity: '史詩', sell: 950, equip: { slot: 'charm', req: 4, bonuses: [{ type: 'cultivate', value: 0.15 }] }, desc: '佩中似有星河流轉，修行事半功倍' },
+    // 道器（大乘期可用）
+    chaosSword: { name: '混沌開天劍', icon: '🗡️', type: 'equip', rarity: '史詩', sell: 3000, equip: { slot: 'weapon', req: 6, bonuses: [{ type: 'atk', value: 0.35 }] }, desc: '混沌碎片與神金合鑄，一劍可開天闢地' },
+    ancientArmor: { name: '太古神甲', icon: '🏛️', type: 'equip', rarity: '史詩', sell: 2800, equip: { slot: 'armor', req: 6, bonuses: [{ type: 'def', value: 0.25 }] }, desc: '上古神魔大戰遺留的戰甲，萬法不侵' },
+    godCrown: { name: '神墟帝冠', icon: '👑', type: 'equip', rarity: '史詩', sell: 2800, equip: { slot: 'head', req: 6, bonuses: [{ type: 'hp', value: 0.35 }] }, desc: '神墟帝王的冠冕，戴之氣血如海' },
+    voidBoots: { name: '踏虛靴', icon: '👢', type: 'equip', rarity: '史詩', sell: 2400, equip: { slot: 'boots', req: 6, bonuses: [{ type: 'hpRegen', value: 7 }] }, desc: '虛空珠為飾的戰靴，一步踏碎虛空' },
+    chaosCharm: { name: '混沌道佩', icon: '☯️', type: 'equip', rarity: '史詩', sell: 3200, equip: { slot: 'charm', req: 6, bonuses: [{ type: 'cultivate', value: 0.24 }] }, desc: '混沌初開時的一縷道韻，悟道之寶' },
+    // 宗門專屬裝備（只能在對應宗門的煉器工坊煉製）
+    qingshuangSword: { name: '青霜劍', icon: '🗡️', type: 'equip', rarity: '稀有', sell: 400, sect: 'qingyun', equip: { slot: 'weapon', req: 1, bonuses: [{ type: 'atk', value: 0.10 }, { type: 'breakthrough', value: 0.02 }] }, desc: '青雲劍宗鑄劍閣的名劍，劍氣森寒，可斬妖邪' },
+    wanjianRobe: { name: '萬劍法袍', icon: '🥋', type: 'equip', rarity: '史詩', sell: 1100, sect: 'qingyun', equip: { slot: 'armor', req: 4, bonuses: [{ type: 'atk', value: 0.12 }, { type: 'def', value: 0.10 }] }, desc: '袍上暗繡萬道劍紋，劍意護身' },
+    taiqingCrown: { name: '太清道冠', icon: '🎓', type: 'equip', rarity: '稀有', sell: 400, sect: 'xuantian', equip: { slot: 'head', req: 1, bonuses: [{ type: 'cultivate', value: 0.08 }, { type: 'mpRegen', value: 1 }] }, desc: '玄天道宮弟子所戴的道冠，清靜無為' },
+    zifuCharm: { name: '紫府靈符佩', icon: '📜', type: 'equip', rarity: '史詩', sell: 1100, sect: 'xuantian', equip: { slot: 'charm', req: 4, bonuses: [{ type: 'cultivate', value: 0.18 }, { type: 'breakthrough', value: 0.04 }] }, desc: '紫府仙籙化作的佩飾，護持道心' },
+    yaowangGourd: { name: '藥王葫蘆', icon: '🏺', type: 'equip', rarity: '稀有', sell: 400, sect: 'danding', equip: { slot: 'charm', req: 1, bonuses: [{ type: 'pill', value: 0.15 }, { type: 'hpRegen', value: 1 }] }, desc: '丹鼎谷藥王親煉的葫蘆，內藏藥香不散' },
+    danhuoRobe: { name: '丹火法衣', icon: '🧥', type: 'equip', rarity: '史詩', sell: 1100, sect: 'danding', equip: { slot: 'armor', req: 4, bonuses: [{ type: 'def', value: 0.10 }, { type: 'pill', value: 0.20 }, { type: 'hpRegen', value: 3 }] }, desc: '以煉丹地火淬過的法衣，火氣養身' },
+    jingangHelm: { name: '金剛護首', icon: '⛑️', type: 'equip', rarity: '稀有', sell: 400, sect: 'jingang', equip: { slot: 'head', req: 1, bonuses: [{ type: 'def', value: 0.06 }, { type: 'hp', value: 0.08 }] }, desc: '金剛寺武僧所戴的銅首盔，剛猛厚重' },
+    arhatCassock: { name: '羅漢金身衣', icon: '🧘', type: 'equip', rarity: '史詩', sell: 1100, sect: 'jingang', equip: { slot: 'armor', req: 4, bonuses: [{ type: 'def', value: 0.20 }, { type: 'hpRegen', value: 3 }] }, desc: '羅漢金身的外相，披之如入不動之境' },
+    xuehunBlade: { name: '噬血刀', icon: '🔪', type: 'equip', rarity: '稀有', sell: 400, sect: 'xuesha', equip: { slot: 'weapon', req: 1, bonuses: [{ type: 'atk', value: 0.12 }, { type: 'lifesteal', value: 0.03 }] }, desc: '血煞宗血煉坊的魔刀，見血則鳴' },
+    xuehaiArmor: { name: '血海魔甲', icon: '🩸', type: 'equip', rarity: '史詩', sell: 1100, sect: 'xuesha', equip: { slot: 'armor', req: 4, bonuses: [{ type: 'atk', value: 0.10 }, { type: 'def', value: 0.06 }, { type: 'lifesteal', value: 0.05 }] }, desc: '浸過血海的魔甲，越戰越是兇悍' },
+    wanduRing: { name: '蝕骨毒環', icon: '💍', type: 'equip', rarity: '稀有', sell: 400, sect: 'wandu', equip: { slot: 'charm', req: 1, bonuses: [{ type: 'atk', value: 0.06 }, { type: 'loot', value: 0.10 }] }, desc: '萬毒門的毒環，環內藏針、見血封喉' },
+    duwuMask: { name: '五毒面具', icon: '🎭', type: 'equip', rarity: '史詩', sell: 1100, sect: 'wandu', equip: { slot: 'head', req: 4, bonuses: [{ type: 'loot', value: 0.15 }, { type: 'def', value: 0.08 }] }, desc: '五毒凝成的面具，百毒不侵，連妖獸遺落之物都逃不過它的嗅覺' },
+    zhaohunCharm: { name: '招魂靈佩', icon: '🪬', type: 'equip', rarity: '稀有', sell: 400, sect: 'youming', equip: { slot: 'charm', req: 1, bonuses: [{ type: 'exp', value: 0.10 }, { type: 'breakthrough', value: 0.02 }] }, desc: '幽冥殿的招魂佩，吞噬殘魂化為修為' },
+    guiwangBoots: { name: '鬼王靴', icon: '👢', type: 'equip', rarity: '史詩', sell: 1100, sect: 'youming', equip: { slot: 'boots', req: 4, bonuses: [{ type: 'exp', value: 0.15 }, { type: 'breakthrough', value: 0.03 }, { type: 'hpRegen', value: 3 }] }, desc: '鬼帝賜下的戰靴，行走間陰風相隨' },
+    yushouArmor: { name: '馭獸皮甲', icon: '🦬', type: 'equip', rarity: '稀有', sell: 400, sect: 'yushou', equip: { slot: 'armor', req: 1, bonuses: [{ type: 'petAtk', value: 0.15 }, { type: 'def', value: 0.05 }] }, desc: '萬獸山莊獸器坊的皮甲，靈獸嗅到氣息便格外親近' },
+    yushouWhip: { name: '馭獸鞭', icon: '🪢', type: 'equip', rarity: '史詩', sell: 1100, sect: 'yushou', equip: { slot: 'weapon', req: 4, bonuses: [{ type: 'petAtk', value: 0.25 }, { type: 'petXp', value: 0.20 }, { type: 'atk', value: 0.08 }] }, desc: '以蛟龍筋與雷擊木編成的長鞭，揮舞間百獸臣服' },
+    jinsuanPan: { name: '金算盤', icon: '🧮', type: 'equip', rarity: '稀有', sell: 400, sect: 'wanbao', equip: { slot: 'charm', req: 1, bonuses: [{ type: 'sell', value: 0.12 }, { type: 'discount', value: 0.08 }] }, desc: '萬寶商盟的招牌法寶，一撥珠子萬貫入帳' },
+    caishenBoots: { name: '招財靴', icon: '👞', type: 'equip', rarity: '史詩', sell: 1100, sect: 'wanbao', equip: { slot: 'boots', req: 4, bonuses: [{ type: 'sell', value: 0.18 }, { type: 'discount', value: 0.12 }, { type: 'loot', value: 0.10 }] }, desc: '鞋底鑄有銅錢紋，行至哪裡財運跟到哪裡' },
     // ↑ 在這裡繼續加新道具，例如：
     // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
   }
@@ -790,6 +850,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   if (useBtn) {
     useItem(useBtn.dataset.modalUse);
     openBagModal(); // 動作後重新整理彈窗內容
+    return;
+  }
+  const equipBtn = e.target.closest('[data-modal-equip]');
+  if (equipBtn) {
+    equipItem(equipBtn.dataset.modalEquip);
+    openBagModal();
     return;
   }
   const sellBtn = e.target.closest('[data-modal-sell]');
@@ -802,6 +868,96 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   
   /* 交易所「仙品鋪」要賣什麼，就把 ITEMS 裡有設定 buy 價格的道具 id 填進這個陣列 */
   const SHOP_ITEMS = ['qi', 'bigQi', 'hpPill', 'huichun', 'foundation', 'commonEgg', 'commonFeed', 'zhuanggu', 'kaiqiao', 'ningshen', 'zhuanyun']
+
+  /* =========================================================
+   * 裝備系統
+   * EQUIP_SLOTS：裝備部位，每個部位同時只能穿一件（背包裡按「裝備」，已穿戴的在背包頂端可「卸下」）
+   * 裝備本身是 ITEMS 裡 type: 'equip' 的道具，加成透過 gearBonus() 併入 sectBonus()，所以攻擊、減傷、修煉、掉落…全部自動生效
+   * FORGE_RECIPES：通用煉器配方，所有宗門的「煉器工坊」都能煉
+   *   { item: 裝備 id, mats: { 材料 id: 數量 }, stones: 靈石 }
+   * SECT_FORGE：各宗門專屬煉器工坊（key = 宗門 id）：
+   *   { name 工坊名, desc 說明, recipes: [{ item, mats, stones, fee: 貢獻 }] }
+   *   專屬配方只有該宗門弟子能煉，除了材料與靈石，還要消耗宗門貢獻
+   * 散修沒有工坊可用，拜入任一宗門即可使用該宗的煉器工坊
+   * ========================================================= */
+  const EQUIP_SLOTS = {
+    weapon: { label: '兵器', icon: '⚔️' },
+    armor: { label: '護甲', icon: '🥋' },
+    head: { label: '頭冠', icon: '👑' },
+    boots: { label: '靴履', icon: '👢' },
+    charm: { label: '佩飾', icon: '📿' },
+  }
+  const EQUIP_KEY = 'zqeqp'
+  /* 煉製失敗率：依裝備佩戴境界 req（品階）決定，品階越高越容易失敗；配方也可自行加 fail 欄位（0~1）覆蓋
+   * 失敗時：靈石全數損失、材料損失一半（無條件進位），宗門貢獻不扣 */
+  const FORGE_FAIL = { 0: 0.05, 1: 0.15, 2: 0.20, 4: 0.35, 6: 0.50 }
+  const forgeFailRate = (r) => (r.fail != null ? r.fail : (FORGE_FAIL[ITEMS[r.item].equip.req] || 0))
+  const FORGE_RECIPES = [
+    // 法器
+    { item: 'ironSword', mats: { blackIron: 3, forgeCoal: 4, wolfFang: 2 }, stones: 150 },
+    { item: 'hideRobe', mats: { beastHide: 6, forgeCoal: 3 }, stones: 120 },
+    { item: 'ironCrown', mats: { pigIron: 4, forgeCoal: 3 }, stones: 120 },
+    { item: 'wolfBoots', mats: { beastHide: 4, wolfFang: 3, forgeCoal: 2 }, stones: 100 },
+    { item: 'boneCharm', mats: { demonCore: 2, spiritGrass: 3, forgeCoal: 2 }, stones: 130 },
+    // 靈器
+    { item: 'fireBlade', mats: { steelIngot: 4, fireCrystal: 1, forgeCoal: 4 }, stones: 800 },
+    { item: 'scaleArmor', mats: { steelIngot: 3, crocScale: 6, spiritSand: 2 }, stones: 700 },
+    { item: 'spiritCrown', mats: { spiritJade: 2, steelIngot: 3, spiritSand: 2 }, stones: 700 },
+    { item: 'windBoots', mats: { iceSilk: 2, beastHide: 6, spiritSand: 2 }, stones: 600 },
+    { item: 'jadePendant', mats: { spiritJade: 2, soulFire: 2, spiritSand: 3 }, stones: 750 },
+    // 寶器
+    { item: 'thunderSword', mats: { thunderWood: 3, steelIngot: 6, thunderCrystal: 3 }, stones: 4000 },
+    { item: 'dragonArmor', mats: { dragonScale: 4, steelIngot: 6, iceIronEssence: 2 }, stones: 3500 },
+    { item: 'phoenixCrown', mats: { phoenixFeather: 3, fireCrystal: 3, steelIngot: 4 }, stones: 3500 },
+    { item: 'frostBoots', mats: { frostCrystal: 2, iceIronEssence: 2, iceSilk: 4 }, stones: 3000 },
+    { item: 'voidCharm', mats: { thunderEssence: 2, inkPearl: 2, skyGold: 1 }, stones: 3800 },
+    // 道器
+    { item: 'chaosSword', mats: { skyGold: 5, chaosShard: 3, divineForgeStone: 2 }, stones: 12000 },
+    { item: 'ancientArmor', mats: { skyGold: 5, dragonScale: 6, ancientRelic: 2 }, stones: 11000 },
+    { item: 'godCrown', mats: { voidPearl: 3, skyGold: 4, ancientRelic: 1 }, stones: 11000 },
+    { item: 'voidBoots', mats: { voidPearl: 2, chaosShard: 2, skyGold: 3 }, stones: 9000 },
+    { item: 'chaosCharm', mats: { chaosShard: 4, voidPearl: 2, divineForgeStone: 2 }, stones: 12000 },
+  ]
+  const SECT_FORGE = {
+    qingyun: { name: '鑄劍閣', desc: '青雲劍宗歷代名劍皆出於此，閣中劍爐晝夜不熄。', recipes: [
+      { item: 'qingshuangSword', mats: { blackIron: 4, steelIngot: 2, forgeCoal: 4 }, stones: 500, fee: 150 },
+      { item: 'wanjianRobe', mats: { starIron: 2, steelIngot: 5, spiritSand: 3 }, stones: 3000, fee: 500 },
+    ] },
+    xuantian: { name: '天工閣', desc: '道宮以符陣入器，所煉之物皆含清靜道韻。', recipes: [
+      { item: 'taiqingCrown', mats: { spiritJade: 2, spiritSand: 2, steelIngot: 1 }, stones: 500, fee: 150 },
+      { item: 'zifuCharm', mats: { jadeSlip: 3, spiritJade: 3, skyGold: 1 }, stones: 3000, fee: 500 },
+    ] },
+    danding: { name: '丹器坊', desc: '丹鼎谷以煉丹地火煉器，所成法寶自帶藥氣。', recipes: [
+      { item: 'yaowangGourd', mats: { spiritGrass: 8, demonCore: 3, forgeCoal: 3 }, stones: 500, fee: 150 },
+      { item: 'danhuoRobe', mats: { fireCrystal: 3, fireLotus: 3, steelIngot: 4 }, stones: 3000, fee: 500 },
+    ] },
+    jingang: { name: '金剛鑄坊', desc: '金剛寺的鑄坊專煉護體之器，講究厚重剛猛。', recipes: [
+      { item: 'jingangHelm', mats: { blackIron: 4, golemCore: 1, forgeCoal: 4 }, stones: 500, fee: 150 },
+      { item: 'arhatCassock', mats: { dragonScale: 3, steelIngot: 5, golemCore: 4 }, stones: 3000, fee: 500 },
+    ] },
+    xuesha: { name: '血煉坊', desc: '血煞宗以血祭開爐，所煉兵刃嗜血而鳴。', recipes: [
+      { item: 'xuehunBlade', mats: { beastBlood: 4, blackIron: 3, wolfFang: 4, forgeCoal: 3 }, stones: 500, fee: 150 },
+      { item: 'xuehaiArmor', mats: { beastBlood: 8, dragonScale: 2, steelIngot: 4 }, stones: 3000, fee: 500 },
+    ] },
+    wandu: { name: '毒器坊', desc: '萬毒門的煉器坊終日毒煙繚繞，外人不敢靠近。', recipes: [
+      { item: 'wanduRing', mats: { toadVenom: 6, snakeGall: 2, forgeCoal: 2 }, stones: 500, fee: 150 },
+      { item: 'duwuMask', mats: { snakeGall: 4, soulFire: 3, ghostJade: 2, steelIngot: 3 }, stones: 3000, fee: 500 },
+    ] },
+    youming: { name: '幽煉殿', desc: '幽冥殿以鬼火煉器，器成之時殘魂低語不絕。', recipes: [
+      { item: 'zhaohunCharm', mats: { soulFire: 3, boneShard: 3, forgeCoal: 2 }, stones: 500, fee: 150 },
+      { item: 'guiwangBoots', mats: { ghostJade: 3, soulFire: 4, steelIngot: 3 }, stones: 3000, fee: 500 },
+    ] },
+    yushou: { name: '獸器坊', desc: '萬獸山莊的工匠專為御獸之人量身打造器具。', recipes: [
+      { item: 'yushouArmor', mats: { beastHide: 8, tigerBone: 3, forgeCoal: 4 }, stones: 500, fee: 150 },
+      { item: 'yushouWhip', mats: { dragonScale: 2, beastBlood: 6, steelIngot: 4, thunderWood: 1 }, stones: 3000, fee: 500 },
+    ] },
+    wanbao: { name: '天工坊', desc: '萬寶商盟重金延請天下巧匠，專煉招財進寶的奇物。', recipes: [
+      { item: 'jinsuanPan', mats: { ancientCoin: 3, spiritJade: 2, forgeCoal: 3 }, stones: 500, fee: 150 },
+      { item: 'caishenBoots', mats: { ancientCoin: 6, inkPearl: 2, steelIngot: 4 }, stones: 3000, fee: 500 },
+    ] },
+  }
+  // 煉器材料被哪些配方用到（背包說明用）
+  const forgeMatUsers = (id) => FORGE_RECIPES.some((r) => r.mats[id]) || Object.values(SECT_FORGE).some((f) => f.recipes.some((r) => r.mats[id]))
 
   /* 寶箱（秘境寶箱、萬寶令）開出的物品池：weight 越大越容易開到 */
   const LOOTBOX_POOL = [
@@ -834,6 +990,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
    * 新增地點：在陣列中加入一個物件。欄位：
    *   id、name、icon  地點識別、名稱、圖示
    *   reqRealm        需要的境界，對應 REALMS 陣列的索引（0=煉氣期即可進入，1=築基期…以此類推）
+   *   ticket          門票價格（靈石）：每次進入該秘境要先購票，離開後再次進入須重新購票；不填或 0 = 免費
    *   desc            地點說明
    *   monsters        此地點可挑戰的怪物陣列，每筆欄位：
    *     id、name、icon      怪物識別、名稱、圖示
@@ -845,7 +1002,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
    * ========================================================= */
   const LOCATIONS = [
     {
-      id: 'luoxiagu', name: '落霞谷', icon: '🍂', reqRealm: 0,
+      id: 'luoxiagu', name: '落霞谷', icon: '🍂', reqRealm: 0, ticket: 20,
       desc: '妖獸出沒的荒谷，適合煉氣期弟子歷練身手。',
       monsters: [
         { id: 'wolf', name: '赤血狼', icon: '🐺', hp: 60, atkMin: 4, atkMax: 9, exp: 18, loot: [{ item: 'beastHide', chance: 0.6, min: 1, max: 2 }, { item: 'spiritGrass', chance: 0.4, min: 1, max: 1 }, { item: 'wolfFang', chance: 0.5, min: 1, max: 2 }, { item: 'beastBlood', chance: 0.08, min: 1, max: 1 }] },
@@ -854,7 +1011,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ],
     },
     {
-      id: 'wanyao', name: '萬妖山脈', icon: '🏔️', reqRealm: 1,
+      id: 'wanyao', name: '萬妖山脈', icon: '🏔️', reqRealm: 1, ticket: 100,
       desc: '妖氣濃郁的連綿山脈，築基期以上弟子方能全身而退。',
       monsters: [
         { id: 'tiger', name: '玄紋妖虎', icon: '🐯', hp: 160, atkMin: 12, atkMax: 20, exp: 55, loot: [{ item: 'demonCore', chance: 0.4, min: 1, max: 2 }, { item: 'beastHide', chance: 0.5, min: 1, max: 2 }, { item: 'tigerBone', chance: 0.35, min: 1, max: 1 }, { item: 'beastBlood', chance: 0.3, min: 1, max: 2 }] },
@@ -863,7 +1020,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ],
     },
     {
-      id: 'taixu', name: '太虛幻境', icon: '🌌', reqRealm: 2,
+      id: 'taixu', name: '太虛幻境', icon: '🌌', reqRealm: 2, ticket: 400,
       desc: '虛實交錯的秘境，金丹期以上方可窺其堂奧。',
       monsters: [
         { id: 'phoenix', name: '赤羽幻鳳', icon: '🐦', hp: 480, atkMin: 28, atkMax: 42, exp: 160, loot: [{ item: 'thunderCrystal', chance: 0.25, min: 1, max: 2 }, { item: 'jadeSlip', chance: 0.3, min: 1, max: 1 }, { item: 'phoenixFeather', chance: 0.2, min: 1, max: 1 }, { item: 'fireLotus', chance: 0.3, min: 1, max: 1 }, { item: 'spiritJade', chance: 0.25, min: 1, max: 2 }] },
@@ -871,7 +1028,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ],
     },
     {
-      id: 'miwu', name: '迷霧沼澤', icon: '🌫️', reqRealm: 0,
+      id: 'miwu', name: '迷霧沼澤', icon: '🌫️', reqRealm: 0, ticket: 25,
       desc: '終年瘴氣瀰漫的濕地，毒物遍布，卻也盛產靈草，適合初入道途者磨練。',
       monsters: [
         { id: 'toad', name: '毒瘴蟾', icon: '🐸', hp: 70, atkMin: 5, atkMax: 10, exp: 20, loot: [{ item: 'toadVenom', chance: 0.55, min: 1, max: 2 }, { item: 'spiritGrass', chance: 0.5, min: 1, max: 2 }, { item: 'beastBlood', chance: 0.06, min: 1, max: 1 }] },
@@ -880,7 +1037,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ],
     },
     {
-      id: 'youming', name: '幽冥鬼域', icon: '🪦', reqRealm: 1,
+      id: 'youming', name: '幽冥鬼域', icon: '🪦', reqRealm: 1, ticket: 120,
       desc: '陰風慘慘的亂葬荒原，遊魂白骨徘徊不去，築基期以上方敢涉足。',
       monsters: [
         { id: 'wraith', name: '遊魂', icon: '👻', hp: 190, atkMin: 14, atkMax: 22, exp: 60, loot: [{ item: 'soulFire', chance: 0.35, min: 1, max: 1 }, { item: 'ghostJade', chance: 0.08, min: 1, max: 1 }, { item: 'jadeSlip', chance: 0.08, min: 1, max: 1 }] },
@@ -889,7 +1046,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ],
     },
     {
-      id: 'fentian', name: '焚天火山', icon: '🌋', reqRealm: 2,
+      id: 'fentian', name: '焚天火山', icon: '🌋', reqRealm: 2, ticket: 450,
       desc: '地火噴湧、岩漿奔流的絕地，唯有金丹期的護體靈力才撐得住酷熱。',
       monsters: [
         { id: 'lizard', name: '熔岩蜥', icon: '🦎', hp: 353, atkMin: 33, atkMax: 44, exp: 107, loot: [{ item: 'lavaCore', chance: 0.2, min: 1, max: 1 }, { item: 'fireLotus', chance: 0.3, min: 1, max: 1 }, { item: 'spiritJade', chance: 0.2, min: 1, max: 2 }, { item: 'starIron', chance: 0.05, min: 1, max: 1 }] },
@@ -897,7 +1054,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ],
     },
     {
-      id: 'jiuyouice', name: '九幽冰原', icon: '❄️', reqRealm: 3,
+      id: 'jiuyouice', name: '九幽冰原', icon: '❄️', reqRealm: 3, ticket: 1200,
       desc: '極北寒域，冰風蝕骨。元嬰期修士方能以元神抵禦刺骨寒意。',
       monsters: [
         { id: 'snowleopard', name: '霜牙雪豹', icon: '🐆', hp: 537, atkMin: 22, atkMax: 30, exp: 152, loot: [{ item: 'iceSilk', chance: 0.4, min: 1, max: 2 }, { item: 'frostCrystal', chance: 0.1, min: 1, max: 1 }, { item: 'inkPearl', chance: 0.12, min: 1, max: 1 }, { item: 'starIron', chance: 0.08, min: 1, max: 1 }] },
@@ -905,7 +1062,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ],
     },
     {
-      id: 'jiutianlei', name: '九天雷澤', icon: '⚡', reqRealm: 4,
+      id: 'jiutianlei', name: '九天雷澤', icon: '⚡', reqRealm: 4, ticket: 2500,
       desc: '雷霆終日不歇的天外澤國，化神期修士才能在雷罰中立足。',
       monsters: [
         { id: 'thunderhawk', name: '雷翼鷹', icon: '🦅', hp: 617, atkMin: 25, atkMax: 33, exp: 218, loot: [{ item: 'thunderCrystal', chance: 0.4, min: 1, max: 2 }, { item: 'thunderEssence', chance: 0.12, min: 1, max: 1 }, { item: 'phoenixFeather', chance: 0.12, min: 1, max: 1 }, { item: 'starIron', chance: 0.1, min: 1, max: 1 }] },
@@ -913,7 +1070,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ],
     },
     {
-      id: 'hundunvoid', name: '混沌虛空', icon: '🕳️', reqRealm: 5,
+      id: 'hundunvoid', name: '混沌虛空', icon: '🕳️', reqRealm: 5, ticket: 5000,
       desc: '天地未分的混沌夾縫，法則錯亂。渡劫期大能方可窺其一隅。',
       monsters: [
         { id: 'voideye', name: '虛空之眼', icon: '👁️', hp: 693, atkMin: 27, atkMax: 37, exp: 316, loot: [{ item: 'voidPearl', chance: 0.15, min: 1, max: 1 }, { item: 'chaosShard', chance: 0.2, min: 1, max: 1 }, { item: 'inkPearl', chance: 0.3, min: 1, max: 2 }, { item: 'starIron', chance: 0.15, min: 1, max: 1 }] },
@@ -921,7 +1078,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ],
     },
     {
-      id: 'shangguxu', name: '上古神墟', icon: '🏛️', reqRealm: 6,
+      id: 'shangguxu', name: '上古神墟', icon: '🏛️', reqRealm: 6, ticket: 9000,
       desc: '上古大戰後遺留的神魔廢墟，唯有大乘期至尊敢踏入，亦是世間機緣所在。',
       monsters: [
         { id: 'guardian', name: '神墟守衛', icon: '🛡️', hp: 765, atkMin: 30, atkMax: 40, exp: 463, loot: [{ item: 'ancientRelic', chance: 0.15, min: 1, max: 1 }, { item: 'chaosShard', chance: 0.25, min: 1, max: 2 }, { item: 'frostCrystal', chance: 0.2, min: 1, max: 1 }, { item: 'treasureBox', chance: 0.08, min: 1, max: 1 }] },
@@ -1000,6 +1157,19 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     { item: 'tongshenDan', chance: 0.003, min: 1, max: 1 },
     { item: 'tianmingDan', chance: 0.003, min: 1, max: 1 },
   ]
+  /* 煉器材料掉落：依秘境加進該地所有妖獸的掉落表（chance = 機率 0~1） */
+  const LOCATION_FORGE_LOOT = {
+    luoxiagu: [{ item: 'forgeCoal', chance: 0.35, min: 1, max: 2 }, { item: 'pigIron', chance: 0.2, min: 1, max: 2 }],
+    miwu: [{ item: 'forgeCoal', chance: 0.3, min: 1, max: 2 }, { item: 'pigIron', chance: 0.15, min: 1, max: 2 }, { item: 'spiritSand', chance: 0.05, min: 1, max: 1 }],
+    wanyao: [{ item: 'forgeCoal', chance: 0.3, min: 1, max: 2 }, { item: 'pigIron', chance: 0.3, min: 1, max: 2 }, { item: 'steelIngot', chance: 0.12, min: 1, max: 1 }, { item: 'spiritSand', chance: 0.08, min: 1, max: 1 }],
+    youming: [{ item: 'forgeCoal', chance: 0.2, min: 1, max: 2 }, { item: 'steelIngot', chance: 0.12, min: 1, max: 1 }, { item: 'spiritSand', chance: 0.12, min: 1, max: 1 }],
+    taixu: [{ item: 'steelIngot', chance: 0.12, min: 1, max: 1 }, { item: 'spiritSand', chance: 0.15, min: 1, max: 2 }, { item: 'fireCrystal', chance: 0.04, min: 1, max: 1 }],
+    fentian: [{ item: 'steelIngot', chance: 0.12, min: 1, max: 1 }, { item: 'fireCrystal', chance: 0.1, min: 1, max: 1 }, { item: 'spiritSand', chance: 0.1, min: 1, max: 1 }],
+    jiuyouice: [{ item: 'steelIngot', chance: 0.1, min: 1, max: 1 }, { item: 'iceIronEssence', chance: 0.1, min: 1, max: 1 }, { item: 'spiritSand', chance: 0.1, min: 1, max: 1 }],
+    jiutianlei: [{ item: 'steelIngot', chance: 0.1, min: 1, max: 1 }, { item: 'thunderWood', chance: 0.1, min: 1, max: 1 }, { item: 'skyGold', chance: 0.03, min: 1, max: 1 }],
+    hundunvoid: [{ item: 'skyGold', chance: 0.08, min: 1, max: 1 }, { item: 'thunderWood', chance: 0.08, min: 1, max: 1 }],
+    shangguxu: [{ item: 'skyGold', chance: 0.12, min: 1, max: 1 }, { item: 'divineForgeStone', chance: 0.04, min: 1, max: 1 }],
+  }
   LOCATIONS.sort((a, b) => a.reqRealm - b.reqRealm) // 依解鎖境界排序
   /* 妖獸成長：玩家氣血上限隨境界提高，妖獸數值也要跟著放大。
    * 以「該秘境解鎖境界、第一層」的氣血上限相對起始值的倍率 k 為基準：
@@ -1014,15 +1184,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       m.atkMin = Math.round(m.atkMin * ka); m.atkMax = Math.round(m.atkMax * ka)
     })
   })
-  LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push(...REALM_PET_LOOT, ...REALM_COMMON_LOOT)))
+  LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push(...REALM_PET_LOOT, ...REALM_COMMON_LOOT, ...(LOCATION_FORGE_LOOT[loc.id] || []))))
 
   
-  /* 已裝備法寶（目前僅顯示用，未串接戰鬥加成） */
-  const ARTIFACTS = [
-    { name: '青霜劍', grade: '靈器 · 上品', note: '劍氣森寒，可斬妖邪' },
-    { name: '紫金葫蘆', grade: '法器 · 中品', note: '可納百川之水' },
-    { name: '玄龜甲', grade: '靈器 · 下品', note: '護主之寶，抵禦重擊' },
-  ]
 
   /* =========================================================
    * 宗門系統
@@ -1031,7 +1195,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
    *
    * SECT_ALIGNS：陣營（顯示分組與顏色）
    * BONUS_TYPES：宗門特色狀態的種類（數值已實際串接到遊戲邏輯）
-   *   atk 攻擊%｜def 受到傷害減免%｜cultivate 運功/閉關修為%｜breakthrough 突破機率(加算)
+   *   atk 攻擊%｜hp 氣血上限%（僅裝備提供）｜def 受到傷害減免%｜cultivate 運功/閉關修為%｜breakthrough 突破機率(加算)
    *   mpRegen 每息靈力回復｜hpRegen 每息氣血回復｜pill 丹藥效果%｜lifesteal 擊殺回復氣血上限%
    *   loot 秘境掉落機率%｜exp 擊殺修為%｜petAtk 靈寵攻擊%｜petXp 靈寵修為獲取%
    *   sell 出售價格%｜discount 交易所購買折扣%
@@ -1052,6 +1216,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
   const BONUS_TYPES = {
     atk: (v) => `攻擊 +${Math.round(v * 100)}%`,
+    hp: (v) => `氣血上限 +${Math.round(v * 100)}%`,
     def: (v) => `受到傷害 -${Math.round(v * 100)}%`,
     cultivate: (v) => `修煉速度 +${Math.round(v * 100)}%`,
     breakthrough: (v) => `突破機率 +${Math.round(v * 100)}%`,
@@ -1200,6 +1365,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     sectTab: 'mine',
     selectedLocation: null, battle: null,
     pets: [], activePet: null, // 靈寵列表、出戰靈寵 uid
+    equipped: {},   // 已穿戴的裝備 { 部位: 道具 id }
   }
 
   const $ = (id) => document.getElementById(id)
@@ -1223,7 +1389,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     : e.t === 'heal' ? `回復 ${Math.round(e.pct * 100)}% 氣血`
     : e.t === 'mp' ? `回復 ${Math.round(e.pct * 100)}% 靈力`
     : `${BUFF_LABELS[e.stat] || e.stat} +${Math.round(e.value * 100)}%（${e.sec} 息）`).join('、')
-  const sectBonus = (type) => { const s = currentSect(); return s ? s.bonuses.filter((b) => b.type === type).reduce((a, b) => a + b.value, 0) : 0 }
+  // 宗門特色 + 裝備加成（兩者合併計算，所有加成類型都走這個函式）
+  const sectBonus = (type) => { const s = currentSect(); return (s ? s.bonuses.filter((b) => b.type === type).reduce((a, b) => a + b.value, 0) : 0) + gearBonus(type) }
   const buffVal = (stat) => (state.buffs[stat] ? state.buffs[stat].value : 0)
   const BUFF_LABELS = { atk: '攻擊', def: '減傷', cultivate: '修煉速度', petAtk: '靈寵攻擊' }
   /* ---------- 道具效果說明（依 effect 自動產生，含目前實際數值，確保和遊戲邏輯一致） ---------- */
@@ -1254,12 +1421,18 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const def = ITEMS[id]
     let t
     if (def.effect) t = `效果：${itemEffectText(id)}`
+    else if (def.equip) t = `裝備：${equipText(id)}`
     else {
       const users = SECTS.filter((s) => s.quests.some((q) => q.type === 'submit' && q.item === id)).map((s) => s.name)
-      t = `材料：無法直接使用，可出售${users.length ? `；${users.join('、')}的宗門任務可上交` : ''}`
+      t = `材料：無法直接使用，可出售${users.length ? `；${users.join('、')}的宗門任務可上交` : ''}${forgeMatUsers(id) ? '；可在宗門煉器工坊用於煉製裝備' : ''}`
     }
     const owner = def.sect && SECTS.find((s) => s.id === def.sect)
     return owner ? `${t}；${owner.name}寶庫可兌換` : t
+  }
+  // 裝備說明：部位、佩戴境界、加成
+  const equipText = (id) => {
+    const e = ITEMS[id].equip
+    return `${EQUIP_SLOTS[e.slot].label}・${REALMS[e.req]}期可佩戴・${e.bonuses.map((b) => BONUS_TYPES[b.type](b.value)).join('、')}`
   }
   const itemInfo = (id) => `<p class="xs muted" style="margin-top:2px;line-height:1.6">${ITEMS[id].desc}</p><p class="xs" style="margin-top:2px;line-height:1.6;color:var(--accent)">${itemUseText(id)}</p>`
   const sellPrice = (id) => Math.round(ITEMS[id].sell * (1 + sectBonus('sell')))
@@ -1333,6 +1506,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     // 已兌換的高階功法：key = 'zqskl' + 功法 id，value = 1
     for (const id of Object.keys(state.learned || {})) if (state.learned[id]) out[SKILL_KEY + id] = 1
     for (const k of Object.keys(STAT_META)) if (statPts(k) > 0) out[STAT_KEY + k] = statPts(k)
+    // 已穿戴裝備：key = 'zqeqp' + 裝備 id，value = 1（部位由裝備本身決定）
+    for (const id of Object.values(state.equipped || {})) if (ITEMS[id] && ITEMS[id].equip) out[EQUIP_KEY + id] = 1
     return out
   }
   const QUEST_KEY = 'zqqst'
@@ -1382,6 +1557,104 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     }
     if (petMaxed(p)) p.xp = 0
     if (ups) addLog(`靈寵「${petTpl(p).name}」修為精進，晉入${realmText(p.realm, p.layer)}${petMaxed(p) ? '，已達資質上限，圓滿無缺！' : '。'}`, 'success')
+  }
+
+  /* ---------- 裝備 ---------- */
+  function equipItem(id) {
+    const def = ITEMS[id], eq = def && def.equip
+    if (!eq || (state.inventory[id] || 0) <= 0) return
+    if (state.battle) { addLog('戰鬥中無法更換裝備。', 'danger'); return refreshAfterItem() }
+    if (state.realm < eq.req) { addLog(`「${def.name}」需${REALMS[eq.req]}期方可佩戴。`, 'danger'); return refreshAfterItem() }
+    const old = state.equipped[eq.slot]
+    consumeItem(id)
+    if (old) addItem(old, 1)
+    state.equipped[eq.slot] = id
+    state.hp = Math.min(state.hp, maxHp())
+    addLog(`你換上「${def.name}」（${EQUIP_SLOTS[eq.slot].label}）${old ? `，換下「${ITEMS[old].name}」` : ''}。`, 'success')
+    pushSave()
+    refreshAfterItem()
+  }
+  function unequipSlot(slot) {
+    const id = state.equipped[slot]
+    if (!id) return
+    if (state.battle) { addLog('戰鬥中無法更換裝備。', 'danger'); return refreshAfterItem() }
+    delete state.equipped[slot]
+    addItem(id, 1)
+    state.hp = Math.min(state.hp, maxHp())
+    addLog(`你卸下了「${ITEMS[id].name}」。`)
+    pushSave()
+    refreshAfterItem()
+  }
+
+  /* ---------- 宗門煉器工坊 ---------- */
+  function forgeRecipe(itemId) {
+    const s = currentSect()
+    if (!s) return null
+    const own = ((SECT_FORGE[s.id] || {}).recipes || []).find((r) => r.item === itemId)
+    if (own) return { r: own, sectOnly: true }
+    const gen = FORGE_RECIPES.find((r) => r.item === itemId)
+    return gen ? { r: gen, sectOnly: false } : null
+  }
+  function forgeItem(itemId) {
+    const found = forgeRecipe(itemId)
+    if (!found) return
+    const { r } = found, def = ITEMS[itemId], fee = r.fee || 0
+    const lack = Object.entries(r.mats).find(([m, n]) => (state.inventory[m] || 0) < n)
+    if (lack) { addLog(`煉製「${def.name}」的材料不足：缺少「${ITEMS[lack[0]].name}」。`, 'danger'); return refreshSect() }
+    if (state.stones < r.stones) { addLog(`煉製「${def.name}」需要 ${r.stones} 靈石，靈石不足。`, 'danger'); return refreshSect() }
+    if (state.contribution < fee) { addLog(`煉製「${def.name}」需要 ${fee} 點宗門貢獻，貢獻不足。`, 'danger'); return refreshSect() }
+    state.stones -= r.stones
+    if (Math.random() < forgeFailRate(r)) {
+      const lost = []
+      for (const [m, n] of Object.entries(r.mats)) { const k = Math.ceil(n / 2); consumeItem(m, k); lost.push(`${ITEMS[m].name} × ${k}`) }
+      addLog(`爐火失控，煉製「${def.name}」失敗！損失 ${r.stones} 靈石與材料（${lost.join('、')}），貢獻未扣。`, 'danger')
+      pushSave()
+      return refreshSect()
+    }
+    for (const [m, n] of Object.entries(r.mats)) consumeItem(m, n)
+    state.contribution -= fee
+    addItem(itemId, 1)
+    addLog(`爐火燃起，你煉成了${def.icon}「${def.name}」（${def.rarity}）！耗費 ${r.stones} 靈石${fee ? `、${fee} 點貢獻` : ''}。`, 'gold')
+    pushSave()
+    refreshSect()
+  }
+  function renderForgeCard(r, sectOnly) {
+    const def = ITEMS[r.item], fee = r.fee || 0
+    const mats = Object.entries(r.mats).map(([m, n]) => {
+      const have = state.inventory[m] || 0
+      return `<span class="xs num" style="color:${have >= n ? 'var(--accent)' : 'var(--muted-fg)'}">${ITEMS[m].icon} ${ITEMS[m].name} ${have}/${n}</span>`
+    }).join('　')
+    const ok = Object.entries(r.mats).every(([m, n]) => (state.inventory[m] || 0) >= n) && state.stones >= r.stones && state.contribution >= fee
+    const worn = Object.values(state.equipped).includes(r.item) ? '（已穿戴）' : ''
+    return `
+      <li class="item-card">
+        <div class="item-icon">${def.icon}</div>
+        <div class="col" style="flex:1;min-width:0">
+          <div class="row" style="align-items:baseline"><span class="bold">${def.name}${worn}</span><span class="xs muted">持有 ${state.inventory[r.item] || 0}</span></div>
+          <span class="xs" style="color:${rarityColor(def.rarity)}">${def.rarity}${sectOnly ? ' · 本宗專屬' : ''}</span>
+          <p class="xs muted" style="margin-top:2px;line-height:1.6">${def.desc}</p>
+          <p class="xs" style="margin-top:2px;line-height:1.6;color:var(--accent)">${equipText(r.item)}</p>
+          <p style="margin-top:4px;line-height:1.8">${mats}</p>
+          <p class="xs" style="margin-top:2px;color:${state.stones >= r.stones ? 'var(--accent)' : 'var(--muted-fg)'}">失敗率 <span style="color:${forgeFailRate(r) >= 0.35 ? 'var(--destructive)' : 'var(--muted-fg)'}">${Math.round(forgeFailRate(r) * 100)}%</span>　靈石 ${r.stones.toLocaleString()}${fee ? `　<span style="color:${state.contribution >= fee ? 'var(--accent)' : 'var(--muted-fg)'}">貢獻 ${fee}</span>` : ''}</p>
+          <div class="actions" style="justify-content:flex-start;margin-top:6px">
+            <button type="button" class="small-btn" data-forge="${r.item}" ${ok ? '' : 'disabled'}>煉製</button>
+          </div>
+        </div>
+      </li>`
+  }
+  function renderSectForge(s) {
+    const f = SECT_FORGE[s.id]
+    const own = f ? f.recipes.map((r) => renderForgeCard(r, true)).join('') : ''
+    const gen = FORGE_RECIPES.map((r) => renderForgeCard(r, false)).join('')
+    return `
+      <div class="card" style="margin-bottom:12px">
+        <span class="bold" style="font-size:15px">🔨 ${f ? f.name : '煉器工坊'}</span>
+        <p class="xs muted" style="margin-top:6px;line-height:1.7">${f ? f.desc : ''}材料可從秘境妖獸身上取得；品階越高失敗率越高，失敗會損失靈石與一半材料。裝備煉成後到背包「裝備」，不同部位可同時穿戴。</p>
+        <p class="xs" style="margin-top:6px">靈石：<span class="bold num" style="color:var(--accent)">${state.stones.toLocaleString()}</span>　貢獻：<span class="bold num" style="color:var(--accent)">${state.contribution.toLocaleString()}</span></p>
+      </div>
+      ${own ? `<h3 class="panel-title" style="font-size:12px;margin:14px 0 8px">本宗專屬</h3><ul class="item-list">${own}</ul>` : ''}
+      <h3 class="panel-title" style="font-size:12px;margin:18px 0 8px">通用煉器</h3>
+      <ul class="item-list">${gen}</ul>`
   }
 
   function refreshAfterItem() {
@@ -1714,6 +1987,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (!state.quests || typeof state.quests !== 'object') state.quests = {}
     if (!state.learned || typeof state.learned !== 'object') state.learned = {}
     if (!state.attrs || typeof state.attrs !== 'object') state.attrs = {}
+    // 連線存檔：已穿戴裝備藏在 inventory 裡，解回 state.equipped（每個部位只認一件）
+    state.equipped = {}
+    for (const k of Object.keys(state.inventory)) {
+      if (!k.startsWith(EQUIP_KEY)) continue
+      const id = k.slice(EQUIP_KEY.length), eq = ITEMS[id] && ITEMS[id].equip
+      if (eq && Number(state.inventory[k]) > 0 && !state.equipped[eq.slot]) state.equipped[eq.slot] = id
+      delete state.inventory[k]
+    }
     for (const k of Object.keys(state.inventory)) {
       if (!k.startsWith(STAT_KEY)) continue
       const sk = k.slice(STAT_KEY.length)
@@ -1740,6 +2021,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (!state.buffs || typeof state.buffs !== 'object') state.buffs = {}
     state.breakBonus = Number(state.breakBonus) || 0
     state.contribution = Math.max(0, Number(state.contribution) || 0)
+    state.hp = Math.min(Number(state.hp) || 0, maxHp())
   }
 
   // 開始畫面 → 登入畫面
@@ -1884,11 +2166,17 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
 
   function renderBag() {
-    const equipped = ARTIFACTS.map((a) => `
+    const equipped = Object.entries(EQUIP_SLOTS).map(([slot, sd]) => {
+      const id = state.equipped[slot], def = id && ITEMS[id]
+      if (!def) return `<li class="card"><span class="xs muted">${sd.icon} ${sd.label}：空</span></li>`
+      return `
       <li class="card">
-        <div class="row" style="align-items:baseline"><span class="bold">${a.name}</span><span class="xs" style="color:var(--accent)">${a.grade}</span></div>
-        <p class="xs muted" style="margin-top:4px">${a.note}</p>
-      </li>`).join('')
+        <div class="row" style="align-items:baseline"><span class="bold">${def.icon} ${def.name}</span><span class="xs" style="color:${rarityColor(def.rarity)}">${sd.label} · ${def.rarity}</span></div>
+        <p class="xs muted" style="margin-top:4px">${def.desc}</p>
+        <p class="xs" style="margin-top:2px;color:var(--accent)">${def.equip.bonuses.map((b) => BONUS_TYPES[b.type](b.value)).join('、')}</p>
+        <div class="actions" style="justify-content:flex-start;margin-top:6px"><button type="button" class="small-btn" data-unequip="${slot}">卸下</button></div>
+      </li>`
+    }).join('')
     const entries = Object.entries(state.inventory).filter(([, q]) => q > 0)
     const items = entries.length ? entries.map(([id, qty]) => {
       const def = ITEMS[id]
@@ -1904,13 +2192,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             ${itemInfo(id)}
             <div class="actions" style="justify-content:flex-start;margin-top:6px;gap:8px">
               ${def.effect ? `<button type="button" class="small-btn" data-use-item="${id}">使用</button>` : ''}
+              ${def.equip ? `<button type="button" class="small-btn" data-equip-item="${id}">裝備</button>` : ''}
               <button type="button" class="small-btn" data-sell-item="${id}">出售（${sellPrice(id)} 靈石）</button>
             </div>
           </div>
         </li>`
     }).join('') : '<li class="xs muted">行囊空空，去秘境歷練拾取些物件吧。</li>'
     return `
-      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">已裝備法寶</h3>
+      <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">已穿戴裝備</h3>
       <ul class="stack">${equipped}</ul>
       <h3 class="panel-title" style="font-size:12px;margin:18px 0 8px">物品欄</h3>
       <ul class="item-list">${items}</ul>`
@@ -1936,6 +2225,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             ${itemInfo(id)}
             <div class="actions" style="justify-content:flex-start;margin-top:6px;gap:8px">
               ${def.effect ? `<button type="button" class="small-btn" data-modal-use="${id}">使用</button>` : ''}
+              ${def.equip ? `<button type="button" class="small-btn" data-modal-equip="${id}">裝備</button>` : ''}
               <button type="button" class="small-btn" data-modal-sell="${id}">出售（${sellPrice(id)} 靈石）</button>
             </div>
           </div>
@@ -2049,7 +2339,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         </li>`).join('')
       return `
         <button type="button" class="small-btn" data-back-location style="margin-bottom:12px">← 返回秘境列表</button>
-        <p class="xs muted" style="margin-bottom:10px">${loc.desc}</p>
+        <p class="xs muted" style="margin-bottom:4px">${loc.desc}</p>
+        <p class="xs" style="margin-bottom:10px;color:var(--accent)">🎫 已持門票，離開秘境後再次進入需重新購票。</p>
         <ul class="stack">${monsters}</ul>`
     }
     const cards = LOCATIONS.map((loc) => {
@@ -2061,11 +2352,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
               <span class="bold">${loc.icon} ${loc.name}</span>
               <span class="xs muted" style="margin-top:4px">${loc.desc}</span>
             </div>
-            <span class="xs" style="color:${open ? 'var(--primary)' : 'var(--muted-fg)'};white-space:nowrap">${open ? '可探索' : `${REALMS[loc.reqRealm]}期可入`}</span>
+            <span class="xs" style="color:${open ? (state.stones >= ticketCost(loc) ? 'var(--primary)' : 'var(--destructive)') : 'var(--muted-fg)'};white-space:nowrap">${open ? (ticketCost(loc) ? `🎫 門票 ${ticketCost(loc).toLocaleString()} 靈石` : '免費入內') : `${REALMS[loc.reqRealm]}期可入`}</span>
           </div>
         </li>`
     }).join('')
-    return `<ul class="stack">${cards}</ul>`
+    return `<p class="xs muted" style="line-height:1.7;margin-bottom:10px">進入秘境需先以靈石購買門票；離開秘境後再次進入須重新購票。</p><ul class="stack">${cards}</ul>`
   }
 
   function renderBattle() {
@@ -2152,13 +2443,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const tab = sect ? state.sectTab : 'list'
     const tabs = sect ? `
       <div class="actions" style="justify-content:flex-start;gap:6px;margin-bottom:14px">
-        ${[['mine', '本宗'], ['quests', '任務'], ['shop', '寶庫'], ['list', '宗門列表']].map(([k, label]) =>
+        ${[['mine', '本宗'], ['quests', '任務'], ['shop', '寶庫'], ['forge', '工坊'], ['list', '宗門列表']].map(([k, label]) =>
           `<button type="button" class="small-btn" data-sect-tab="${k}" style="${tab === k ? 'background:color-mix(in oklch, var(--primary) 20%, transparent)' : ''}">${label}</button>`).join('')}
       </div>` : ''
     let body = ''
     if (tab === 'mine') body = renderSectMine(sect)
     else if (tab === 'quests') body = renderSectQuests(sect)
     else if (tab === 'shop') body = renderSectShop(sect)
+    else if (tab === 'forge') body = renderSectForge(sect)
     else body = renderSectList()
     return tabs + body
   }
@@ -2177,7 +2469,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         <h3 class="xs" style="color:var(--accent);letter-spacing:.2em">宗門功法</h3>
         <ul style="margin-top:4px">${SKILLS.filter((k) => k.sect === s.id && k.grade === 'sect').map((k) => `<li class="xs" style="color:var(--primary)">✦ ${k.name}　<span class="muted">${skillEffectText(k)}</span></li>`).join('')}</ul>
       </div>
-      <p class="xs muted" style="line-height:1.7;margin-bottom:10px">完成「任務」獲得貢獻，可在「寶庫」兌換本宗專屬天材地寶與高階功法。離開宗門貢獻將歸零，宗門功法會封存。</p>
+      <p class="xs muted" style="line-height:1.7;margin-bottom:10px">完成「任務」獲得貢獻，可在「寶庫」兌換本宗專屬天材地寶與高階功法，並在「工坊」煉製裝備。離開宗門貢獻將歸零，宗門功法會封存。</p>
       <button type="button" class="small-btn" data-sect-leave style="border-color:color-mix(in oklch, var(--destructive) 50%, transparent);color:var(--destructive)">離開宗門</button>`
   }
 
@@ -2272,6 +2564,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function refreshSect() { render(); if (state.nav === 'sect') renderInfo() }
 
   // 角色分頁：目前宗門特色與增益狀態
+  // 已穿戴裝備的加成總覽
+  function gearSummary() {
+    const types = Object.keys(BONUS_TYPES).filter((t) => gearBonus(t) > 0)
+    return types.length ? types.map((t) => BONUS_TYPES[t](gearBonus(t))).join('、') : '尚未穿戴裝備'
+  }
   function renderStatus() {
     const s = currentSect()
     const buffs = Object.entries(state.buffs).map(([k, b]) => `${BUFF_LABELS[k] || k} +${Math.round(b.value * 100)}%（剩 ${b.left} 息）`)
@@ -2280,6 +2577,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <div class="card" style="margin-top:16px">
         <h3 class="xs" style="color:var(--accent);letter-spacing:.2em">宗門特色</h3>
         <p class="xs" style="margin-top:4px;line-height:1.7">${s ? `${s.name}：${bonusText(s)}` : '散修，無宗門加成'}</p>
+        <h3 class="xs" style="color:var(--accent);letter-spacing:.2em;margin-top:10px">裝備加成</h3>
+        <p class="xs" style="margin-top:4px;line-height:1.7">${gearSummary()}</p>
         <h3 class="xs" style="color:var(--accent);letter-spacing:.2em;margin-top:10px">增益狀態</h3>
         <p class="xs muted" style="margin-top:4px;line-height:1.7">${buffs.join('<br>') || '無'}</p>
       </div>`
@@ -2612,9 +2911,20 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (state.nav === 'market') renderInfo()
   }
 
+  const ticketCost = (loc) => (state.isGM ? 0 : Math.max(0, loc.ticket || 0))
   function enterLocation(id) {
+    const loc = LOCATIONS.find((l) => l.id === id)
+    if (!loc || state.realm < loc.reqRealm) return
+    const cost = ticketCost(loc)
+    if (cost > 0) {
+      if (state.stones < cost) { addLog(`靈石不足：進入「${loc.name}」需購買門票 ${cost} 靈石。`, 'danger'); return renderInfo() }
+      state.stones -= cost
+      addLog(`購買「${loc.name}」門票，花費 ${cost} 靈石，踏入秘境。`, 'gold')
+      pushSave()
+    }
     state.selectedLocation = id
     state.battle = null
+    render()
     renderInfo()
   }
   function backToLocations() {
@@ -2754,6 +3064,12 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen())
     if (nbRate) return netBidWithRate(nbRate.dataset.netBidRate, nbRate.dataset.rate)
     const useBtn = e.target.closest('[data-use-item]')
     if (useBtn) return useItem(useBtn.dataset.useItem)
+    const equipBtn = e.target.closest('[data-equip-item]')
+    if (equipBtn) return equipItem(equipBtn.dataset.equipItem)
+    const unequipBtn = e.target.closest('[data-unequip]')
+    if (unequipBtn) return unequipSlot(unequipBtn.dataset.unequip)
+    const forgeBtn = e.target.closest('[data-forge]')
+    if (forgeBtn) return forgeItem(forgeBtn.dataset.forge)
     const sellBtn = e.target.closest('[data-sell-item]')
     if (sellBtn) return sellItem(sellBtn.dataset.sellItem)
     const buyBtn = e.target.closest('[data-buy-item]')

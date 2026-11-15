@@ -9,7 +9,20 @@ const BASE_HP = 260, BASE_MP = 120, HP_PER_LV = 20, MP_PER_LV = 4
 const lvIdx = (s) => (s.realm || 0) * 9 + (s.layer || 1) - 1
 // 根骨屬性丹：每點 +1% 氣血上限（最多 30 點），點數存在背包欄位 zqstatroot（須與 index.html 的 STAT_META／STAT_CAP 一致）
 const rootPts = (s) => Math.min(30, Math.max(0, Number(((s && s.inventory) || {}).zqstatroot) || 0))
-const hpOf = (s) => Math.round((BASE_HP + lvIdx(s) * HP_PER_LV) * (1 + rootPts(s) * 0.01))
+// 已穿戴裝備提供的氣血上限%：背包欄位 zqeqp + 裝備 id（須與 index.html 的 EQUIP_KEY／ITEMS.equip 一致）；每個部位只計一件
+let ITEM_DEFS = {}
+const gearHpPct = (s) => {
+  let sum = 0; const slots = new Set()
+  for (const [k, v] of Object.entries((s && s.inventory) || {})) {
+    if (!k.startsWith('zqeqp') || !(Number(v) > 0)) continue
+    const e = (ITEM_DEFS[k.slice(5)] || {}).equip
+    if (!e || slots.has(e.slot)) continue
+    slots.add(e.slot)
+    sum += (e.bonuses || []).filter((b) => b.type === 'hp').reduce((a, b) => a + (Number(b.value) || 0), 0)
+  }
+  return sum
+}
+const hpOf = (s) => Math.round((BASE_HP + lvIdx(s) * HP_PER_LV) * (1 + rootPts(s) * 0.01 + gearHpPct(s)))
 const mpOf = (s) => BASE_MP + lvIdx(s) * MP_PER_LV
 
 // ===== GM 帳號 =====
@@ -203,6 +216,7 @@ function loadNpcPool() {
     }
     if (end < 0) throw new Error('ITEMS 結尾不明')
     const items = require('vm').runInNewContext('(' + src.slice(src.indexOf('{', start), end + 1) + ')')
+    ITEM_DEFS = items   // 裝備加成（氣血上限）計算也要用
     const shop = (/const SHOP_ITEMS = \[([^\]]*)\]/.exec(src) || [, ''])[1].match(/[A-Za-z]+/g) || []
     NPC_POOL = Object.entries(items)
       .filter(([id, d]) => /^[A-Za-z]{1,24}$/.test(id) && !shop.includes(id) && NPC_RARITY_WEIGHT[d.rarity] && d.sell > 0)
