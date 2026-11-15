@@ -420,7 +420,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/boss/attack') {
       if (!boss.alive) return json(res, 400, { error: '魔蛟尚未現世' })
       if (limited(key, 'boss', 1800)) return json(res, 429, { error: '出手太快' })
-      const s = pl.save || {}, r = atkRange(s), dmg = rnd(r[0], r[1]) * 3
+      const s = pl.save || {}, r = atkRange(s)
+      // 攻伐功法出手時，客戶端帶上傷害倍率（神識加成後最高約 7.3，上限 8，防止亂報）
+      const mult = Math.max(1, Math.min(8, Number(b.mult) || 1)), dmg = Math.round(rnd(r[0], r[1]) * 3 * mult)
       boss.hp = Math.max(0, boss.hp - dmg); boss.damage[key] = (boss.damage[key] || 0) + dmg; boss.lastHit = key
       if (boss.hp <= 0) killBoss(); else broadcast('boss', pubBoss())
       return json(res, 200, { ok: true, dmg })

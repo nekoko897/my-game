@@ -1818,6 +1818,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <ul class="stack" style="gap:8px">${top}</ul>
       <p class="xs muted" style="margin-top:12px;line-height:1.7">擊殺獎勵：全體參與者依傷害占比獲得靈石與修為；最後一擊得雷晶，傷害第一得破損玉簡。</p>
       <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--accent)">每次出手皆有機緣：神獸蛋 ${+(BOSS_PET_LOOT[0].chance * 100).toFixed(2)}%、神級寵物飼料 ${+(BOSS_PET_LOOT[1].chance * 100).toFixed(2)}%、五行造化丹 ${+(BOSS_PET_LOOT[2].chance * 100).toFixed(2)}%。出戰靈寵會協同攻擊。</p>
+      <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--primary)">在此分頁也能施展攻伐功法（點功法列或按數字鍵）：消耗該功法的靈力與冷卻，傷害依功法倍率放大，不需再付出手的靈力。</p>
       <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--destructive)">魔蛟會在你出手後反擊（蛟尾橫掃、噬魂利爪、滅世龍息、蛟嘯震魂）。氣血低於 ${Math.ceil(maxHp() * BOSS_MIN_HP_RATIO)} 時無法出手，記得備好療傷丹。</p>`
   }
   /* 世界王反擊：每次你出手後，魔蛟會隨機施展一種招式回敬。
@@ -1860,14 +1861,23 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     addLog(text, 'danger')
     bossLogPush(text)
   }
-  async function attackBoss() {
-    if (state.mp < bossAtkCost()) { addLog('靈力不足，無法出手。', 'danger'); render(); return }
-    if (state.hp < maxHp() * BOSS_MIN_HP_RATIO) { addLog(`氣血過低（需高於 ${Math.ceil(maxHp() * BOSS_MIN_HP_RATIO)}），再戰恐有性命之憂，先服丹療傷吧。`, 'danger'); render(); return }
-    const r = await api('boss/attack')
-    if (!r.ok) { addLog(r.error, 'danger'); return }
-    state.mp -= bossAtkCost()
-    addLog(`你向「${net.boss ? net.boss.name : '魔蛟'}」發出一擊，造成 ${r.dmg} 點傷害。`, 'success')
-    bossLogPush(`你出手造成 ${r.dmg} 點傷害。`)
+  // 目前能否向世界王出手（回傳不能的原因，可以則回傳空字串）
+  const bossBlock = () => {
+    if (!net.boss || !net.boss.alive) return '魔蛟尚未現世。'
+    if (state.hp < maxHp() * BOSS_MIN_HP_RATIO) return `氣血過低（需高於 ${Math.ceil(maxHp() * BOSS_MIN_HP_RATIO)}），再戰恐有性命之憂，先服丹療傷吧。`
+    return ''
+  }
+  // skill 有值 = 以攻伐功法出手：靈力與冷卻已在 castSkill 扣除，傷害倍率為 mult；失敗時退還
+  async function attackBoss(skill = null, mult = 1) {
+    const refund = () => { if (skill) { state.mp = Math.min(maxMp(), state.mp + skill.cost); delete state.cooldowns[skill.id] } }
+    if (!skill && state.mp < bossAtkCost()) { addLog('靈力不足，無法出手。', 'danger'); render(); return }
+    const block = bossBlock()
+    if (block) { addLog(block, 'danger'); refund(); render(); return }
+    const r = await api('boss/attack', skill ? { mult } : {})
+    if (!r.ok) { addLog(r.error, 'danger'); refund(); render(); if (state.nav === 'boss') renderInfo(); return }
+    if (!skill) state.mp -= bossAtkCost()
+    addLog(skill ? `你施展「${skill.name}」轟向「${net.boss ? net.boss.name : '魔蛟'}」，造成 ${r.dmg} 點傷害。` : `你向「${net.boss ? net.boss.name : '魔蛟'}」發出一擊，造成 ${r.dmg} 點傷害。`, 'success')
+    bossLogPush(skill ? `你施展「${skill.name}」，造成 ${r.dmg} 點傷害。` : `你出手造成 ${r.dmg} 點傷害。`)
     const drops = rollTable(BOSS_PET_LOOT)
     if (drops.length) {
       drops.forEach((l) => addItem(l.item, l.qty))
@@ -2773,7 +2783,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if ((state.cooldowns[skill.id] || 0) > 0 || state.mp < skill.cost) return
     if ((skill.req || 0) > state.realm) { addLog(`「${skill.name}」需達到${REALMS[skill.req]}期方能施展。`, 'danger'); return }
     const dmgFx = skill.effects.find((e) => e.t === 'dmg')
-    if (dmgFx && !state.battle) { addLog(`「${skill.name}」是攻伐功法，需在秘境戰鬥中施展。`, 'danger'); return }
+    const bossMode = !state.battle && state.nav === 'boss' && net.boss && net.boss.alive
+    if (dmgFx && !state.battle && !bossMode) { addLog(`「${skill.name}」是攻伐功法，需在秘境戰鬥中，或在「魔蛟」分頁對世界王施展。`, 'danger'); return }
+    if (dmgFx && bossMode) { const block = bossBlock(); if (block) { addLog(block, 'danger'); return } }
     state.mp -= skill.cost
     state.cooldowns[skill.id] = skill.cooldown
     const notes = []
@@ -2788,6 +2800,10 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         state.buffs[ef.stat] = { value: Math.max(ef.value, cur ? cur.value : 0), left: Math.max(ef.sec, cur ? cur.left : 0) }
         notes.push(`${BUFF_LABELS[ef.stat]} +${Math.round(ef.value * 100)}%，${ef.sec} 息`)
       }
+    }
+    if (dmgFx && bossMode) {
+      render()
+      return attackBoss(skill, dmgFx.mult * (1 + statBonus('soul')))
     }
     if (dmgFx) {
       addLog(`施展「${skill.name}」—— ${skill.description}${notes.length ? `（${notes.join('，')}）` : ''}。`, 'success')
