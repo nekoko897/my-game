@@ -7,7 +7,9 @@ const PORT = process.env.PORT || 3000
 // 氣血／靈力上限隨修為成長（須與 index.html 的 hpAt／mpAt 公式一致）
 const BASE_HP = 260, BASE_MP = 120, HP_PER_LV = 20, MP_PER_LV = 4
 const lvIdx = (s) => (s.realm || 0) * 9 + (s.layer || 1) - 1
-const hpOf = (s) => BASE_HP + lvIdx(s) * HP_PER_LV
+// 根骨屬性丹：每點 +1% 氣血上限（最多 30 點），點數存在背包欄位 zqstatroot（須與 index.html 的 STAT_META／STAT_CAP 一致）
+const rootPts = (s) => Math.min(30, Math.max(0, Number(((s && s.inventory) || {}).zqstatroot) || 0))
+const hpOf = (s) => Math.round((BASE_HP + lvIdx(s) * HP_PER_LV) * (1 + rootPts(s) * 0.01))
 const mpOf = (s) => BASE_MP + lvIdx(s) * MP_PER_LV
 
 // ===== GM 帳號 =====
@@ -275,7 +277,7 @@ function sanitizeSave(s) {
   if (!s || typeof s !== 'object') return null
   const inv = {}
   for (const [k, v] of Object.entries(s.inventory || {})) if (/^[A-Za-z]{1,24}$/.test(k)) inv[k] = num(v, 0, 99999)
-  const realm = num(s.realm, 0, 6), layer = num(s.layer, 1, 9), cap = { realm, layer }
+  const realm = num(s.realm, 0, 6), layer = num(s.layer, 1, 9), cap = { realm, layer, inventory: inv }
   return {
     realm, layer, xp: num(s.xp, 0, 1e9), hp: num(s.hp, 0, hpOf(cap)), mp: num(s.mp, 0, mpOf(cap)),
     stones: num(s.stones, 0, 1e12), jade: num(s.jade, 0, 1e9), inventory: inv,
