@@ -1939,7 +1939,35 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <input id="listPrice" class="exchange-input" type="number" min="1" placeholder="每件起標靈石" style="flex:1;min-width:100px" aria-label="每件起標價格" />
           <button type="button" class="small-btn" data-net-list>上架</button>
         </div>
+        <div id="listSuggest" class="xs" style="margin-top:10px;line-height:1.7"></div>
       </div>`
+  }
+  /* 拍賣建議售價（每件單價）
+   *   參考一：全服目前同款拍賣品的每件單價平均（有市場行情時優先採用）
+   *   參考二：道具基準價 ITEMS.sell；NPC 上架價約為其 0.8～1.6 倍，所以建議區間取 0.8～1.6 倍，推薦 1.2 倍
+   *   起標價太高會流拍，太低會吃虧：推薦價 = 行情均價（或 1.2 倍基準價），保守價 = 0.8 倍、搶手價 = 1.6 倍 */
+  function suggestPrice(id) {
+    const def = ITEMS[id]; if (!def) return null
+    const base = def.sell
+    const same = (net.auctions || []).filter((a) => a.item === id && a.qty > 0)
+    const market = same.length ? Math.round(same.reduce((s, a) => s + a.current / a.qty, 0) / same.length) : 0
+    const rec = Math.max(1, market || Math.round(base * 1.2))
+    return { base, market, count: same.length, low: Math.max(1, Math.round(base * 0.8)), rec, high: Math.max(rec, Math.round(base * 1.6)) }
+  }
+  function updateListSuggest(fill) {
+    const box = $('listSuggest'); if (!box) return
+    const sel = $('listItemSelect'), id = sel && sel.value
+    const s = id && suggestPrice(id)
+    if (!s) { box.innerHTML = ''; return }
+    const qty = Math.max(1, Math.floor(Number($('listQty') && $('listQty').value) || 1))
+    const price = Math.floor(Number($('listPrice') && $('listPrice').value) || 0)
+    if (fill && $('listPrice')) $('listPrice').value = s.rec
+    const cur = fill ? s.rec : price
+    const verdict = !cur ? '' : cur < s.low ? '<span style="color:var(--destructive)">低於建議區間，可能賣虧</span>' : cur > s.high ? '<span style="color:var(--destructive)">高於建議區間，容易流拍</span>' : '<span style="color:var(--primary)">在合理區間內</span>'
+    box.innerHTML = `
+      <div class="muted">基準價 ${s.base} 靈石／件${s.count ? `　全服同款 ${s.count} 筆，行情均價約 ${s.market}` : '　目前全服無同款行情'}</div>
+      <div>建議每件 <span class="bold num" style="color:var(--accent)">${s.rec}</span> 靈石（合理區間 ${s.low}～${s.high}）　${cur ? `${verdict}　` : ''}<button type="button" class="small-btn" data-suggest-apply>套用建議價</button></div>
+      <div class="muted">${qty} 件起標總價：${(cur * qty).toLocaleString()} 靈石</div>`
   }
   async function netBidWithRate(id, rate) {
     const a = net.auctions.find((x) => x.id === id); if (!a) return
@@ -2137,6 +2165,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     for (const [id, v] of Object.entries(keep)) { const el = $(id); if (el) el.value = v }
     if (focusId && $(focusId)) $(focusId).focus()
     if (state.nav === 'world') { updateChat(); updateOnline() }
+    if (state.nav === 'auction') updateListSuggest(!keep.listPrice && !!$('listItemSelect') && !!$('listItemSelect').value)
     tickTimers()
   }
 
@@ -3083,8 +3112,12 @@ $('closeBagBtn').addEventListener('click', closeBagPanel)
 window.addEventListener('resize', () => { if (bagOpen()) placeBagPanel() })
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen()) closeBagPanel() })
 
+  // 換選物品 → 自動帶入建議價；改價格／數量 → 即時更新判斷與總價
+  $('infoBody').addEventListener('change', (e) => { if (e.target.id === 'listItemSelect') updateListSuggest(true) })
+  $('infoBody').addEventListener('input', (e) => { if (e.target.id === 'listPrice' || e.target.id === 'listQty') updateListSuggest(false) })
   $('infoBody').addEventListener('click', (e) => {
-    const nbRate = e.target.closest('[data-net-bid-rate]')
+    if (e.target.closest('[data-suggest-apply]')) return updateListSuggest(true)
+    const nbRate =e.target.closest('[data-net-bid-rate]')
     if (nbRate) return netBidWithRate(nbRate.dataset.netBidRate, nbRate.dataset.rate)
     const useBtn = e.target.closest('[data-use-item]')
     if (useBtn) return useItem(useBtn.dataset.useItem)
