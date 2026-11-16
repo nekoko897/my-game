@@ -355,6 +355,26 @@ const server = http.createServer(async (req, res) => {
       const ids = new Set((b.ids || []).map(Number)); pl.mail = (pl.mail || []).filter((m) => !ids.has(m.id)); dirty = true
       return json(res, 200, { ok: true })
     }
+    if (p === '/api/gm/send') {
+      // GM 專用：發送靈石／道具給指定玩家（離線也可，下次登入時由傳書自動入帳）
+      if (!isGMKey(key)) return json(res, 403, { error: '無權限' })
+      if (limited(key, 'gmsend', 300)) return json(res, 429, { error: '操作太快' })
+      const tk = cleanName(b.target).toLowerCase(), tp = db.players[tk]
+      if (!tp || isNpc(tk)) return json(res, 404, { error: '找不到此道號的玩家' })
+      const stones = num(b.stones, 0, 1e9)
+      const item = String(b.item || ''), qty = num(b.qty || 1, 1, 99999)
+      if (!stones && !item) return json(res, 400, { error: '請至少填寫靈石或選擇道具' })
+      if (item && !(/^[A-Za-z]{1,24}$/.test(item) && ITEM_DEFS[item])) return json(res, 400, { error: '無此道具' })
+      const reason = String(b.text || '').trim().replace(/[<>]/g, '').slice(0, 60), note = reason ? `（${reason}）` : ''
+      if (stones) mail(tk, { kind: 'stones', amount: stones, text: `天道傳書：獲贈 ${stones} 靈石${note}` })
+      if (item) mail(tk, { kind: 'item', item, qty, text: `天道傳書：獲贈 ${ITEM_DEFS[item].icon || ''}「${ITEM_DEFS[item].name || item}」× ${qty}${note}` })
+      db.gmLog = db.gmLog || []
+      db.gmLog.push({ t: now(), gm: key, to: tk, stones, item, qty: item ? qty : 0, text: reason })
+      if (db.gmLog.length > 500) db.gmLog.shift()
+      dirty = true
+      console.log(`[GM] ${key} -> ${tk}: 靈石 ${stones}${item ? `, ${item} x${qty}` : ''} ${reason}`)
+      return json(res, 200, { ok: true, to: tp.name, online: onlineKeys().includes(tk) })
+    }
     if (p === '/api/chat') {
       const text = String(b.text || '').trim().slice(0, 100)
       if (!text) return json(res, 400, { error: '訊息為空' })
