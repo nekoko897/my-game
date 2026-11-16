@@ -2851,7 +2851,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     render()
   }
 
+  const SECLUDE_COST = 2 // 閉關每息消耗的靈石（GM 免費）
   function toggleSeclusion() {
+    if (!state.secluded && !state.isGM && state.stones < SECLUDE_COST) return addLog(`靈石不足（閉關每息需 ${SECLUDE_COST} 靈石），無法閉關。`, 'danger')
     state.secluded = !state.secluded
     addLog(state.secluded ? '你封閉洞府，開始閉關苦修。' : '你推開石門，結束閉關。', state.secluded ? 'normal' : 'gold')
     render()
@@ -3127,9 +3129,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       if (state.xp >= req) {
         state.secluded = false
         addLog('修為已至圓滿，你緩緩出關，準備衝擊瓶頸。', 'gold')
+      } else if (!state.isGM && state.stones < SECLUDE_COST) {
+        state.secluded = false
+        addLog('靈石耗盡，無以維持洞府靈陣，你被迫出關。', 'danger')
       } else {
         state.xp = Math.min(req, state.xp + req * 0.03 / xpSlow() * (1 + cultivateBonus()))
-        state.stones = Math.max(0, state.stones - 2)
+        if (!state.isGM) state.stones -= SECLUDE_COST
       }
     }
 
