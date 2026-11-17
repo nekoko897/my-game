@@ -375,6 +375,35 @@ const server = http.createServer(async (req, res) => {
       console.log(`[GM] ${key} -> ${tk}: 靈石 ${stones}${item ? `, ${item} x${qty}` : ''} ${reason}`)
       return json(res, 200, { ok: true, to: tp.name, online: onlineKeys().includes(tk) })
     }
+    if (p === '/api/report') {
+      // 玩家回報 BUG／建議：存進 db.reports（保留最近 200 筆），並通知在線 GM
+      if (limited(key, 'report', 30000)) return json(res, 429, { error: '回報太頻繁，請稍後再試（30 秒）' })
+      const text = String(b.text || '').trim().slice(0, 500)
+      if (text.length < 5) return json(res, 400, { error: '內容太短' })
+      const type = ['BUG／錯誤', '建議', '其他'].includes(b.type) ? b.type : '其他'
+      const c = b.ctx && typeof b.ctx === 'object' ? b.ctx : {}
+      const ctx = { page: String(c.page || '').slice(0, 20), realm: num(c.realm, 0, 6), layer: num(c.layer, 1, 9), sect: String(c.sect || '').slice(0, 16), ua: String(c.ua || '').slice(0, 120) }
+      db.reports = db.reports || []
+      db.reports.push({ id: 'r' + db.nextId++, t: now(), key, from: pl.name, type, text, ctx, done: false })
+      if (db.reports.length > 200) db.reports.shift()
+      dirty = true
+      console.log(`[回報] ${pl.name} (${type}): ${text.slice(0, 80)}`)
+      for (const gk of GM_NAMES) sendTo(gk, 'chat', { t: now(), from: '天道', text: `📮 收到新回報：「${pl.name}」（${type}）`, sys: true })
+      return json(res, 200, { ok: true })
+    }
+    if (p === '/api/gm/reports') {
+      if (!isGMKey(key)) return json(res, 403, { error: '無權限' })
+      return json(res, 200, { ok: true, reports: db.reports || [] })
+    }
+    if (p === '/api/gm/report') {
+      if (!isGMKey(key)) return json(res, 403, { error: '無權限' })
+      const list = db.reports || [], r = list.find((x) => x.id === b.id)
+      if (!r) return json(res, 404, { error: '找不到這筆回報' })
+      if (b.action === 'delete') db.reports = list.filter((x) => x !== r)
+      else r.done = b.action === 'done'
+      dirty = true
+      return json(res, 200, { ok: true })
+    }
     if (p === '/api/chat') {
       const text = String(b.text || '').trim().slice(0, 100)
       if (!text) return json(res, 400, { error: '訊息為空' })

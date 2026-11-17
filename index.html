@@ -649,6 +649,7 @@
     { id: 'world', label: '世界', icon: ICON('<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>') },
     { id: 'boss', label: '魔蛟', icon: ICON('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>') },
     { id: 'sect', label: '宗門', icon: ICON('<path d="M10 5V3"/><path d="M14 5V3"/><path d="M15 21v-3a3 3 0 0 0-6 0v3"/><path d="M18 3v8"/><path d="M18 5H6"/><path d="M22 11H2"/><path d="M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9"/><path d="M6 3v8"/>') },
+    { id: 'report', label: '回報', icon: ICON('<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>') },
     { id: 'gm', label: 'GM', gm: true, icon: ICON('<path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>') },
   ]
 
@@ -1821,6 +1822,66 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (!r.ok) addLog(r.error, 'danger')
   }
 
+  /* ---------- 玩家回報（BUG／建議）----------
+   * 玩家在「回報」分頁送出 → /api/report → 存進伺服器 db.reports（最多 200 筆），GM 在 GM 分頁查看、標記已處理或刪除。
+   * 會自動附上：目前分頁、境界、宗門、瀏覽器資訊，方便重現問題。 */
+  const REPORT_TYPES = ['BUG／錯誤', '建議', '其他']
+  function renderReport() {
+    return `
+      <div class="card stack" style="gap:10px">
+        <h3 class="xs muted" style="letter-spacing:.2em">回報問題 · 意見反饋</h3>
+        <p class="xs muted" style="line-height:1.7">遇到錯誤、數值異常或有想法，請在這裡告訴我們。寫清楚「在哪個畫面、做了什麼、發生什麼事」最容易處理。系統會自動附上你的道號、境界與目前畫面。</p>
+        <label class="xs">類型
+          <select id="reportType" class="exchange-input">${REPORT_TYPES.map((t) => `<option>${t}</option>`).join('')}</select>
+        </label>
+        <label class="xs">內容（最多 500 字）
+          <textarea id="reportText" class="exchange-input" rows="6" maxlength="500" placeholder="例如：在拍賣場上架物品後，背包數量沒有減少…" style="resize:vertical;width:100%"></textarea>
+        </label>
+        <button type="button" class="small-btn" data-report-send>送出回報</button>
+      </div>`
+  }
+  async function sendReport() {
+    const text = $('reportText').value.trim(), type = $('reportType').value
+    if (text.length < 5) return addLog('請至少寫 5 個字，說明遇到的問題。', 'danger')
+    const ctx = { page: state.lastNav || state.nav, realm: state.realm, layer: state.layer, sect: state.sect || '', ua: String(navigator.userAgent || '').slice(0, 120) }
+    const r = await api('report', { type, text, ctx })
+    if (!r.ok) return addLog(r.error || '回報失敗', 'danger')
+    $('reportText').value = ''
+    addLog('回報已送出，感謝你的反饋！', 'gold')
+  }
+  async function loadReports() {
+    const r = await api('gm/reports', {})
+    state.gmReports = r.ok ? r.reports : []
+    if (state.nav === 'gm') renderInfo()
+  }
+  async function actReport(id, action) {
+    if (action === 'delete' && !confirm('確定刪除這筆回報？')) return
+    const r = await api('gm/report', { id, action })
+    if (!r.ok) return addLog(r.error || '操作失敗', 'danger')
+    loadReports()
+  }
+  function renderGMReports() {
+    if (state.gmReports === undefined) { state.gmReports = null; loadReports() }
+    const list = state.gmReports
+    const fmt = (t) => new Date(t).toLocaleString('zh-TW', { hour12: false })
+    const items = !list ? '<p class="xs muted">載入中…</p>' : !list.length ? '<p class="xs muted">目前沒有回報。</p>' : list.slice().reverse().map((x) => `
+      <div class="card" style="${x.done ? 'opacity:.55' : ''}">
+        <div class="row" style="align-items:baseline"><span class="bold">${esc(x.from)}</span><span class="xs muted">${fmt(x.t)}</span></div>
+        <span class="xs" style="color:var(--accent)">${esc(x.type)}${x.done ? ' · 已處理' : ''}</span>
+        <p class="xs" style="margin-top:4px;line-height:1.7;white-space:pre-wrap;word-break:break-all">${esc(x.text)}</p>
+        <p class="xs muted" style="margin-top:4px;word-break:break-all">畫面：${esc((x.ctx || {}).page || '?')}　境界：${esc((x.ctx || {}).realm)}-${esc((x.ctx || {}).layer)}　宗門：${esc((x.ctx || {}).sect || '無')}<br>${esc((x.ctx || {}).ua || '')}</p>
+        <div class="actions" style="justify-content:flex-start;gap:8px;margin-top:6px">
+          <button type="button" class="small-btn" data-report-act="${x.id}" data-act="${x.done ? 'undone' : 'done'}">${x.done ? '標為未處理' : '標為已處理'}</button>
+          <button type="button" class="small-btn" data-report-act="${x.id}" data-act="delete">刪除</button>
+        </div>
+      </div>`).join('')
+    return `
+      <div class="card stack" style="gap:10px;margin-top:14px">
+        <div class="row"><h3 class="xs muted" style="letter-spacing:.2em">玩家回報${list ? `（${list.filter((x) => !x.done).length} 筆未處理）` : ''}</h3><button type="button" class="small-btn" data-report-reload>重新整理</button></div>
+        ${items}
+      </div>`
+  }
+
   /* GM 面板：發送靈石／道具給指定玩家（用於活動、補償）。伺服器會再次驗證 GM 身分，這裡只是介面。 */
   function renderGM() {
     if (!state.isGM) return '<p class="xs muted">無權限。</p>'
@@ -1850,7 +1911,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <input id="gmMsg" class="exchange-input" maxlength="60" placeholder="選填" autocomplete="off" />
         </label>
         <button type="button" class="small-btn" data-gm-send>發送</button>
-      </div>`
+      </div>${renderGMReports()}`
   }
   async function sendGM() {
     const target = $('gmTarget').value.trim(), stones = Math.floor(Number($('gmStones').value) || 0)
@@ -2198,7 +2259,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('info-title').textContent = NAV.find((n) => n.id === state.nav).label
     // 重繪前記住輸入框內容與焦點，避免被每次更新清掉
     const keep = {}
-    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg']) { const el = $(id); if (el) keep[id] = el.value }
+    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'reportType', 'reportText']) { const el = $(id); if (el) keep[id] = el.value }
     const focusId = document.activeElement && document.activeElement.id
     let html = ''
     switch (state.nav) {
@@ -2236,6 +2297,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         break
       case 'sect':
         html = renderSect()
+        break
+      case 'report':
+        html = renderReport()
         break
       case 'gm':
         html = renderGM()
@@ -3242,6 +3306,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     return
   }
 
+  if (btn.dataset.nav !== 'report') state.lastNav = state.nav
   state.nav = btn.dataset.nav
   renderNav()
   renderInfo()
@@ -3258,6 +3323,10 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen())
   $('infoBody').addEventListener('click', (e) => {
     if (e.target.closest('[data-suggest-apply]')) return updateListSuggest(true)
     if (e.target.closest('[data-gm-send]')) return sendGM()
+    if (e.target.closest('[data-report-send]')) return sendReport()
+    if (e.target.closest('[data-report-reload]')) return loadReports()
+    const rAct = e.target.closest('[data-report-act]')
+    if (rAct) return actReport(rAct.dataset.reportAct, rAct.dataset.act)
     const nbRate =e.target.closest('[data-net-bid-rate]')
     if (nbRate) return netBidWithRate(nbRate.dataset.netBidRate, nbRate.dataset.rate)
     const useBtn = e.target.closest('[data-use-item]')
