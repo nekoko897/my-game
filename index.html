@@ -847,6 +847,13 @@
   }
 
 document.getElementById('bagModalBody').addEventListener('click', (e) => {
+  const tabBtn = e.target.closest('[data-bag-tab]');
+  if (tabBtn) {
+    state.bagTab = tabBtn.dataset.bagTab;
+    renderBagPanel(true);
+    if (state.nav === 'bag') renderInfo();
+    return;
+  }
   const useBtn = e.target.closest('[data-modal-use]');
   if (useBtn) {
     useItem(useBtn.dataset.modalUse);
@@ -2265,6 +2272,30 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     return html
   }
 
+  /* ---------- 背包分類 ----------
+   * 依 ITEMS 的 type 分組；新增道具 type 時若沒列在這裡，會自動歸入「其他」。
+   * 每個分類內依稀有度（高→低）再依名稱排序。 */
+  const BAG_TABS = [
+    { id: 'all', label: '全部' },
+    { id: 'pill', label: '丹藥', types: ['pill'] },
+    { id: 'equip', label: '裝備', types: ['equip'] },
+    { id: 'material', label: '材料', types: ['material'] },
+    { id: 'treasure', label: '天材地寶', types: ['treasure'] },
+    { id: 'pet', label: '靈寵', types: ['egg', 'feed'] },
+    { id: 'other', label: '其他' },
+  ]
+  const RARITY_RANK = { '史詩': 0, '稀有': 1, '精良': 2, '普通': 3 }
+  const bagTabOf = (id) => { const t = (ITEMS[id] || {}).type; const tab = BAG_TABS.find((x) => x.types && x.types.includes(t)); return tab ? tab.id : 'other' }
+  const bagSorted = () => Object.entries(state.inventory).filter(([id, q]) => q > 0 && ITEMS[id])
+    .sort(([a], [b]) => (RARITY_RANK[ITEMS[a].rarity] ?? 9) - (RARITY_RANK[ITEMS[b].rarity] ?? 9) || String(ITEMS[a].name).localeCompare(String(ITEMS[b].name), 'zh-Hant'))
+  function bagTabsHtml(all) {
+    const cur = state.bagTab || 'all'
+    const cnt = {}; all.forEach(([id]) => { const t = bagTabOf(id); cnt[t] = (cnt[t] || 0) + 1 })
+    return `<div class="actions" style="justify-content:flex-start;gap:6px;margin-bottom:10px;flex-wrap:wrap">${BAG_TABS.filter((t) => t.id === 'all' || cnt[t.id] || t.id === cur).map((t) =>
+      `<button type="button" class="small-btn" data-bag-tab="${t.id}" style="${cur === t.id ? 'background:color-mix(in oklch, var(--primary) 20%, transparent)' : ''}">${t.label}<span class="num muted"> ${t.id === 'all' ? all.length : cnt[t.id] || 0}</span></button>`).join('')}</div>`
+  }
+  const bagFiltered = (all) => { const cur = state.bagTab || 'all'; return cur === 'all' ? all : all.filter(([id]) => bagTabOf(id) === cur) }
+
   function renderBag() {
     const equipped = Object.entries(EQUIP_SLOTS).map(([slot, sd]) => {
       const id = state.equipped[slot], def = id && ITEMS[id]
@@ -2277,7 +2308,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         <div class="actions" style="justify-content:flex-start;margin-top:6px"><button type="button" class="small-btn" data-unequip="${slot}">卸下</button></div>
       </li>`
     }).join('')
-    const entries = Object.entries(state.inventory).filter(([, q]) => q > 0)
+    const allEntries = bagSorted(), entries = bagFiltered(allEntries)
     const items = entries.length ? entries.map(([id, qty]) => {
       const def = ITEMS[id]
       return `
@@ -2297,11 +2328,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             </div>
           </div>
         </li>`
-    }).join('') : '<li class="xs muted">行囊空空，去秘境歷練拾取些物件吧。</li>'
+    }).join('') : `<li class="xs muted">${allEntries.length ? '此分類沒有物品。' : '行囊空空，去秘境歷練拾取些物件吧。'}</li>`
     return `
       <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">已穿戴裝備</h3>
       <ul class="stack">${equipped}</ul>
       <h3 class="panel-title" style="font-size:12px;margin:18px 0 8px">物品欄</h3>
+      ${bagTabsHtml(allEntries)}
       <ul class="item-list">${items}</ul>`
   }
 
@@ -2310,8 +2342,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   const bagOpen = () => !$('bag-modal').classList.contains('hidden')
   function renderBagPanel(force) {
     const body = $('bagModalBody')
-    const entries = Object.entries(state.inventory).filter(([id, q]) => q > 0 && ITEMS[id])
-    const html = entries.length ? entries.map(([id, qty]) => {
+    const allEntries = bagSorted(), entries = bagFiltered(allEntries)
+    const html = (allEntries.length ? bagTabsHtml(allEntries) : '') + (entries.length ? entries.map(([id, qty]) => {
       const def = ITEMS[id]
       return `
         <div class="item-card" style="margin-bottom: 10px;">
@@ -2330,7 +2362,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             </div>
           </div>
         </div>`
-    }).join('') : '<p class="xs muted">行囊空空，去秘境歷練拾取些物件吧。</p>'
+    }).join('') : `<p class="xs muted">${allEntries.length ? '此分類沒有物品。' : '行囊空空，去秘境歷練拾取些物件吧。'}</p>`)
     if (force || html !== bagHtmlCache) { const st = body.scrollTop; body.innerHTML = html; body.scrollTop = st; bagHtmlCache = html }
   }
   // 桌面（≥1200px）：把左欄加寬，背包視窗貼在導覽列右側，中間的修為圓盤只是被擠窄、不會被蓋住
@@ -3232,6 +3264,8 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen())
     if (fleeBtn) return fleeBattle()
     const sectEl = e.target.closest('[data-sect]')
     if (sectEl) return joinSect(sectEl.dataset.sect)
+    const bagTab = e.target.closest('[data-bag-tab]')
+    if (bagTab) { state.bagTab = bagTab.dataset.bagTab; renderInfo(); if (bagOpen()) renderBagPanel(true); return }
     const sectTab = e.target.closest('[data-sect-tab]')
     if (sectTab) { state.sectTab = sectTab.dataset.sectTab; return renderInfo() }
     if (e.target.closest('[data-sect-leave]')) return leaveSect()
