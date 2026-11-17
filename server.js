@@ -290,7 +290,7 @@ const num = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0))
 function sanitizeSave(s) {
   if (!s || typeof s !== 'object') return null
   const inv = {}
-  for (const [k, v] of Object.entries(s.inventory || {})) if (/^[A-Za-z]{1,24}$/.test(k)) inv[k] = num(v, 0, 99999)
+  for (const [k, v] of Object.entries(s.inventory || {})) if (/^[A-Za-z]{1,24}$/.test(k)) inv[k] = num(v, 0, k.startsWith('zqqcd') ? 1e9 : 99999)   // zqqcd = 宗門任務冷卻（解除時間，分鐘），數值較大
   const realm = num(s.realm, 0, 6), layer = num(s.layer, 1, 9), cap = { realm, layer, inventory: inv }
   return {
     realm, layer, xp: num(s.xp, 0, 1e9), hp: num(s.hp, 0, hpOf(cap)), mp: num(s.mp, 0, mpOf(cap)),
