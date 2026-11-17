@@ -145,6 +145,7 @@
   .wallet dt { display: flex; align-items: center; gap: 4px; color: var(--muted-fg); }
   .wallet dd { font-weight: 500; font-variant-numeric: tabular-nums; }
   .icon { width: 16px; height: 16px; flex-shrink: 0; }
+  #help-modal[hidden] { display: none !important; }
   .icon-btn { width: 36px; height: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: var(--radius); border: 1px solid var(--border); color: var(--muted-fg); transition: color .2s, border-color .2s; }
   .icon-btn:hover { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 60%, transparent); }
 
@@ -425,8 +426,8 @@
               <dd id="jade"></dd>
             </div>
           </dl>
-          <button type="button" class="icon-btn" id="btnSave" aria-label="儲存進度" title="儲存進度">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7H7v7"/><path d="M7 3v4h8"/></svg>
+          <button type="button" class="icon-btn" id="btnHelp" aria-label="遊戲說明" title="遊戲說明">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
           </button>
           
           <button type="button" class="icon-btn" aria-label="設定">
@@ -490,6 +491,16 @@
   </div>
 </div>
 <!-- 背包視窗：點左側導覽「背包」開關，固定在導覽列右側（左側），不遮擋整個畫面，遊玩時可一直開著 -->
+<div id="help-modal" hidden role="dialog" aria-modal="true" aria-label="遊戲說明" style="position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 12px; box-sizing: border-box; background: rgba(0,0,0,.6);">
+  <div class="panel" style="width: 560px; max-width: 100%; max-height: 88vh; display: flex; flex-direction: column; padding: 16px; box-sizing: border-box; background: var(--background); box-shadow: 0 8px 32px rgba(0,0,0,.45);">
+    <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h2 class="panel-title" style="margin: 0;">遊戲說明</h2>
+      <button type="button" class="small-btn" id="closeHelpBtn">關閉</button>
+    </div>
+    <div id="helpBody" style="overflow-y: auto; flex: 1; padding-right: 6px;"></div>
+  </div>
+</div>
+
 <div id="bag-modal" class="panel hidden" role="dialog" aria-label="修仙行囊" style="position: fixed; z-index: 50; display: flex; flex-direction: column; width: 360px; max-width: calc(100vw - 16px); padding: 14px; box-sizing: border-box; box-shadow: 0 8px 32px rgba(0,0,0,.45); background: var(--background);">
   <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
     <h2 class="panel-title" style="margin: 0;">修仙行囊</h2>
@@ -652,6 +663,22 @@
     { id: 'report', label: '回報', icon: ICON('<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>') },
     { id: 'gm', label: 'GM', gm: true, icon: ICON('<path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>') },
   ]
+
+  const JADE_RATE = 500 // 靈石兌換仙玉的匯率（幾靈石 = 1 仙玉）
+  const NAV_HELP = {
+    character: '查看境界、屬性、宗門特色、裝備加成與目前的增益狀態。',
+    techniques: '查看已習得的功法。戰鬥中可點擊功法或按鍵盤數字鍵 1～9 施放，施放後有冷卻時間。',
+    bag: '開啟行囊視窗：使用丹藥、穿脫裝備、出售物品。',
+    pets: '孵化靈獸蛋、餵養靈寵並選擇出戰靈寵，戰鬥時靈寵會一同出手。',
+    realm: '消耗靈石購買門票進入地圖，挑戰妖獸取得修為、材料、丹藥與靈石。越深的地圖門票越貴、需要的境界越高。氣血歸零會重傷撤退（只剩 20% 氣血），也可以隨時逃離。',
+    market: `向商店購買丹藥、靈蛋等道具（部分要用仙玉），也能把背包物品賣給商店。靈石可兌換仙玉（${JADE_RATE} 靈石 = 1 仙玉）。`,
+    auction: '玩家之間的買賣：把物品上架拍賣，或對別人上架的物品出價競標。',
+    world: '查看線上修士，在世界頻道聊天；輸入「/w 道號 內容」可以私訊指定玩家。',
+    boss: '全服玩家共同挑戰的魔蛟。每個人造成的傷害會累計並有排行，被擊殺後倒數重生；氣血低於 30% 會狂暴，反擊傷害 ×1.5。',
+    sect: '拜入宗門可獲得特色加成與宗門功法。完成宗門任務（每個任務完成後有冷卻時間）賺取貢獻，到「寶庫」兌換專屬道具與高階功法、到「工坊」煉製裝備。離開或改投宗門，貢獻會歸零。',
+    report: '回報遊戲 BUG 或提出建議，GM 會看到。',
+    gm: '（GM 專用）發送靈石或道具給指定玩家，用於活動與補償。',
+  }
 
   /* =========================================================
    * 道具總覽：背包／交易所／拍賣場共用這份清單
@@ -2252,7 +2279,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   function renderNav() {
     $('nav').innerHTML = NAV.filter((n) => !n.gm || state.isGM).map((n) => `
-      <li><button type="button" data-nav="${n.id}" ${n.id === state.nav ? 'aria-current="page"' : ''}>${n.icon}${n.label}</button></li>`).join('')
+      <li><button type="button" data-nav="${n.id}" title="${(NAV_HELP[n.id] || '').replace(/"/g, '&quot;')}" ${n.id === state.nav ? 'aria-current="page"' : ''}>${n.icon}${n.label}</button></li>`).join('')
   }
 
   function renderInfo() {
@@ -3135,7 +3162,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
 
   function exchangeCurrency(amount) {
-    const rate = 500
+    const rate = JADE_RATE
     const jadeGain = Math.floor(amount / rate)
     if (jadeGain <= 0) {
       addLog('靈石數量不足以兌換仙玉。', 'danger')
@@ -3295,7 +3322,44 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   $('btnCultivate').addEventListener('click', cultivate)
   $('btnBreak').addEventListener('click', breakthrough)
   $('btnSeclude').addEventListener('click', toggleSeclusion)
-  $('btnSave').addEventListener('click', () => saveGame(false))
+
+  /* ---------- 遊戲說明 ----------
+   * 右上角「？」按鈕開啟。內容用到的數字（運功耗靈力、閉關耗靈石、兌換匯率、境界名稱）都直接讀程式裡的常數，
+   * 之後調整數值不用回來改說明。要改文字就改 helpHTML()。 */
+  function helpHTML() {
+    const h3 = (t) => `<h3 class="xs" style="color:var(--accent);letter-spacing:.2em;margin:14px 0 6px">${t}</h3>`
+    const p = (t) => `<p class="xs" style="line-height:1.8;margin:0 0 4px">${t}</p>`
+    const li = (t) => `<li class="xs" style="line-height:1.8;margin-bottom:3px">${t}</li>`
+    const navList = NAV.filter((n) => !n.gm || state.isGM).map((n) => li(`<span class="bold">${n.label}</span>　<span class="muted">${NAV_HELP[n.id] || ''}</span>`)).join('')
+    return `
+      ${h3('遊戲簡介')}
+      ${p('這是一款修仙放置遊戲：運功、閉關積累修為，突破境界，變得更強；也可以進入秘境打妖獸、拜入宗門、與其他修士交易，一起挑戰魔蛟。')}
+      ${h3('境界與修為')}
+      ${p(`境界依序為：${REALMS.join(' → ')}，每個境界分 ${MAX_LAYER} 層。越高的境界與層數，需要的修為越多，氣血與靈力上限也越高。`)}
+      ${p('中央圓環顯示目前修為進度；修為圓滿後，才能按「突破」晉升到下一層（第九層圓滿則晉入下一個境界）。')}
+      ${h3('運功')}
+      ${p(`每次運功消耗 ${CULTIVATE_COST} 點靈力，獲得一段修為。靈力用完就要等自然回復或服用丹藥。`)}
+      ${h3('閉關')}
+      ${p(`按「閉關」後會自動修煉，不必一直點擊。<span style="color:var(--accent)">閉關每息消耗 ${SECLUDE_COST} 靈石</span>，靈石不足時不能閉關，閉關中靈石耗盡會被迫出關；修為圓滿時也會自動出關，方便你去突破。`)}
+      ${h3('突破')}
+      ${p('按鈕上的百分比是目前的突破成功率。層數越高越難，第九層晉入下一境界最難。宗門加成、幸運屬性與突破類丹藥可以提高成功率。')}
+      ${p('突破失敗會損失部分修為並受傷，但不會掉境界。')}
+      ${h3('靈石與仙玉')}
+      ${p(`靈石是主要貨幣：用於閉關、購買秘境門票、買賣與煉器。仙玉較稀有，用於購買部分高級道具，可在交易所用 ${JADE_RATE} 靈石兌換 1 仙玉。`)}
+      ${h3('氣血與靈力')}
+      ${p('氣血與靈力會自然回復，但速度很慢，需要時請善用丹藥。')}
+      ${h3('左側選單')}
+      <ul style="margin:0;padding:0;list-style:none">${navList}</ul>
+      ${h3('存檔')}
+      ${p('遊戲會自動存檔：每 5 秒同步一次進度到伺服器，關閉頁面時也會再存一次，不需要手動儲存。')}`
+  }
+  const helpModal = $('help-modal')
+  const openHelp = () => { $('helpBody').innerHTML = helpHTML(); helpModal.hidden = false; $('helpBody').scrollTop = 0 }
+  const closeHelp = () => { helpModal.hidden = true }
+  $('btnHelp').addEventListener('click', openHelp)
+  $('closeHelpBtn').addEventListener('click', closeHelp)
+  helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp() })
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !helpModal.hidden) closeHelp() })
   $('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-nav]')
   if (!btn) return
