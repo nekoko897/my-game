@@ -769,4 +769,4 @@ const server = http.createServer(async (req, res) => {
 // 先從雲端載入資料後，再啟動伺服器
 loadFromCloud().then(() => {
   server.listen(PORT, '0.0.0.0', () => console.log(`問道長生 ORPG 已啟動：http://localhost:${PORT}`))
-})
+})  
