@@ -674,7 +674,7 @@
     realm: '消耗靈石購買門票進入地圖，挑戰妖獸取得修為、材料、丹藥與靈石。越深的地圖門票越貴、需要的境界越高。氣血歸零會重傷撤退（只剩 20% 氣血），也可以隨時逃離。',
     market: `向商店購買丹藥、靈蛋等道具（部分要用仙玉），也能把背包物品賣給商店。靈石可兌換仙玉（${JADE_RATE} 靈石 = 1 仙玉）。`,
     auction: '玩家之間的買賣：把物品上架拍賣，或對別人上架的物品出價競標。',
-    world: '查看線上修士，在世界頻道聊天；輸入「/w 道號 內容」可以私訊指定玩家。',
+    world: '查看線上修士，在世界頻道聊天；輸入「/w 道號 內容」可以私訊指定玩家。聊天內容（含私訊）會被記錄，管理員可能檢視，請文明發言。',
     boss: '全服玩家共同挑戰的魔蛟。每個人造成的傷害會累計並有排行，被擊殺後倒數重生；氣血低於 30% 會狂暴，反擊傷害 ×1.5。',
     sect: '拜入宗門可獲得特色加成與宗門功法。完成宗門任務（每個任務完成後有冷卻時間）賺取貢獻，到「寶庫」兌換專屬道具與高階功法、到「工坊」煉製裝備。離開或改投宗門，貢獻會歸零。',
     report: '回報遊戲 BUG 或提出建議，GM 會看到。',
@@ -1843,7 +1843,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <form id="chatForm" class="row" style="gap:8px;margin-top:10px">
         <input id="chatInput" class="exchange-input" maxlength="100" placeholder="世界頻道發言，或 /w 道號 內容" autocomplete="off" aria-label="聊天訊息" />
         <button type="submit" class="small-btn">發送</button>
-      </form>`
+      </form>
+      <p class="xs muted" style="margin-top:8px;line-height:1.7">聊天內容（含私訊）會被記錄，管理員可能檢視；不當言論或騷擾可能被禁言。</p>`
   }
   async function sendChat(raw) {
     let text = raw.trim(), to
@@ -1943,7 +1944,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <input id="gmMsg" class="exchange-input" maxlength="60" placeholder="選填" autocomplete="off" />
         </label>
         <button type="button" class="small-btn" data-gm-send>發送</button>
-      </div>${renderGMReports()}`
+      </div>${renderGMChat()}${renderGMReports()}`
   }
   async function sendGM() {
     const target = $('gmTarget').value.trim(), stones = Math.floor(Number($('gmStones').value) || 0)
@@ -1958,6 +1959,56 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (!r.ok) return addLog(r.error || '發送失敗', 'danger')
     addLog(`已發送給「${r.to}」：${parts.join('、')}（${r.online ? '對方在線，已即時送達' : '對方離線，下次登入入帳'}）`, 'gold')
     $('gmStones').value = ''; $('gmItem').value = ''; $('gmQty').value = '1'; $('gmMsg').value = ''
+  }
+
+  /* ---------- GM：聊天紀錄與禁言 ----------
+   * 伺服器記錄最近 500 則聊天（含密語、含被關鍵字過濾前的原文），這裡查詢最近 200 則；禁言與解除走 /api/gm/mute。 */
+  async function loadChatLog() {
+    const q = ($('gmChatQ') && $('gmChatQ').value.trim()) || ''
+    const r = await api('gm/chatlog', { q })
+    if (!r.ok) addLog(r.error || '載入聊天紀錄失敗', 'danger')
+    state.gmChat = r.ok ? r.log : []
+    state.gmMutes = r.ok ? r.mutes : []
+    if (state.nav === 'gm') renderInfo()
+  }
+  const muteLabel = (m) => (m >= 525600 ? '永久' : m >= 1440 ? `${m / 1440} 天` : m >= 60 ? `${m / 60} 小時` : `${m} 分鐘`)
+  async function doMute(name, minutes) {
+    name = String(name || '').trim()
+    if (!name) return addLog('請輸入要禁言的道號', 'danger')
+    if (!confirm(minutes > 0 ? `確定禁言「${name}」${muteLabel(minutes)}？` : `確定解除「${name}」的禁言？`)) return
+    const r = await api('gm/mute', { target: name, minutes })
+    if (!r.ok) return addLog(r.error || '操作失敗', 'danger')
+    addLog(minutes > 0 ? `已禁言「${r.name}」${muteLabel(minutes)}。` : `已解除「${r.name}」的禁言。`, 'gold')
+    loadChatLog()
+  }
+  function renderGMChat() {
+    if (state.gmChat === undefined) { state.gmChat = null; loadChatLog() }
+    const fmt = (t) => new Date(t).toLocaleString('zh-TW', { hour12: false })
+    const list = state.gmChat
+    const rows = !list ? '<p class="xs muted">載入中…</p>' : !list.length ? '<p class="xs muted">沒有符合的聊天紀錄。</p>' : list.slice().reverse().map((m) => `
+      <div class="card" style="padding:8px;${m.to ? 'border-color:color-mix(in oklch, var(--primary) 50%, transparent)' : ''}">
+        <div class="row xs"><span><span class="bold" style="font-size:12px">${esc(m.from)}</span>${m.to ? ` <span style="color:var(--primary)">→ ${esc(m.to)}（密語）</span>` : ''}</span><span class="muted">${fmt(m.t)}</span></div>
+        <p class="xs" style="margin-top:4px;line-height:1.6;word-break:break-all">${esc(m.text)}</p>
+        ${m.raw ? `<p class="xs" style="margin-top:2px;color:var(--destructive);word-break:break-all">原文：${esc(m.raw)}</p>` : ''}
+        <div class="actions" style="justify-content:flex-start;margin-top:4px"><button type="button" class="small-btn" data-mute-fill="${esc(m.from)}">帶入禁言</button></div>
+      </div>`).join('')
+    const mutes = (state.gmMutes || []).map((x) => `<li class="row xs"><span>${esc(x.name)}　<span class="muted">剩餘 ${x.left >= 525600 ? '永久' : x.left + ' 分鐘'}</span></span><button type="button" class="small-btn" data-mute-lift="${esc(x.name)}">解除</button></li>`).join('') || '<li class="xs muted">目前沒有人被禁言。</li>'
+    return `
+      <div class="card stack" style="gap:10px;margin-top:14px">
+        <h3 class="xs muted" style="letter-spacing:.2em">聊天紀錄 · 禁言（含密語，最近 200 則）</h3>
+        <div class="row" style="gap:8px">
+          <input id="gmChatQ" class="exchange-input" maxlength="30" placeholder="搜尋道號或關鍵字（可留空）" autocomplete="off" />
+          <button type="button" class="small-btn" data-chatlog-load>查詢</button>
+        </div>
+        <div class="stack" style="gap:8px;max-height:320px;overflow-y:auto">${rows}</div>
+        <h3 class="xs muted" style="letter-spacing:.2em;margin-top:6px">禁言管理</h3>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <input id="gmMuteTarget" class="exchange-input" maxlength="12" placeholder="玩家道號" autocomplete="off" style="min-width:100px" />
+          <select id="gmMuteMin" class="exchange-input" style="flex:0 0 auto"><option value="10">10 分鐘</option><option value="60">1 小時</option><option value="1440">1 天</option><option value="10080">7 天</option><option value="525600">永久</option></select>
+          <button type="button" class="small-btn" data-mute-do>禁言</button>
+        </div>
+        <ul class="stack" style="gap:6px">${mutes}</ul>
+      </div>`
   }
 
   function renderBoss() {
@@ -2287,7 +2338,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('info-title').textContent = NAV.find((n) => n.id === state.nav).label
     // 重繪前記住輸入框內容與焦點，避免被每次更新清掉
     const keep = {}
-    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'reportType', 'reportText']) { const el = $(id); if (el) keep[id] = el.value }
+    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'reportType', 'reportText', 'gmChatQ', 'gmMuteTarget', 'gmMuteMin']) { const el = $(id); if (el) keep[id] = el.value }
     const focusId = document.activeElement && document.activeElement.id
     let html = ''
     switch (state.nav) {
@@ -3361,6 +3412,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ${p('氣血與靈力會自然回復，但速度很慢，需要時請善用丹藥。')}
       ${h3('左側選單')}
       <ul style="margin:0;padding:0;list-style:none">${navList}</ul>
+      ${h3('聊天')}
+      ${p('世界頻道與私訊的內容都會被記錄，管理員可能檢視。請文明發言；不當言論或騷擾可能被禁言，部分字詞會被自動以 *** 取代。')}
       ${h3('存檔')}
       ${p('遊戲會自動存檔：每 5 秒同步一次進度到伺服器，關閉頁面時也會再存一次，不需要手動儲存。')}`
   }
@@ -3398,6 +3451,13 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen())
   $('infoBody').addEventListener('click', (e) => {
     if (e.target.closest('[data-suggest-apply]')) return updateListSuggest(true)
     if (e.target.closest('[data-gm-send]')) return sendGM()
+    if (e.target.closest('[data-chatlog-load]')) return loadChatLog()
+    const muteDo = e.target.closest('[data-mute-do]')
+    if (muteDo) return doMute($('gmMuteTarget') && $('gmMuteTarget').value, Number($('gmMuteMin') && $('gmMuteMin').value) || 0)
+    const muteLift = e.target.closest('[data-mute-lift]')
+    if (muteLift) return doMute(muteLift.dataset.muteLift, 0)
+    const muteFill = e.target.closest('[data-mute-fill]')
+    if (muteFill) { const i = $('gmMuteTarget'); if (i) { i.value = muteFill.dataset.muteFill; i.focus() } return }
     if (e.target.closest('[data-report-send]')) return sendReport()
     if (e.target.closest('[data-report-reload]')) return loadReports()
     const rAct = e.target.closest('[data-report-act]')

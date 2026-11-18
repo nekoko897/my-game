@@ -126,6 +126,16 @@ const rnd = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a
 const now = () => Date.now()
 const limited = (key, act, ms) => { const k = key + act, t = now(); if (lastAct[k] && t - lastAct[k] < ms) return true; lastAct[k] = t; return false }
 
+/* ---------- 聊天管理 ----------
+ * 所有玩家聊天（含密語）都記錄在 db.chatLog（保留最近 CHAT_LOG_MAX 則，隨資料庫一起存雲端），GM 分頁可查詢。
+ * 禁言：db.mutes = { 道號小寫: 解除時間(毫秒) }；被禁言的玩家無法發言（世界頻道與密語都不行）。
+ * 關鍵字過濾：命中 BAD_WORDS 的字會被換成 ***；GM 紀錄裡仍保留原文（raw），方便舉證。清單請自行增減。 */
+const CHAT_LOG_MAX = 500
+const BAD_WORDS = ['幹你娘', '操你媽', '操你妈', '去死', '幹你', '三字經', 'fuck', 'bitch', 'shit']
+const filterText = (t) => BAD_WORDS.reduce((s, w) => s.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), (m) => '*'.repeat(m.length)), t)
+const muteLeft = (key) => { const u = (db.mutes || {})[key]; if (!u) return 0; if (u <= Date.now()) { delete db.mutes[key]; dirty = true; return 0 } return u - Date.now() }
+const muteList = () => Object.keys(db.mutes || {}).map((k) => ({ name: nameOf(k), left: Math.ceil(muteLeft(k) / 60000) })).filter((m) => m.left > 0)
+
 /* ---------- 工具 ---------- */
 function hashPw(pw, salt) { return crypto.scryptSync(pw, salt, 32).toString('hex') }
 function onlineKeys() { return [...new Set([...clients.values()].map((c) => c.key))] }
@@ -137,6 +147,12 @@ function broadcast(event, data) { for (const c of clients.values()) send(c.res, 
 function sendTo(key, event, data) { for (const c of clients.values()) if (c.key === key) send(c.res, event, data) }
 function chat(msg) {
   msg.t = now(); chatHistory.push(msg); if (chatHistory.length > 60) chatHistory.shift()
+  if (!msg.sys) {   // 記錄到資料庫（含密語），供 GM 查詢
+    db.chatLog = db.chatLog || []
+    db.chatLog.push({ t: msg.t, from: msg.from, to: msg.to || null, text: msg.text, raw: msg.raw && msg.raw !== msg.text ? msg.raw : undefined })
+    if (db.chatLog.length > CHAT_LOG_MAX) db.chatLog.splice(0, db.chatLog.length - CHAT_LOG_MAX)
+    dirty = true
+  }
   if (msg.to) { sendTo(msg.toKey, 'chat', stripKeys(msg)); sendTo(msg.fromKey, 'chat', stripKeys(msg)) } else broadcast('chat', stripKeys(msg))
 }
 const stripKeys = (m) => ({ t: m.t, from: m.from, to: m.to, text: m.text, sys: m.sys })
@@ -415,15 +431,42 @@ const server = http.createServer(async (req, res) => {
       dirty = true
       return json(res, 200, { ok: true })
     }
+    if (p === '/api/gm/chatlog') {
+      // GM 專用：查詢聊天紀錄（含密語、含被過濾前的原文）與目前的禁言名單
+      if (!isGMKey(key)) return json(res, 403, { error: '無權限' })
+      const q = String(b.q || '').trim().toLowerCase().slice(0, 30)
+      let log = db.chatLog || []
+      if (q) log = log.filter((m) => [m.from, m.to, m.text, m.raw].some((x) => x && String(x).toLowerCase().includes(q)))
+      return json(res, 200, { ok: true, log: log.slice(-200), mutes: muteList() })
+    }
+    if (p === '/api/gm/mute') {
+      // GM 專用：禁言／解除禁言。minutes = 0 代表解除；上限 525600（一年，視為永久）
+      if (!isGMKey(key)) return json(res, 403, { error: '無權限' })
+      const tk = cleanName(b.target).toLowerCase(), tp = db.players[tk]
+      if (!tp || isNpc(tk)) return json(res, 404, { error: '找不到此道號的玩家' })
+      if (isGMKey(tk)) return json(res, 400, { error: '不能禁言 GM' })
+      const minutes = num(b.minutes, 0, 525600)
+      db.mutes = db.mutes || {}
+      if (minutes <= 0) delete db.mutes[tk]; else db.mutes[tk] = now() + minutes * 60000
+      db.gmLog = db.gmLog || []
+      db.gmLog.push({ t: now(), gm: key, to: tk, mute: minutes })
+      if (db.gmLog.length > 500) db.gmLog.shift()
+      dirty = true
+      sendTo(tk, 'chat', { t: now(), from: '天道', text: minutes > 0 ? `你已被管理員禁言 ${minutes >= 525600 ? '（永久）' : minutes + ' 分鐘'}。` : '你的禁言已被解除。', sys: true })
+      console.log(`[GM] ${key} ${minutes > 0 ? '禁言' : '解除禁言'} ${tk}${minutes > 0 ? ` ${minutes} 分鐘` : ''}`)
+      return json(res, 200, { ok: true, name: tp.name, mutes: muteList() })
+    }
     if (p === '/api/chat') {
-      const text = String(b.text || '').trim().slice(0, 100)
-      if (!text) return json(res, 400, { error: '訊息為空' })
+      const raw = String(b.text || '').trim().slice(0, 100), text = filterText(raw)
+      if (!raw) return json(res, 400, { error: '訊息為空' })
+      const ml = muteLeft(key)
+      if (ml > 0) return json(res, 403, { error: `你已被管理員禁言，剩餘約 ${Math.ceil(ml / 60000)} 分鐘。` })
       if (limited(key, 'chat', 1000)) return json(res, 429, { error: '說話太快了' })
       if (b.to) {
         const tk = String(b.to).toLowerCase()
         if (!db.players[tk] || !onlineKeys().includes(tk)) return json(res, 404, { error: '對方不在線上' })
-        chat({ from: pl.name, fromKey: key, to: db.players[tk].name, toKey: tk, text })
-      } else chat({ from: pl.name, fromKey: key, text })
+        chat({ from: pl.name, fromKey: key, to: db.players[tk].name, toKey: tk, text, raw })
+      } else chat({ from: pl.name, fromKey: key, text, raw })
       return json(res, 200, { ok: true })
     }
     if (p === '/api/auction/list') {
