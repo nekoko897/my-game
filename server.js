@@ -154,6 +154,11 @@ const pubBoss = () => ({ name: boss.name, maxHp: boss.maxHp, hp: boss.hp, alive:
 
 /* ---------- 世界 Boss ---------- */
 const boss = { name: '九幽魔蛟', maxHp: 50000, hp: 50000, alive: true, respawnAt: 0, damage: {}, lastHit: null }
+// 世界王掉落由伺服器判定（客戶端不再自己擲）：每次出手各擲一次，境界須達 BOSS_LOOT_MIN_REALM（0 煉氣…3 元嬰）才有機會
+// 須與 index.html 的 BOSS_PET_LOOT／BOSS_LOOT_MIN_REALM 一致（那邊只用來顯示說明文字）
+const BOSS_LOOT_MIN_REALM = 3
+const BOSS_PET_LOOT = [{ item: 'divineEgg', chance: 0.001 }, { item: 'divineFeed', chance: 0.005 }, { item: 'wuxingDan', chance: 0.0005 }]
+const bossMaxHpNow = () => Math.min(500000, 30000 + 20000 * Math.max(1, onlineKeys().length))   // 重生時依在線人數調整血量
 function topDamage(n) { return Object.entries(boss.damage).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, d]) => ({ name: (db.players[k] || {}).name || k, dmg: d })) }
 function atkRange(s) { const base = 8 + (s.realm || 0) * 10 + (s.layer || 1) * 2, v = Math.round(base * 0.3); return [Math.max(1, base - v), base + v] }
 function killBoss() {
@@ -166,12 +171,18 @@ function killBoss() {
     mail(k, { kind: 'xp', amount: 50 + Math.floor(share * 300), text: '魔蛟精元入體，修為增加。' })
   }
   if (boss.lastHit) mail(boss.lastHit, { kind: 'item', item: 'thunderCrystal', qty: 1, text: '你給予魔蛟最後一擊，獲得雷晶。' })
-  if (top) { const key = Object.keys(db.players).find((k) => db.players[k].name === top.name); if (key) mail(key, { kind: 'item', item: 'jadeSlip', qty: 1, text: '你是傷害第一，獲得破損玉簡。' }) }
+  if (top) {
+    const key = Object.keys(db.players).find((k) => db.players[k].name === top.name)
+    if (key) {
+      mail(key, { kind: 'item', item: 'jadeSlip', qty: 1, text: '你是傷害第一，獲得破損玉簡。' })
+      mail(key, { kind: 'item', item: 'divineFeed', qty: 1, text: '你是傷害第一，另獲神級寵物飼料。' })
+    }
+  }
   sysChat(`「${boss.name}」被眾修士合力擊殺！最後一擊：${(db.players[boss.lastHit] || {}).name || '?'}，傷害第一：${top ? top.name : '?'}。`)
   broadcast('boss', pubBoss())
 }
 setInterval(() => {
-  if (!boss.alive && now() >= boss.respawnAt) { Object.assign(boss, { hp: boss.maxHp, alive: true, damage: {}, lastHit: null, respawnAt: 0 }); sysChat(`「${boss.name}」再次現世，速往魔蛟頁籤討伐！`); broadcast('boss', pubBoss()) }
+  if (!boss.alive && now() >= boss.respawnAt) { boss.maxHp = bossMaxHpNow(); Object.assign(boss, { hp: boss.maxHp, alive: true, damage: {}, lastHit: null, respawnAt: 0 }); sysChat(`「${boss.name}」再次現世，速往魔蛟頁籤討伐！`); broadcast('boss', pubBoss()) }
 }, 1000)
 
 /* ---------- 拍賣 ---------- */
@@ -239,7 +250,7 @@ setInterval(() => {
   const pick = NPC_POOL.find((x) => (roll -= x.w) < 0) || NPC_POOL[0]
   const [qlo, qhi] = NPC_RARITY_QTY[pick.rarity]
   const qty = rnd(qlo, qhi)
-  const unit = Math.max(1, Math.round(pick.sell * (0.8 + Math.random() * 0.8)))  // 每件約為出售價的 0.8～1.6 倍
+  const unit = Math.max(1, Math.round(pick.sell * (1.1 + Math.random() * 0.7)))  // 每件約為出售價的 1.1～1.8 倍（下限高於商店收購價，避免套利）
   const price = unit * qty
   const npc = NPC_PREFIX + NPC_NAMES[rnd(0, NPC_NAMES.length - 1)]
   db.auctions.push({ id: 'a' + db.nextId++, seller: npc, item: pick.id, qty, start: price, current: price, bidder: null, inc: Math.max(3, Math.round(price * 0.1)), endsAt: t + 180000 })
@@ -295,7 +306,7 @@ function sanitizeSave(s) {
   return {
     realm, layer, xp: num(s.xp, 0, 1e9), hp: num(s.hp, 0, hpOf(cap)), mp: num(s.mp, 0, mpOf(cap)),
     stones: num(s.stones, 0, 1e12), jade: num(s.jade, 0, 1e9), inventory: inv,
-    sect: String(s.sect || 'qingyun').slice(0, 16), contribution: num(s.contribution, 0, 1e9),
+    sect: String(s.sect || '').slice(0, 16), contribution: num(s.contribution, 0, 1e9),
   }
 }
 
@@ -473,6 +484,9 @@ const server = http.createServer(async (req, res) => {
       // 攻伐功法出手時，客戶端帶上傷害倍率（神識加成後最高約 7.3，上限 8，防止亂報）
       const mult = Math.max(1, Math.min(8, Number(b.mult) || 1)), dmg = Math.round(rnd(r[0], r[1]) * 3 * mult)
       boss.hp = Math.max(0, boss.hp - dmg); boss.damage[key] = (boss.damage[key] || 0) + dmg; boss.lastHit = key
+      if ((s.realm || 0) >= BOSS_LOOT_MIN_REALM) {
+        for (const l of BOSS_PET_LOOT) if (Math.random() < l.chance) mail(key, { kind: 'item', item: l.item, qty: 1, text: `魔蛟鱗甲崩落之間，你眼明手快拾得 ${(ITEM_DEFS[l.item] || {}).icon || ''}「${(ITEM_DEFS[l.item] || {}).name || l.item}」！` })
+      }
       if (boss.hp <= 0) killBoss(); else broadcast('boss', pubBoss())
       return json(res, 200, { ok: true, dmg })
     }

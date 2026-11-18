@@ -529,6 +529,7 @@
   const maxMp = () => mpAt(state.realm, state.layer)
   const hpRatio = () => maxHp() / BASE_HP // 目前氣血上限是起始值的幾倍（丹藥、回復量、減傷都以此放大）
   const mpRatio = () => maxMp() / BASE_MP
+  const cultCost = () => Math.max(CULTIVATE_COST, Math.round(CULTIVATE_COST * mpRatio())) // 運功耗靈力隨靈力上限放大，後期不會變成零成本
   const CIRC = 2 * Math.PI * 120
 
   /* =========================================================
@@ -577,15 +578,15 @@
     { id: 'qyFeixian', name: '天外飛仙', element: '仙', grade: 'advanced', sect: 'qingyun', type: 'attack', cost: 70, cooldown: 18, req: 2, shopCost: 3500, description: '人劍合一，一劍破天，劍意加身', effects: [fxDmg(5.6), fxBuff('atk', 0.3, 15)] },
 
     // ── 玄天道宮 ──
-    { id: 'xtTuna', name: '太清吐納', element: '清', grade: 'sect', sect: 'xuantian', type: 'heal', cost: 0, cooldown: 15, req: 0, description: '吐納天地清氣，不耗靈力即可回氣', effects: [fxMp(0.3)] },
+    { id: 'xtTuna', name: '太清吐納', element: '清', grade: 'sect', sect: 'xuantian', type: 'heal', cost: 10, cooldown: 30, req: 0, description: '吐納天地清氣，小耗靈力換取更多回氣', effects: [fxMp(0.12)] },
     { id: 'xtLei', name: '紫霄神雷', element: '雷', grade: 'sect', sect: 'xuantian', type: 'attack', cost: 16, cooldown: 4, req: 0, description: '道門正宗雷法', effects: [fxDmg(2.0)] },
     { id: 'xtZhao', name: '玄天靈罩', element: '罩', grade: 'advanced', sect: 'xuantian', type: 'guard', cost: 45, cooldown: 14, req: 1, shopCost: 1500, description: '道宮護山靈罩縮影，療傷並大幅減傷', effects: [fxHeal(0.4), fxBuff('def', 0.4, 20)] },
-    { id: 'xtSanhua', name: '三花聚頂', element: '花', grade: 'advanced', sect: 'xuantian', type: 'buff', cost: 30, cooldown: 25, req: 2, shopCost: 3500, description: '精氣神三花聚頂，回氣並大幅提升攻擊', effects: [fxMp(0.5), fxBuff('atk', 0.6, 30)] },
+    { id: 'xtSanhua', name: '三花聚頂', element: '花', grade: 'advanced', sect: 'xuantian', type: 'buff', cost: 30, cooldown: 25, req: 2, shopCost: 3500, description: '精氣神三花聚頂，回氣並大幅提升攻擊', effects: [fxMp(0.2), fxBuff('atk', 0.6, 30)] },
 
     // ── 丹鼎谷 ──
     { id: 'ddHui', name: '回春訣', element: '春', grade: 'sect', sect: 'danding', type: 'heal', cost: 14, cooldown: 6, req: 0, description: '丹道生機之術，催動草木精華療傷', effects: [fxHeal(0.25)] },
     { id: 'ddHuo', name: '丹火焚天', element: '火', grade: 'sect', sect: 'danding', type: 'attack', cost: 16, cooldown: 4, req: 0, description: '以煉丹地火焚敵', effects: [fxDmg(1.9)] },
-    { id: 'ddHuan', name: '九轉還魂訣', element: '魂', grade: 'advanced', sect: 'danding', type: 'heal', cost: 40, cooldown: 16, req: 1, shopCost: 1500, description: '九轉丹道秘術，氣血靈力同回', effects: [fxHeal(0.6), fxMp(0.3)] },
+    { id: 'ddHuan', name: '九轉還魂訣', element: '魂', grade: 'advanced', sect: 'danding', type: 'heal', cost: 40, cooldown: 16, req: 1, shopCost: 1500, description: '九轉丹道秘術，氣血靈力同回', effects: [fxHeal(0.6), fxMp(0.15)] },
     { id: 'ddZhen', name: '煉丹真火', element: '爐', grade: 'advanced', sect: 'danding', type: 'attack', cost: 60, cooldown: 14, req: 2, shopCost: 3500, description: '谷主所傳本命真火，焚敵並反哺自身', effects: [fxDmg(4.2), fxHeal(0.1)] },
 
     // ── 金剛寺 ──
@@ -608,7 +609,7 @@
 
     // ── 幽冥殿 ──
     { id: 'ymZhua', name: '幽冥鬼爪', element: '冥', grade: 'sect', sect: 'youming', type: 'attack', cost: 15, cooldown: 3, req: 0, description: '鬼爪撕裂神魂', effects: [fxDmg(1.9)] },
-    { id: 'ymShi', name: '噬魂訣', element: '魂', grade: 'sect', sect: 'youming', type: 'heal', cost: 0, cooldown: 14, req: 0, description: '吞噬殘魂以補自身，不耗靈力', effects: [fxMp(0.25), fxHeal(0.1)] },
+    { id: 'ymShi', name: '噬魂訣', element: '魂', grade: 'sect', sect: 'youming', type: 'heal', cost: 8, cooldown: 30, req: 0, description: '吞噬殘魂以補自身，略耗靈力', effects: [fxMp(0.10), fxHeal(0.05)] },
     { id: 'ymYu', name: '九幽鬼域', element: '域', grade: 'advanced', sect: 'youming', type: 'attack', cost: 45, cooldown: 11, req: 1, shopCost: 1500, description: '展開九幽鬼域，萬鬼噬敵', effects: [fxDmg(3.9)] },
     { id: 'ymLun', name: '輪迴印', element: '印', grade: 'advanced', sect: 'youming', type: 'attack', cost: 70, cooldown: 18, req: 2, shopCost: 3500, description: '引生死輪迴之力轟擊，並汲取其生機', effects: [fxDmg(5.2), fxHeal(0.2)] },
 
@@ -719,8 +720,8 @@
     //   effect { type: 'hatch', grade }   → 孵化靈獸蛋，grade 對應 PET_GRADES 的 key
     //   effect { type: 'feedPet', value } → 餵食靈寵，增加靈寵修為 value 點（背包「使用」= 餵給出戰靈寵）
     commonEgg: { name: '普通靈獸蛋', icon: '🥚', type: 'egg', rarity: '精良', sell: 150, buy: 600, currency: 'stones', effect: { type: 'hatch', grade: 'common' }, desc: '凡品靈獸所產之蛋，隱隱有生機流動' },
-    advancedEgg: { name: '高級靈獸蛋', icon: '🪺', type: 'egg', rarity: '稀有', sell: 1200, effect: { type: 'hatch', grade: 'advanced' }, desc: '秘境妖獸遺落的靈獸蛋，靈氣氤氳' },
-    divineEgg: { name: '神獸蛋', icon: '🌟', type: 'egg', rarity: '史詩', sell: 6000, effect: { type: 'hatch', grade: 'divine' }, desc: '世界王魔蛟守護的上古神獸蛋，通體流轉神光' },
+    advancedEgg: { name: '高級靈獸蛋', icon: '🪺', type: 'egg', rarity: '稀有', sell: 400, effect: { type: 'hatch', grade: 'advanced' }, desc: '秘境妖獸遺落的靈獸蛋，靈氣氤氳' },
+    divineEgg: { name: '神獸蛋', icon: '🌟', type: 'egg', rarity: '史詩', sell: 2000, effect: { type: 'hatch', grade: 'divine' }, desc: '世界王魔蛟守護的上古神獸蛋，通體流轉神光' },
     commonFeed: { name: '普通寵物飼料', icon: '🌾', type: 'feed', rarity: '普通', sell: 8, buy: 30, currency: 'stones', effect: { type: 'feedPet', value: 40 }, desc: '靈寵愛吃的基礎飼料' },
     advancedFeed: { name: '高級寵物飼料', icon: '🍖', type: 'feed', rarity: '精良', sell: 60, effect: { type: 'feedPet', value: 400 }, desc: '精選靈材調製的飼料，秘境妖獸機率掉落' },
     divineFeed: { name: '神級寵物飼料', icon: '🍑', type: 'feed', rarity: '史詩', sell: 400, effect: { type: 'feedPet', value: 3000 }, desc: '神獸亦為之垂涎的珍饈，討伐世界王機率掉落' },
@@ -1173,37 +1174,39 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   /* 靈寵蛋 / 飼料掉落設定（chance = 機率 0~1） */
   // 秘境：所有地點的每隻妖獸都會加上這份掉落表
+  // minRealm：只有解鎖境界（reqRealm）≥ 此值的秘境才會掉（0 煉氣…），低階地圖不掉高價值物品
   const REALM_PET_LOOT = [
-    { item: 'advancedEgg', chance: 0.03, min: 1, max: 1 },
-    { item: 'advancedFeed', chance: 0.12, min: 1, max: 2 },
+    { item: 'advancedEgg', chance: 0.003, min: 1, max: 1, minRealm: 1 },
+    { item: 'advancedFeed', chance: 0.05, min: 1, max: 2 },
   ]
-  // 世界王：每次出手判定一次
+  // 世界王：每次出手由「伺服器」判定一次（只用來顯示說明；實際機率在 server.js，兩邊要一起改），境界須達 BOSS_LOOT_MIN_REALM
+  const BOSS_LOOT_MIN_REALM = 3
   const BOSS_PET_LOOT = [
-    { item: 'divineEgg', chance: 0.01, min: 1, max: 1 },
-    { item: 'divineFeed', chance: 0.05, min: 1, max: 1 },
-    { item: 'wuxingDan', chance: 0.005, min: 1, max: 1 },
+    { item: 'divineEgg', chance: 0.001, min: 1, max: 1 },
+    { item: 'divineFeed', chance: 0.005, min: 1, max: 1 },
+    { item: 'wuxingDan', chance: 0.0005, min: 1, max: 1 },
   ]
   // 秘境：所有妖獸共通的稀有掉落（錦囊、寶箱、丹藥）
   const REALM_COMMON_LOOT = [
-    { item: 'stonePouch', chance: 0.05, min: 1, max: 1 },
-    { item: 'ancientCoin', chance: 0.03, min: 1, max: 1 },
-    { item: 'treasureBox', chance: 0.02, min: 1, max: 1 },
-    { item: 'hpPill', chance: 0.08, min: 1, max: 1 },
-    { item: 'kuangbao', chance: 0.03, min: 1, max: 1 },
-    { item: 'jinzhong', chance: 0.03, min: 1, max: 1 },
-    { item: 'wudaoTea', chance: 0.015, min: 1, max: 1 },
-    { item: 'lingzhi', chance: 0.01, min: 1, max: 1 },
-    { item: 'beastPill', chance: 0.04, min: 1, max: 1 },
-    { item: 'jadePouch', chance: 0.01, min: 1, max: 1 },
-    { item: 'pojing', chance: 0.008, min: 1, max: 1 },
-    { item: 'zhuanggu', chance: 0.01, min: 1, max: 1 },
-    { item: 'kaiqiao', chance: 0.01, min: 1, max: 1 },
-    { item: 'ningshen', chance: 0.01, min: 1, max: 1 },
-    { item: 'zhuanyun', chance: 0.01, min: 1, max: 1 },
-    { item: 'cuiguDan', chance: 0.003, min: 1, max: 1 },
-    { item: 'tongmingDan', chance: 0.003, min: 1, max: 1 },
-    { item: 'tongshenDan', chance: 0.003, min: 1, max: 1 },
-    { item: 'tianmingDan', chance: 0.003, min: 1, max: 1 },
+    { item: 'stonePouch', chance: 0.02, min: 1, max: 1 },
+    { item: 'ancientCoin', chance: 0.015, min: 1, max: 1, minRealm: 1 },
+    { item: 'treasureBox', chance: 0.005, min: 1, max: 1, minRealm: 1 },
+    { item: 'hpPill', chance: 0.04, min: 1, max: 1 },
+    { item: 'kuangbao', chance: 0.015, min: 1, max: 1 },
+    { item: 'jinzhong', chance: 0.015, min: 1, max: 1 },
+    { item: 'wudaoTea', chance: 0.005, min: 1, max: 1, minRealm: 1 },
+    { item: 'lingzhi', chance: 0.003, min: 1, max: 1, minRealm: 2 },
+    { item: 'beastPill', chance: 0.02, min: 1, max: 1 },
+    { item: 'jadePouch', chance: 0.003, min: 1, max: 1, minRealm: 1 },
+    { item: 'pojing', chance: 0.003, min: 1, max: 1, minRealm: 1 },
+    { item: 'zhuanggu', chance: 0.002, min: 1, max: 1, minRealm: 1 },
+    { item: 'kaiqiao', chance: 0.002, min: 1, max: 1, minRealm: 1 },
+    { item: 'ningshen', chance: 0.002, min: 1, max: 1, minRealm: 1 },
+    { item: 'zhuanyun', chance: 0.002, min: 1, max: 1, minRealm: 1 },
+    { item: 'cuiguDan', chance: 0.0005, min: 1, max: 1, minRealm: 2 },
+    { item: 'tongmingDan', chance: 0.0005, min: 1, max: 1, minRealm: 2 },
+    { item: 'tongshenDan', chance: 0.0005, min: 1, max: 1, minRealm: 2 },
+    { item: 'tianmingDan', chance: 0.0005, min: 1, max: 1, minRealm: 2 },
   ]
   /* 煉器材料掉落：依秘境加進該地所有妖獸的掉落表（chance = 機率 0~1） */
   const LOCATION_FORGE_LOOT = {
@@ -1232,7 +1235,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       m.atkMin = Math.round(m.atkMin * ka); m.atkMax = Math.round(m.atkMax * ka)
     })
   })
-  LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push(...REALM_PET_LOOT, ...REALM_COMMON_LOOT, ...(LOCATION_FORGE_LOOT[loc.id] || []))))
+  LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push(...[...REALM_PET_LOOT, ...REALM_COMMON_LOOT].filter((e) => (e.minRealm || 0) <= loc.reqRealm), ...(LOCATION_FORGE_LOOT[loc.id] || []))))
 
   
 
@@ -1422,9 +1425,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   const $ = (id) => document.getElementById(id)
   const required = () => Math.round(100 * Math.pow(1.6, state.realm) * (1 + state.layer * 0.25))
   /* 人物修為獲取速度：所有「人物修為」來源皆除以 xpSlow()，且等級越高除數越大（升級越慢）。
-   *   XP_SLOW_BASE        1 級（煉氣 1 層）的減速倍數：原速 ÷ 20
+   *   XP_SLOW_BASE        1 級（煉氣 1 層）的減速倍數：原速 ÷ 5
    *   XP_SLOW_PER_LEVEL   每升一層，減速倍數增加的比例（等級序號 = 境界 × 9 + 層數 - 1，共 0～62）
-   *   例：煉氣 1 層 ÷20、煉氣 9 層 ÷36、築基 1 層 ÷38、大乘 9 層 ÷144 */
+   *   例：煉氣 1 層 ÷5、煉氣 9 層 ÷9、築基 1 層 ÷9.5、大乘 9 層 ÷36 */
   const XP_SLOW_BASE = 5
   const XP_SLOW_PER_LEVEL = 0.1
   const xpSlow = () => XP_SLOW_BASE * (1 + (state.realm * MAX_LAYER + state.layer - 1) * XP_SLOW_PER_LEVEL)
@@ -1491,7 +1494,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   const cultivateBonus = () => sectBonus('cultivate') + buffVal('cultivate') + statBonus('insight')
   const chance = () => {
     const base = state.layer === MAX_LAYER ? 0.55 - state.realm * 0.05 : 0.92 - state.layer * 0.03
-    return Math.min(0.99, Math.max(0.2, Math.min(0.95, base)) + sectBonus('breakthrough') + statBonus('luck') + (state.breakBonus || 0))
+    return Math.min(0.9, Math.max(0.2, Math.min(0.95, base)) + sectBonus('breakthrough') + statBonus('luck') + (state.breakBonus || 0))
   }
   const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
   const rarityColor = (r) => ({ '普通': 'var(--muted-fg)', '精良': 'var(--primary)', '稀有': 'var(--accent)', '史詩': 'var(--destructive)' }[r] || 'var(--muted-fg)')
@@ -1533,7 +1536,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   const petTpl = (p) => PET_TEMPLATES.find((t) => t.id === p.tpl) || PET_TEMPLATES[0]
   const petRequired = (p) => Math.round(80 * Math.pow(1.6, p.realm) * (1 + p.layer * 0.25))
   const petMaxed = (p) => p.realm >= p.cap && p.layer >= MAX_LAYER
-  const petAtk = (p) => Math.round((4 + p.realm * 7 + p.layer * 1.2) * petTpl(p).atk * (1 + sectBonus('petAtk') + buffVal('petAtk')))
+  // 出戰時的等效境界不超過玩家本人（資質再高，也只能發揮到主人的境界）
+  const petEff = (p) => { const e = Math.min(p.realm * MAX_LAYER + p.layer - 1, lvIdx(state.realm, state.layer)); return { realm: Math.floor(e / MAX_LAYER), layer: e % MAX_LAYER + 1 } }
+  const petAtk = (p) => { const e = petEff(p); return Math.round((4 + e.realm * 7 + e.layer * 1.2) * petTpl(p).atk * (1 + sectBonus('petAtk') + buffVal('petAtk'))) }
   const petStrike = (p) => { const a = petAtk(p); return randomInt(Math.round(a * 0.8), Math.round(a * 1.2)) }
   const activePet = () => state.pets.find((p) => p.uid === state.activePet) || null
 
@@ -1600,7 +1605,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   // 增加靈寵修為，滿了自動晉層／晉境，直到資質上限
   function addPetXp(p, amount) {
     if (!p || petMaxed(p)) return
-    p.xp += Math.round(amount * (1 + sectBonus('petXp')))
+    p.xp += Math.round(amount * (1 + sectBonus('petXp')) * 100) / 100
     let ups = 0
     while (!petMaxed(p) && p.xp >= petRequired(p)) {
       p.xp -= petRequired(p)
@@ -1976,7 +1981,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">傷害榜</h3>
       <ul class="stack" style="gap:8px">${top}</ul>
       <p class="xs muted" style="margin-top:12px;line-height:1.7">擊殺獎勵：全體參與者依傷害占比獲得靈石與修為；最後一擊得雷晶，傷害第一得破損玉簡。</p>
-      <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--accent)">每次出手皆有機緣：神獸蛋 ${+(BOSS_PET_LOOT[0].chance * 100).toFixed(2)}%、神級寵物飼料 ${+(BOSS_PET_LOOT[1].chance * 100).toFixed(2)}%、五行造化丹 ${+(BOSS_PET_LOOT[2].chance * 100).toFixed(2)}%。出戰靈寵會協同攻擊。</p>
+      <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--accent)">${REALMS[BOSS_LOOT_MIN_REALM]}期以上每次出手皆有機緣（由伺服器判定，以傳書送達）：神獸蛋 ${+(BOSS_PET_LOOT[0].chance * 100).toFixed(2)}%、神級寵物飼料 ${+(BOSS_PET_LOOT[1].chance * 100).toFixed(2)}%、五行造化丹 ${+(BOSS_PET_LOOT[2].chance * 100).toFixed(2)}%；傷害第一另得神級寵物飼料。魔蛟血量隨在線人數變化。</p>
       <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--primary)">在此分頁也能施展攻伐功法（點功法列或按數字鍵）：消耗該功法的靈力與冷卻，傷害依功法倍率放大，不需再付出手的靈力。</p>
       <p class="xs" style="margin-top:6px;line-height:1.7;color:var(--destructive)">魔蛟會在你出手後反擊（蛟尾橫掃、噬魂利爪、滅世龍息、蛟嘯震魂）。氣血低於 ${Math.ceil(maxHp() * BOSS_MIN_HP_RATIO)} 時無法出手，記得備好療傷丹。</p>`
   }
@@ -2037,11 +2042,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (!skill) state.mp -= bossAtkCost()
     addLog(skill ? `你施展「${skill.name}」轟向「${net.boss ? net.boss.name : '魔蛟'}」，造成 ${r.dmg} 點傷害。` : `你向「${net.boss ? net.boss.name : '魔蛟'}」發出一擊，造成 ${r.dmg} 點傷害。`, 'success')
     bossLogPush(skill ? `你施展「${skill.name}」，造成 ${r.dmg} 點傷害。` : `你出手造成 ${r.dmg} 點傷害。`)
-    const drops = rollTable(BOSS_PET_LOOT)
-    if (drops.length) {
-      drops.forEach((l) => addItem(l.item, l.qty))
-      addLog(`魔蛟鱗甲崩落之間，你眼明手快拾得 ${lootText(drops)}！`, 'gold')
-    }
+    // 掉落由伺服器判定，會以傳書（mail）送達，這裡不再自己擲
     if (!r.killed && !(net.boss && net.boss.alive === false)) bossCounter()
     render()
     if (state.nav === 'boss') renderInfo()
@@ -2110,8 +2111,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const base = def.sell
     const same = (net.auctions || []).filter((a) => a.item === id && a.qty > 0)
     const market = same.length ? Math.round(same.reduce((s, a) => s + a.current / a.qty, 0) / same.length) : 0
-    const rec = Math.max(1, market || Math.round(base * 1.2))
-    return { base, market, count: same.length, low: Math.max(1, Math.round(base * 0.8)), rec, high: Math.max(rec, Math.round(base * 1.6)) }
+    const rec = Math.max(1, market || Math.round(base * 1.4))
+    return { base, market, count: same.length, low: Math.max(1, Math.round(base * 1.1)), rec, high: Math.max(rec, Math.round(base * 1.8)) }
   }
   function updateListSuggest(fill) {
     const box = $('listSuggest'); if (!box) return
@@ -2573,7 +2574,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <ul class="stack" style="margin-bottom:18px">${eggCards}</ul>
       <h3 class="panel-title" style="font-size:12px;margin-bottom:8px">我的靈寵（${state.pets.length}/${MAX_PETS}）</h3>
       <ul class="stack">${petCards}</ul>
-      <p class="xs muted" style="margin-top:12px;line-height:1.7">出戰靈寵會在秘境與世界王戰鬥中協同攻擊，戰勝妖獸時與你一同獲得修為。靈寵修為圓滿會自動晉級，最高可修煉至資質上限的第九層。</p>`
+      <p class="xs muted" style="margin-top:12px;line-height:1.7">出戰靈寵會在秘境與世界王戰鬥中協同攻擊，戰勝妖獸時與你一同獲得修為。靈寵修為圓滿會自動晉級，最高可修煉至資質上限的第九層。靈寵出戰時的戰力不會超過你自己的境界，戰鬥獲得的靈寵修為與你一樣受等級減速（餵食不受影響）。</p>`
   }
 
   function renderRealm() {
@@ -2973,14 +2974,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('coreXp').textContent = `修為 ${Math.floor(state.xp)} / ${req}`
     $('chance').textContent = Math.round(chance() * 100) + '%'
 
-    $('btnCultivate').disabled = state.mp < CULTIVATE_COST || ready
+    $('btnCultivate').disabled = state.mp < cultCost() || ready
     $('btnBreak').disabled = !ready
     const sec = $('btnSeclude')
     sec.textContent = state.secluded ? '出關' : '閉關'
     sec.setAttribute('aria-pressed', state.secluded)
     const buffs = Object.entries(state.buffs).map(([k, b]) => `${BUFF_LABELS[k] || k}+${Math.round(b.value * 100)}%(${b.left})`)
     if (state.breakBonus) buffs.push(`突破+${Math.round(state.breakBonus * 100)}%`)
-    $('coreHint').textContent = (state.secluded ? '閉關中 · 每息自動吸納天地靈氣' : '運功消耗 5 點靈力，修為圓滿方可突破') + (buffs.length ? ` ｜ 增益：${buffs.join('、')}` : '')
+    $('coreHint').textContent = (state.secluded ? '閉關中 · 每息自動吸納天地靈氣' : `運功消耗 ${cultCost()} 點靈力，修為圓滿方可突破`) + (buffs.length ? ` ｜ 增益：${buffs.join('、')}` : '')
 
     renderSkills()
     if (bagOpen()) renderBagPanel()
@@ -2990,9 +2991,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   function cultivate() {
     const req = required()
-    if (state.mp < CULTIVATE_COST || state.xp >= req) return
+    if (state.mp < cultCost() || state.xp >= req) return
     const gain = xpGain(req * (0.06 + Math.random() * 0.06) * (1 + cultivateBonus()))
-    state.mp -= CULTIVATE_COST
+    state.mp -= cultCost()
     state.xp = Math.min(req, state.xp + gain)
     if (Math.random() < 0.35) addLog(`運轉周天，吸納天地靈氣，修為增加 ${gain}。`)
     render()
@@ -3016,9 +3017,15 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         addLog('你已臻大乘圓滿，只待飛升之日。', 'gold')
       }
     } else {
-      state.xp = Math.floor(state.xp * 0.6)
+      state.xp = Math.floor(state.xp * 0.5)
       state.hp = Math.max(1, state.hp - Math.round(40 * hpRatio()))
-      addLog('衝擊瓶頸失敗，靈氣逆衝經脈，氣血受損。', 'danger')
+      addLog('衝擊瓶頸失敗，靈氣逆衝經脈，氣血受損，損失一半修為。', 'danger')
+      if (state.layer >= 7 && Math.random() < 0.3) {
+        state.layer--
+        state.xp = Math.min(state.xp, required())
+        state.hp = Math.min(state.hp, maxHp())
+        addLog(`瓶頸反噬，境界跌落至${REALMS[state.realm]}期第${NUM[state.layer - 1]}層！`, 'danger')
+      }
     }
     if (ok) { // 氣血、靈力上限提高，增加的部分一併補滿
       state.hp = Math.min(maxHp(), state.hp + Math.max(0, maxHp() - oldHp))
@@ -3027,9 +3034,10 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     render()
   }
 
-  const SECLUDE_COST = 2 // 閉關每息消耗的靈石（GM 免費）
+  const SECLUDE_COST = 2 // 閉關每息消耗靈石的基礎值（GM 免費）；實際成本隨等級增加，見 secludeCost()
+  const secludeCost = () => SECLUDE_COST + Math.floor(lvIdx(state.realm, state.layer) / 4) // 每升 4 層 +1，大乘九層時 17 靈石/息
   function toggleSeclusion() {
-    if (!state.secluded && !state.isGM && state.stones < SECLUDE_COST) return addLog(`靈石不足（閉關每息需 ${SECLUDE_COST} 靈石），無法閉關。`, 'danger')
+    if (!state.secluded && !state.isGM && state.stones < secludeCost()) return addLog(`靈石不足（閉關每息需 ${secludeCost()} 靈石），無法閉關。`, 'danger')
     state.secluded = !state.secluded
     addLog(state.secluded ? '你封閉洞府，開始閉關苦修。' : '你推開石門，結束閉關。', state.secluded ? 'normal' : 'gold')
     render()
@@ -3258,7 +3266,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const heal = Math.round(maxHp() * sectBonus('lifesteal'))
     if (heal > 0) { state.hp = Math.min(maxHp(), state.hp + heal); addLog(`血煞之力反哺，回復 ${heal} 點氣血。`, 'danger') }
     progressKillQuests(m.id)
-    addPetXp(activePet(), m.exp)
+    addPetXp(activePet(), xpGain(m.exp)) // 靈寵戰鬥修為與人物一樣受等級減速
     state.battle = null
     render()
     renderInfo()
@@ -3266,6 +3274,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function defeat() {
     addLog(`不敵「${state.battle.monster.name}」，你身受重傷，狼狽撤退。`, 'danger')
     state.hp = Math.max(1, Math.round(maxHp() * 0.2))
+    state.xp = Math.floor(state.xp * 0.9)
+    state.selectedLocation = null
+    addLog('傷重撤出秘境：損失 10% 修為，門票作廢，再次進入須重新購票。', 'danger')
     state.battle = null
     render()
     renderInfo()
@@ -3305,12 +3316,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       if (state.xp >= req) {
         state.secluded = false
         addLog('修為已至圓滿，你緩緩出關，準備衝擊瓶頸。', 'gold')
-      } else if (!state.isGM && state.stones < SECLUDE_COST) {
+      } else if (!state.isGM && state.stones < secludeCost()) {
         state.secluded = false
         addLog('靈石耗盡，無以維持洞府靈陣，你被迫出關。', 'danger')
       } else {
         state.xp = Math.min(req, state.xp + req * 0.03 / xpSlow() * (1 + cultivateBonus()))
-        if (!state.isGM) state.stones -= SECLUDE_COST
+        if (!state.isGM) state.stones -= secludeCost()
       }
     }
 
@@ -3338,9 +3349,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ${p(`境界依序為：${REALMS.join(' → ')}，每個境界分 ${MAX_LAYER} 層。越高的境界與層數，需要的修為越多，氣血與靈力上限也越高。`)}
       ${p('中央圓環顯示目前修為進度；修為圓滿後，才能按「突破」晉升到下一層（第九層圓滿則晉入下一個境界）。')}
       ${h3('運功')}
-      ${p(`每次運功消耗 ${CULTIVATE_COST} 點靈力，獲得一段修為。靈力用完就要等自然回復或服用丹藥。`)}
+      ${p(`每次運功消耗靈力（起始 ${CULTIVATE_COST} 點，隨靈力上限增加），獲得一段修為。靈力用完就要等自然回復或服用丹藥。`)}
       ${h3('閉關')}
-      ${p(`按「閉關」後會自動修煉，不必一直點擊。<span style="color:var(--accent)">閉關每息消耗 ${SECLUDE_COST} 靈石</span>，靈石不足時不能閉關，閉關中靈石耗盡會被迫出關；修為圓滿時也會自動出關，方便你去突破。`)}
+      ${p(`按「閉關」後會自動修煉，不必一直點擊。<span style="color:var(--accent)">閉關每息消耗 ${secludeCost()} 靈石（隨境界層數增加）</span>，靈石不足時不能閉關，閉關中靈石耗盡會被迫出關；修為圓滿時也會自動出關，方便你去突破。`)}
       ${h3('突破')}
       ${p('按鈕上的百分比是目前的突破成功率。層數越高越難，第九層晉入下一境界最難。宗門加成、幸運屬性與突破類丹藥可以提高成功率。')}
       ${p('突破失敗會損失部分修為並受傷，但不會掉境界。')}
