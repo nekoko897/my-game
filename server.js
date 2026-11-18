@@ -326,6 +326,56 @@ function sanitizeSave(s) {
   }
 }
 
+/* ---------- 主城地圖（即時移動）----------
+ * 地圖資料以伺服器為準，連線時隨 hello 傳給客戶端。座標單位為「格」（浮點數）。
+ * 圖例：. 草地  = 道路  # 樹/圍牆（不可走）  ~ 水（不可走）  B 建築（不可走）
+ */
+const TOWN_W = 40, TOWN_H = 28, MOVE_SPEED = 5.5, MOVE_R = 0.3
+const TOWN_NPCS = [
+  { id: 'market', name: '交易所掌櫃', x: 14.5, y: 8.5, panel: 'market', color: '#c9a24a' },
+  { id: 'auction', name: '拍賣官', x: 25.5, y: 8.5, panel: 'auction', color: '#b35a3c' },
+  { id: 'sect', name: '宗門長老', x: 20.5, y: 5.5, panel: 'sect', color: '#4a7fb5' },
+  { id: 'realm', name: '秘境引路人', x: 8.5, y: 15.5, panel: 'realm', color: '#6a4ab5' },
+  { id: 'boss', name: '鎮魔使', x: 32.5, y: 15.5, panel: 'boss', color: '#a33' },
+  { id: 'pets', name: '靈寵司', x: 14.5, y: 21.5, panel: 'pets', color: '#3a9a6a' },
+  { id: 'world', name: '傳訊童子', x: 25.5, y: 21.5, panel: 'world', color: '#5aa5b5' },
+]
+const TOWN_SPAWN = { x: 20.5, y: 13.5 }
+const TOWN_ROWS = (() => {
+  const g = Array.from({ length: TOWN_H }, () => Array(TOWN_W).fill('.'))
+  const rect = (x0, y0, x1, y1, c) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (g[y] && g[y][x] !== undefined) g[y][x] = c }
+  for (let x = 0; x < TOWN_W; x++) { g[0][x] = '#'; g[TOWN_H - 1][x] = '#' }
+  for (let y = 0; y < TOWN_H; y++) { g[y][0] = '#'; g[y][TOWN_W - 1] = '#' }
+  rect(3, 12, 36, 14, '=')          // 東西主道
+  rect(19, 2, 21, 25, '=')          // 南北主道
+  rect(12, 6, 27, 7, '=')           // 北側小路
+  rect(8, 14, 9, 16, '='); rect(32, 14, 33, 16, '='); rect(12, 14, 15, 21, '='); rect(24, 14, 27, 21, '=')
+  rect(12, 21, 27, 22, '=')
+  // 建築（NPC 站在門前）
+  rect(12, 2, 17, 5, 'B'); rect(23, 2, 28, 5, 'B'); rect(17, 1, 22, 3, 'B')
+  rect(4, 17, 10, 20, 'B'); rect(30, 17, 36, 20, 'B')
+  rect(11, 23, 16, 26, 'B'); rect(23, 23, 28, 26, 'B')
+  // 池塘與樹林
+  rect(30, 3, 36, 8, '~'); rect(32, 4, 35, 7, '~')
+  for (const [x, y] of [[3,3],[4,5],[6,3],[7,8],[2,9],[5,10],[3,22],[5,24],[7,22],[33,23],[35,25],[31,22],[36,10],[2,16],[37,16],[16,10],[24,10]]) g[y][x] = '#'
+  for (const n of TOWN_NPCS) { const tx = Math.floor(n.x), ty = Math.floor(n.y); if (g[ty][tx] !== '=') g[ty][tx] = '.' }
+  g[Math.floor(TOWN_SPAWN.y)][Math.floor(TOWN_SPAWN.x)] = '='
+  return g.map((r) => r.join(''))
+})()
+const townBlocked = (x, y) => {
+  const tx = Math.floor(x), ty = Math.floor(y)
+  if (tx < 0 || ty < 0 || tx >= TOWN_W || ty >= TOWN_H) return true
+  const c = TOWN_ROWS[ty][tx]
+  return c === '#' || c === '~' || c === 'B'
+}
+const townCollide = (x, y) => townBlocked(x - MOVE_R, y - MOVE_R) || townBlocked(x + MOVE_R, y - MOVE_R) || townBlocked(x - MOVE_R, y + MOVE_R) || townBlocked(x + MOVE_R, y + MOVE_R)
+const positions = new Map()   // key -> { x, y, f, t }（只存在記憶體，不寫入雲端）
+let posDirty = false
+const posList = () => [...positions.entries()].filter(([k]) => onlineKeys().includes(k)).map(([k, p]) => ({ n: db.players[k].name, x: +p.x.toFixed(2), y: +p.y.toFixed(2), f: p.f }))
+const ensurePos = (key) => { if (!positions.has(key)) { positions.set(key, { x: TOWN_SPAWN.x, y: TOWN_SPAWN.y, f: 'd', t: Date.now() }); posDirty = true } return positions.get(key) }
+const townInfo = () => ({ w: TOWN_W, h: TOWN_H, rows: TOWN_ROWS, npcs: TOWN_NPCS, speed: MOVE_SPEED, r: MOVE_R })
+setInterval(() => { if (posDirty) { posDirty = false; broadcast('pos', posList()) } }, 150)
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x')
   const p = url.pathname
@@ -337,12 +387,13 @@ const server = http.createServer(async (req, res) => {
     const wasOnline = onlineKeys().includes(key)
     clients.set(token + Math.random(), { res, key })
     const cid = [...clients.entries()].find(([, c]) => c.res === res)[0]
-    send(res, 'hello', { serverTime: now(), online: presence(), auctions: pubAuctions(), boss: pubBoss(), chat: chatHistory.filter((m) => !m.to || m.fromKey === key || m.toKey === key).map(stripKeys) })
+    ensurePos(key)
+    send(res, 'hello', { town: townInfo(), pos: posList(), serverTime: now(), online: presence(), auctions: pubAuctions(), boss: pubBoss(), chat: chatHistory.filter((m) => !m.to || m.fromKey === key || m.toKey === key).map(stripKeys) })
     if (!wasOnline) { broadcast('presence', presence()); sysChat(`「${db.players[key].name}」進入了修仙界。`) }
     const hb = setInterval(() => res.write(': hb\n\n'), 20000)
     req.on('close', () => {
       clearInterval(hb); clients.delete(cid)
-      if (!onlineKeys().includes(key)) { broadcast('presence', presence()); sysChat(`「${db.players[key].name}」離開了修仙界。`) }
+      if (!onlineKeys().includes(key)) { positions.delete(key); posDirty = true; broadcast('presence', presence()); sysChat(`「${db.players[key].name}」離開了修仙界。`) }
     })
     return
   }
@@ -455,6 +506,19 @@ const server = http.createServer(async (req, res) => {
       sendTo(tk, 'chat', { t: now(), from: '天道', text: minutes > 0 ? `你已被管理員禁言 ${minutes >= 525600 ? '（永久）' : minutes + ' 分鐘'}。` : '你的禁言已被解除。', sys: true })
       console.log(`[GM] ${key} ${minutes > 0 ? '禁言' : '解除禁言'} ${tk}${minutes > 0 ? ` ${minutes} 分鐘` : ''}`)
       return json(res, 200, { ok: true, name: tp.name, mutes: muteList() })
+    }
+    if (p === '/api/move') {
+      const me = ensurePos(key), t = Date.now()
+      if (limited(key, 'move', 80)) return json(res, 200, { ok: true, x: me.x, y: me.y })
+      const nx = Number(b.x), ny = Number(b.y)
+      if (!isFinite(nx) || !isFinite(ny)) return json(res, 400, { error: '座標無效' })
+      const dt = Math.min(1000, Math.max(50, t - me.t)), maxD = MOVE_SPEED * dt / 1000 * 1.35 + 0.35
+      const d = Math.hypot(nx - me.x, ny - me.y)
+      if (d > maxD || townCollide(nx, ny)) { me.t = t; return json(res, 200, { ok: false, x: me.x, y: me.y }) }   // 拉回伺服器位置
+      if (d > 0.001) posDirty = true
+      me.x = nx; me.y = ny; me.t = t
+      if (['u', 'd', 'l', 'r'].includes(b.f)) me.f = b.f
+      return json(res, 200, { ok: true, x: me.x, y: me.y })
     }
     if (p === '/api/chat') {
       const raw = String(b.text || '').trim().slice(0, 100), text = filterText(raw)

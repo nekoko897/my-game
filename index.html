@@ -651,6 +651,7 @@
 
   /* 左側導覽列：要新增分頁，就在這裡加一筆，並在 renderInfo() 的 switch 裡加對應 case */
   const NAV = [
+    { id: 'town', label: '主城', icon: ICON('<path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/>') },
     { id: 'character', label: '角色', icon: ICON('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>') },
     { id: 'techniques', label: '功法', icon: ICON('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>') },
     { id: 'bag', label: '背包', icon: ICON('<path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect x="2" y="7" width="20" height="14" rx="2"/>') },
@@ -667,6 +668,7 @@
 
   const JADE_RATE = 500 // 靈石兌換仙玉的匯率（幾靈石 = 1 仙玉）
   const NAV_HELP = {
+    town: '主城：用 WASD／方向鍵（手機用下方按鈕）自由走動，與其他玩家同圖。靠近 NPC 按 E 或點提示按鈕即可開啟對應功能。',
     character: '查看境界、屬性、宗門特色、裝備加成與目前的增益狀態。',
     techniques: '查看已習得的功法。戰鬥中可點擊功法或按鍵盤數字鍵 1～9 施放，施放後有冷卻時間。',
     bag: '開啟行囊視窗：使用丹藥、穿脫裝備、出售物品。',
@@ -1794,7 +1796,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const es = new EventSource('/api/stream?token=' + net.token)
     net.es = es
     const on = (ev, fn) => es.addEventListener(ev, (e) => { try { fn(JSON.parse(e.data)) } catch (err) {} })
-    on('hello', (d) => { net.offset = d.serverTime - Date.now(); net.online = d.online; net.auctions = d.auctions; net.boss = d.boss; net.chat = d.chat; setNet(true); refreshNet('all') })
+    on('hello', (d) => { if (d.town) { town.map = d.town; townSetPlayers(d.pos) } net.offset = d.serverTime - Date.now(); net.online = d.online; net.auctions = d.auctions; net.boss = d.boss; net.chat = d.chat; setNet(true); refreshNet('all') })
+    on('pos', (d) => townSetPlayers(d))
     on('presence', (d) => { net.online = d; setNet(true); refreshNet('presence') })
     on('chat', (m) => { net.chat.push(m); if (net.chat.length > 80) net.chat.shift(); refreshNet('chat') })
     on('auctions', (d) => { net.auctions = d; refreshNet('auctions') })
@@ -2329,6 +2332,228 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $(valId).textContent = `${Math.round(value)}/${max}`
   }
 
+
+  /* ========== 主城即時地圖（階段 1）==========
+   * 地圖由伺服器 hello 提供（town.map）。繪圖全用 Canvas 程式碼；之後要換成圖片，
+   * 只要在 TOWN_ASSETS 填入圖片網址（key 為地形字元或 'player' / 'npc'），有載入成功就會改用圖片。 */
+  const TOWN_ASSETS = { /* '.': 'img/grass.png', '=': 'img/road.png', '#': 'img/tree.png', '~': 'img/water.png', B: 'img/house.png', player: 'img/player.png', npc: 'img/npc.png' */ }
+  const townImgs = {}
+  for (const [k, u] of Object.entries(TOWN_ASSETS)) { const im = new Image(); im.onload = () => { townImgs[k] = im }; im.src = u }
+  const TS = 32
+  const town = { map: null, players: {}, me: { x: 20.5, y: 13.5, f: 'd' }, inited: false, keys: {}, pad: {}, host: null, cv: null, raf: 0, lastT: 0, lastSend: 0, lastSent: '', sending: false, near: null, wrap: null, big: true }
+
+  function townSetPlayers(list) {
+    const seen = {}
+    for (const p of list || []) {
+      seen[p.n] = 1
+      const o = town.players[p.n]
+      if (!o) town.players[p.n] = { x: p.x, y: p.y, tx: p.x, ty: p.y, f: p.f }
+      else { o.tx = p.x; o.ty = p.y; o.f = p.f }
+      if (p.n === net.name && !town.inited) { town.me.x = p.x; town.me.y = p.y; town.inited = true }
+    }
+    for (const n of Object.keys(town.players)) if (!seen[n]) delete town.players[n]
+  }
+
+  const townBlocked = (x, y) => {
+    const m = town.map, tx = Math.floor(x), ty = Math.floor(y)
+    if (!m || tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) return true
+    const c = m.rows[ty][tx]
+    return c === '#' || c === '~' || c === 'B'
+  }
+  const townCollide = (x, y) => { const r = town.map.r; return townBlocked(x - r, y - r) || townBlocked(x + r, y - r) || townBlocked(x - r, y + r) || townBlocked(x + r, y + r) }
+
+  function townMount() {
+    const host = $('townHost'); if (!host) return
+    if (!town.wrap) {
+      const w = document.createElement('div')
+      w.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="color:var(--accent)">主城</b><button type="button" class="small-btn" id="townToggle"></button></div>
+        <canvas id="townCv" style="width:100%;display:block;border-radius:10px;border:1px solid var(--border);background:#1d2b1f;touch-action:none" aria-label="主城地圖"></canvas>
+        <div id="townPrompt" style="margin:8px 0;min-height:38px"></div>
+        <div id="townPad" style="display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,44px);gap:6px;justify-content:center;margin:6px 0">
+          <span></span><button type="button" class="btn btn-ghost" style="padding:0;min-width:0;width:100%" data-pad="u" aria-label="上">▲</button><span></span>
+          <button type="button" class="btn btn-ghost" style="padding:0;min-width:0;width:100%" data-pad="l" aria-label="左">◀</button><button type="button" class="btn btn-ghost" style="padding:0;min-width:0;width:100%" data-pad="d" aria-label="下">▼</button><button type="button" class="btn btn-ghost" style="padding:0;min-width:0;width:100%" data-pad="r" aria-label="右">▶</button>
+        </div>
+        <p class="xs muted">WASD／方向鍵移動，靠近 NPC 按 E 互動。同圖玩家即時可見，聊天內容會顯示在頭上。</p>`
+      town.wrap = w
+      town.cv = w.querySelector('#townCv')
+      w.querySelectorAll('[data-pad]').forEach((b) => {
+        const k = b.dataset.pad
+        const on = (e) => { e.preventDefault(); town.pad[k] = true }
+        const off = () => { town.pad[k] = false }
+        b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off)
+      })
+      w.querySelector('#townToggle').addEventListener('click', () => { town.big = !town.big; townMount() })
+      w.querySelector('#townPrompt').addEventListener('click', (e) => { if (e.target.closest('[data-town-npc]')) townInteract() })
+    }
+    const wr = town.wrap, tg = wr.querySelector('#townToggle')
+    if (town.big) {
+      wr.style.cssText = 'position:fixed;inset:0;z-index:50;background:var(--background);padding:10px 12px;overflow:auto;display:flex;flex-direction:column;align-items:center'
+      document.body.appendChild(wr); tg.textContent = '縮小（返回選單）'
+    } else {
+      wr.style.cssText = ''; host.appendChild(wr); tg.textContent = '放大全螢幕'
+    }
+    if (!isOnline() || !town.map) { town.wrap.querySelector('#townPrompt').innerHTML = '<p class="muted">需要登入連線後才能進入主城。</p>' }
+    townResize()
+    if (!town.raf) { town.lastT = performance.now(); town.raf = requestAnimationFrame(townFrame) }
+  }
+  function townUnmount() { if (town.wrap && town.wrap.parentNode) town.wrap.parentNode.removeChild(town.wrap); if (town.raf) { cancelAnimationFrame(town.raf); town.raf = 0 }; town.keys = {}; town.pad = {} }
+  function townResize() {
+    const cv = town.cv; if (!cv) return
+    let w, h
+    if (town.big) { w = Math.max(260, Math.min(1000, window.innerWidth - 24)); h = Math.max(200, Math.min(640, window.innerHeight - 230)) }
+    else { w = Math.max(240, Math.min(720, (cv.parentElement && cv.parentElement.clientWidth) || 480)); h = Math.round(w * 0.65) }
+    cv.style.maxWidth = w + 'px'; cv.style.width = '100%'
+    const dpr = window.devicePixelRatio || 1
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + 'px'
+    town.vw = w; town.vh = h; town.dpr = dpr
+  }
+  window.addEventListener('resize', () => { if (state.nav === 'town') townResize() })
+
+  const townTyping = () => { const a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) }
+  window.addEventListener('keydown', (e) => {
+    if (state.nav !== 'town' || townTyping()) return
+    const k = e.key.toLowerCase()
+    if (k === 'escape' && town.big) { town.big = false; townMount(); return }
+    const map = { w: 'u', arrowup: 'u', s: 'd', arrowdown: 'd', a: 'l', arrowleft: 'l', d: 'r', arrowright: 'r' }
+    if (map[k]) { town.keys[map[k]] = true; e.preventDefault() }
+    else if (k === 'e' || k === 'enter') townInteract()
+  })
+  window.addEventListener('keyup', (e) => {
+    const map = { w: 'u', arrowup: 'u', s: 'd', arrowdown: 'd', a: 'l', arrowleft: 'l', d: 'r', arrowright: 'r' }
+    const k = map[e.key.toLowerCase()]; if (k) town.keys[k] = false
+  })
+  window.addEventListener('blur', () => { town.keys = {}; town.pad = {} })
+
+  function townInteract() {
+    const n = town.near; if (!n) return
+    state.lastNav = state.nav; state.nav = n.panel
+    renderNav(); renderInfo()
+  }
+
+  function townFrame(t) {
+    if (state.nav !== 'town' || !town.cv) { town.raf = 0; return }
+    town.raf = requestAnimationFrame(townFrame)
+    const dt = Math.min(0.1, (t - town.lastT) / 1000); town.lastT = t
+    const m = town.map
+    if (!m || !isOnline()) return
+    // 移動（客戶端預測，伺服器會再驗證）
+    const k = town.keys, p = town.pad
+    let dx = ((k.r || p.r) ? 1 : 0) - ((k.l || p.l) ? 1 : 0), dy = ((k.d || p.d) ? 1 : 0) - ((k.u || p.u) ? 1 : 0)
+    if (dx || dy) {
+      const len = Math.hypot(dx, dy); dx /= len; dy /= len
+      const step = m.speed * dt
+      const me = town.me
+      if (!townCollide(me.x + dx * step, me.y)) me.x += dx * step
+      if (!townCollide(me.x, me.y + dy * step)) me.y += dy * step
+      me.f = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'd' : 'u')
+    }
+    townSync(t)
+    // 其他玩家平滑插值
+    for (const [n, o] of Object.entries(town.players)) {
+      if (n === net.name) continue
+      const a = Math.min(1, dt * 12); o.x += (o.tx - o.x) * a; o.y += (o.ty - o.y) * a
+    }
+    // 最近的 NPC
+    let best = null, bd = 1.8
+    for (const n of m.npcs) { const d = Math.hypot(n.x - town.me.x, n.y - town.me.y); if (d < bd) { bd = d; best = n } }
+    if (best !== town.near) {
+      town.near = best
+      const el = town.wrap.querySelector('#townPrompt')
+      el.innerHTML = best ? `<button type="button" class="btn btn-primary" data-town-npc="1">與「${esc(best.name)}」交談（E）</button>` : '<span class="xs muted">靠近 NPC 可互動</span>'
+    }
+    townDraw()
+  }
+
+  async function townSync(t) {
+    if (town.sending || t - town.lastSend < 110) return
+    const me = town.me, sig = me.x.toFixed(2) + ',' + me.y.toFixed(2)
+    if (sig === town.lastSent) return
+    town.lastSend = t; town.sending = true; town.lastSent = sig
+    const r = await api('move', { x: +me.x.toFixed(3), y: +me.y.toFixed(3), f: me.f })
+    town.sending = false
+    if (r && r.ok === false && typeof r.x === 'number') { me.x = r.x; me.y = r.y; town.lastSent = '' }   // 被伺服器拉回
+  }
+
+  function townDraw() {
+    const cv = town.cv, m = town.map, ctx = cv.getContext('2d')
+    const W = town.vw, H = town.vh, dpr = town.dpr
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.fillStyle = '#141d16'; ctx.fillRect(0, 0, W, H)
+    const me = town.me
+    let cx = me.x * TS - W / 2, cy = me.y * TS - H / 2
+    cx = Math.max(0, Math.min(m.w * TS - W, cx)); cy = Math.max(0, Math.min(m.h * TS - H, cy))
+    ctx.save(); ctx.translate(-Math.round(cx), -Math.round(cy))
+    const x0 = Math.max(0, Math.floor(cx / TS)), x1 = Math.min(m.w - 1, Math.ceil((cx + W) / TS))
+    const y0 = Math.max(0, Math.floor(cy / TS)), y1 = Math.min(m.h - 1, Math.ceil((cy + H) / TS))
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) townTile(ctx, m.rows[y][x], x, y)
+    // 依 y 排序畫 NPC 與玩家
+    const acts = m.npcs.map((n) => ({ y: n.y, f: () => townActor(ctx, n.x, n.y, n.color, n.name, 'd', true) }))
+    for (const [n, o] of Object.entries(town.players)) {
+      const self = n === net.name
+      const px = self ? me.x : o.x, py = self ? me.y : o.y
+      acts.push({ y: py, f: () => { townActor(ctx, px, py, self ? '#e8e1c8' : '#7fb0e0', n, self ? me.f : o.f, false, self); townBubble(ctx, n, px, py) } })
+    }
+    acts.sort((a, b) => a.y - b.y).forEach((a) => a.f())
+    ctx.restore()
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(6, 6, 118, 20)
+    ctx.fillStyle = '#e8e1c8'; ctx.font = '12px sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'
+    ctx.fillText(`主城 · ${Object.keys(town.players).length} 人在場`, 12, 16)
+  }
+
+  function townTile(ctx, c, x, y) {
+    const px = x * TS, py = y * TS, img = townImgs[c]
+    if (img) { ctx.drawImage(img, px, py, TS, TS); return }
+    const alt = (x + y) % 2
+    if (c === '=') { ctx.fillStyle = alt ? '#b9a67a' : '#c2b085'; ctx.fillRect(px, py, TS, TS); return }
+    // 底層草地
+    ctx.fillStyle = alt ? '#3f6b3a' : '#447443'; ctx.fillRect(px, py, TS, TS)
+    if (c === '~') { ctx.fillStyle = '#2d6a9a'; ctx.fillRect(px, py, TS, TS); ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(px + 6, py + 10 + ((x * 7 + y * 3) % 8), 14, 2) }
+    else if (c === '#') {
+      ctx.fillStyle = '#5a3d22'; ctx.fillRect(px + 13, py + 18, 6, 12)
+      ctx.fillStyle = '#245a2c'; ctx.beginPath(); ctx.arc(px + 16, py + 14, 13, 0, 7); ctx.fill()
+      ctx.fillStyle = '#2f7336'; ctx.beginPath(); ctx.arc(px + 12, py + 11, 7, 0, 7); ctx.fill()
+    } else if (c === 'B') {
+      const up = y > 0 && townIsB(x, y - 1)
+      ctx.fillStyle = up ? '#8a5a3a' : '#a33c32'; ctx.fillRect(px, py, TS, TS)      // 上緣是屋頂，其餘為牆
+      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + TS - 3, TS, 3)
+      if (up && !townIsB(x, y + 1)) { ctx.fillStyle = '#3b2a1c'; if ((x * 5) % 3 === 0) ctx.fillRect(px + 8, py + 8, 16, 24) }
+    }
+  }
+  const townIsB = (x, y) => town.map.rows[y] && town.map.rows[y][x] === 'B'
+
+  function townActor(ctx, x, y, color, name, f, isNpc, self) {
+    const px = x * TS, py = y * TS, img = townImgs[isNpc ? 'npc' : 'player']
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(px, py + 9, 9, 4, 0, 0, 7); ctx.fill()
+    if (img) ctx.drawImage(img, px - 16, py - 28, 32, 36)
+    else {
+      ctx.fillStyle = color; ctx.fillRect(px - 8, py - 10, 16, 18)                          // 身體（道袍）
+      ctx.fillStyle = '#f0d3b0'; ctx.beginPath(); ctx.arc(px, py - 15, 7, 0, 7); ctx.fill()  // 頭
+      ctx.fillStyle = '#222'; ctx.fillRect(px - 7, py - 22, 14, 5)                           // 髮
+      ctx.fillStyle = '#222'
+      if (f === 'd') { ctx.fillRect(px - 4, py - 14, 2, 2); ctx.fillRect(px + 2, py - 14, 2, 2) }
+      else if (f === 'l') ctx.fillRect(px - 5, py - 14, 2, 2)
+      else if (f === 'r') ctx.fillRect(px + 3, py - 14, 2, 2)
+    }
+    ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+    const w = ctx.measureText(name).width + 8
+    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(px - w / 2, py - 40, w, 15)
+    ctx.fillStyle = self ? '#ffe28a' : (isNpc ? '#ffd27a' : '#fff'); ctx.fillText(name, px, py - 28)
+  }
+
+  function townBubble(ctx, name, x, y) {
+    let m = null
+    for (let i = net.chat.length - 1; i >= 0; i--) { const c = net.chat[i]; if (!c.sys && !c.to && c.from === name) { m = c; break } }
+    if (!m || serverNow() - m.t > 6000) return
+    const txt = m.text.length > 16 ? m.text.slice(0, 16) + '…' : m.text
+    const px = x * TS, py = y * TS - 48
+    ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+    const w = ctx.measureText(txt).width + 12
+    ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(px - w / 2, py - 15, w, 18)
+    ctx.beginPath(); ctx.moveTo(px - 4, py + 3); ctx.lineTo(px + 4, py + 3); ctx.lineTo(px, py + 8); ctx.fill()
+    ctx.fillStyle = '#222'; ctx.fillText(txt, px, py - 2)
+  }
+
   function renderNav() {
     $('nav').innerHTML = NAV.filter((n) => !n.gm || state.isGM).map((n) => `
       <li><button type="button" data-nav="${n.id}" title="${(NAV_HELP[n.id] || '').replace(/"/g, '&quot;')}" ${n.id === state.nav ? 'aria-current="page"' : ''}>${n.icon}${n.label}</button></li>`).join('')
@@ -2349,6 +2574,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             <div class="mini-track" aria-hidden="true"><div style="width:${Math.min(100, a.value + statPts(a.stat))}%"></div></div>
             <p class="xs muted">${a.hint}${statPts(a.stat) ? `　丹藥加成：${STAT_META[a.stat].fx(statPts(a.stat))}` : ''}（丹藥已提升 ${statPts(a.stat)} / ${STAT_CAP}）</p>
           </div>`).join('') + '</dl>' + renderStatus()
+        break
+      case 'town':
+        html = '<div id="townHost"></div>'
         break
       case 'techniques':
         html = renderTechniques()
@@ -2387,6 +2615,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('infoBody').innerHTML = html
     for (const [id, v] of Object.entries(keep)) { const el = $(id); if (el) el.value = v }
     if (focusId && $(focusId)) $(focusId).focus()
+    if (state.nav === 'town') townMount(); else townUnmount()
     if (state.nav === 'world') { updateChat(); updateOnline() }
     if (state.nav === 'auction') updateListSuggest(!keep.listPrice && !!$('listItemSelect') && !!$('listItemSelect').value)
     tickTimers()
