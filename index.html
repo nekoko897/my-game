@@ -668,7 +668,7 @@
 
   const JADE_RATE = 500 // 靈石兌換仙玉的匯率（幾靈石 = 1 仙玉）
   const NAV_HELP = {
-    town: '主城：用 WASD／方向鍵（手機用下方按鈕）自由走動，與其他玩家同圖。靠近 NPC 按 E 或點提示按鈕即可開啟對應功能。',
+    town: '主城：用 WASD／方向鍵（手機用下方按鈕）自由走動，與其他玩家同圖。靠近 NPC 按 E 或點提示按鈕即可開啟對應功能。持門票後可從「秘境」面板進入野外即時戰鬥（空白鍵／J 普攻，數字鍵施展功法）。',
     character: '查看境界、屬性、宗門特色、裝備加成與目前的增益狀態。',
     techniques: '查看已習得的功法。戰鬥中可點擊功法或按鍵盤數字鍵 1～9 施放，施放後有冷卻時間。',
     bag: '開啟行囊視窗：使用丹藥、穿脫裝備、出售物品。',
@@ -1796,8 +1796,11 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const es = new EventSource('/api/stream?token=' + net.token)
     net.es = es
     const on = (ev, fn) => es.addEventListener(ev, (e) => { try { fn(JSON.parse(e.data)) } catch (err) {} })
-    on('hello', (d) => { if (d.town) { town.map = d.town; townSetPlayers(d.pos) } net.offset = d.serverTime - Date.now(); net.online = d.online; net.auctions = d.auctions; net.boss = d.boss; net.chat = d.chat; setNet(true); refreshNet('all') })
+    on('hello', (d) => { if (d.town) { town.map = town.townMap = d.town; town.curMap = 'town'; town.mobs = {}; town.players = {}; town.inited = false; townSetPlayers(d.pos) } net.offset = d.serverTime - Date.now(); net.online = d.online; net.auctions = d.auctions; net.boss = d.boss; net.chat = d.chat; setNet(true); refreshNet('all') })
     on('pos', (d) => townSetPlayers(d))
+    on('mon', (d) => townSetMobs(d))
+    on('hit', (d) => fieldHit(d))
+    on('kill', (d) => fieldKill(d))
     on('presence', (d) => { net.online = d; setNet(true); refreshNet('presence') })
     on('chat', (m) => { net.chat.push(m); if (net.chat.length > 80) net.chat.shift(); refreshNet('chat') })
     on('auctions', (d) => { net.auctions = d; refreshNet('auctions') })
@@ -2340,11 +2343,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   const townImgs = {}
   for (const [k, u] of Object.entries(TOWN_ASSETS)) { const im = new Image(); im.onload = () => { townImgs[k] = im }; im.src = u }
   const TS = 32
-  const town = { map: null, players: {}, me: { x: 20.5, y: 13.5, f: 'd' }, inited: false, keys: {}, pad: {}, host: null, cv: null, raf: 0, lastT: 0, lastSend: 0, lastSent: '', sending: false, near: null, wrap: null, big: true }
+  const town = { map: null, players: {}, me: { x: 20.5, y: 13.5, f: 'd' }, inited: false, keys: {}, pad: {}, host: null, cv: null, raf: 0, lastT: 0, lastSend: 0, lastSent: '', sending: false, near: null, wrap: null, big: true, curMap: 'town', townMap: null, mobs: {}, fx: [], atkAt: 0, barSig: '', barAt: 0 }
 
   function townSetPlayers(list) {
     const seen = {}
     for (const p of list || []) {
+      if (p.m !== town.curMap) continue
       seen[p.n] = 1
       const o = town.players[p.n]
       if (!o) town.players[p.n] = { x: p.x, y: p.y, tx: p.x, ty: p.y, f: p.f }
@@ -2358,7 +2362,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const m = town.map, tx = Math.floor(x), ty = Math.floor(y)
     if (!m || tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) return true
     const c = m.rows[ty][tx]
-    return c === '#' || c === '~' || c === 'B'
+    return c === '#' || c === '~' || c === 'B' || c === 'R'
   }
   const townCollide = (x, y) => { const r = town.map.r; return townBlocked(x - r, y - r) || townBlocked(x + r, y - r) || townBlocked(x - r, y + r) || townBlocked(x + r, y + r) }
 
@@ -2367,8 +2371,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (!town.wrap) {
       const w = document.createElement('div')
       w.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="color:var(--accent)">主城</b><button type="button" class="small-btn" id="townToggle"></button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b id="townTitle" style="color:var(--accent)">主城</b><button type="button" class="small-btn" id="townToggle"></button></div>
         <canvas id="townCv" style="width:100%;display:block;border-radius:10px;border:1px solid var(--border);background:#1d2b1f;touch-action:none" aria-label="主城地圖"></canvas>
+        <div id="townBar" style="margin:8px 0 0;width:100%"></div>
         <div id="townPrompt" style="margin:8px 0;min-height:38px"></div>
         <div id="townPad" style="display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,44px);gap:6px;justify-content:center;margin:6px 0">
           <span></span><button type="button" class="btn btn-ghost" style="padding:0;min-width:0;width:100%" data-pad="u" aria-label="上">▲</button><span></span>
@@ -2401,7 +2406,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function townResize() {
     const cv = town.cv; if (!cv) return
     let w, h
-    if (town.big) { w = Math.max(260, Math.min(1000, window.innerWidth - 24)); h = Math.max(200, Math.min(640, window.innerHeight - 230)) }
+    if (town.big) { w = Math.max(260, Math.min(1000, window.innerWidth - 24)); h = Math.max(180, Math.min(640, window.innerHeight - 330)) }
     else { w = Math.max(240, Math.min(720, (cv.parentElement && cv.parentElement.clientWidth) || 480)); h = Math.round(w * 0.65) }
     cv.style.maxWidth = w + 'px'; cv.style.width = '100%'
     const dpr = window.devicePixelRatio || 1
@@ -2418,15 +2423,20 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const map = { w: 'u', arrowup: 'u', s: 'd', arrowdown: 'd', a: 'l', arrowleft: 'l', d: 'r', arrowright: 'r' }
     if (map[k]) { town.keys[map[k]] = true; e.preventDefault() }
     else if (k === 'e' || k === 'enter') townInteract()
+    else if (k === ' ' || k === 'j') { town.keys.atk = true; e.preventDefault() }
+    else if (/^[1-8]$/.test(k)) { const sk = fieldSkills()[Number(k) - 1]; if (sk) castSkill(sk) }
   })
   window.addEventListener('keyup', (e) => {
     const map = { w: 'u', arrowup: 'u', s: 'd', arrowdown: 'd', a: 'l', arrowleft: 'l', d: 'r', arrowright: 'r' }
     const k = map[e.key.toLowerCase()]; if (k) town.keys[k] = false
+    if (e.key === ' ' || e.key.toLowerCase() === 'j') town.keys.atk = false
   })
   window.addEventListener('blur', () => { town.keys = {}; town.pad = {} })
+  window.addEventListener('pointerup', () => { town.pad.atk = false })
 
   function townInteract() {
     const n = town.near; if (!n) return
+    if (n.panel === '__exit') return fieldLeave()
     state.lastNav = state.nav; state.nav = n.panel
     renderNav(); renderInfo()
   }
@@ -2448,7 +2458,10 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       if (!townCollide(me.x, me.y + dy * step)) me.y += dy * step
       me.f = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'd' : 'u')
     }
+    if ((k.atk || p.atk) && town.curMap !== 'town') townBasicAttack()
     townSync(t)
+    for (const o of Object.values(town.mobs)) { const a = Math.min(1, dt * 10); o.x += (o.tx - o.x) * a; o.y += (o.ty - o.y) * a }
+    townBarUpdate(t)
     // 其他玩家平滑插值
     for (const [n, o] of Object.entries(town.players)) {
       if (n === net.name) continue
@@ -2460,7 +2473,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (best !== town.near) {
       town.near = best
       const el = town.wrap.querySelector('#townPrompt')
-      el.innerHTML = best ? `<button type="button" class="btn btn-primary" data-town-npc="1">與「${esc(best.name)}」交談（E）</button>` : '<span class="xs muted">靠近 NPC 可互動</span>'
+      el.innerHTML = best ? `<button type="button" class="btn btn-primary" data-town-npc="1">${best.panel === '__exit' ? '踏入傳送陣，返回主城' : '與「' + esc(best.name) + '」交談'}（E）</button>` : `<span class="xs muted">${town.curMap === 'town' ? '靠近 NPC 可互動' : '空白鍵／J 普攻，1-8 施展功法；傳送陣可返回主城'}</span>`
     }
     townDraw()
   }
@@ -2494,11 +2507,14 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const px = self ? me.x : o.x, py = self ? me.y : o.y
       acts.push({ y: py, f: () => { townActor(ctx, px, py, self ? '#e8e1c8' : '#7fb0e0', n, self ? me.f : o.f, false, self); townBubble(ctx, n, px, py) } })
     }
+    const tgt = town.curMap !== 'town' ? fieldTarget(town.lastRange || 2.0) : null
+    for (const o of Object.values(town.mobs)) if (o.st !== 2) acts.push({ y: o.y, f: () => townMob(ctx, o, o === tgt) })
     acts.sort((a, b) => a.y - b.y).forEach((a) => a.f())
+    townDrawFx(ctx)
     ctx.restore()
     ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(6, 6, 118, 20)
     ctx.fillStyle = '#e8e1c8'; ctx.font = '12px sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'
-    ctx.fillText(`主城 · ${Object.keys(town.players).length} 人在場`, 12, 16)
+    ctx.fillText(`${m.name || '主城'} · ${Object.keys(town.players).length} 人在場`, 12, 16)
   }
 
   function townTile(ctx, c, x, y) {
@@ -2507,8 +2523,10 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const alt = (x + y) % 2
     if (c === '=') { ctx.fillStyle = alt ? '#b9a67a' : '#c2b085'; ctx.fillRect(px, py, TS, TS); return }
     // 底層草地
-    ctx.fillStyle = alt ? '#3f6b3a' : '#447443'; ctx.fillRect(px, py, TS, TS)
+    const th = (town.map && town.map.theme) || { g1: '#3f6b3a', g2: '#447443' }
+    ctx.fillStyle = alt ? th.g1 : th.g2; ctx.fillRect(px, py, TS, TS)
     if (c === '~') { ctx.fillStyle = '#2d6a9a'; ctx.fillRect(px, py, TS, TS); ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(px + 6, py + 10 + ((x * 7 + y * 3) % 8), 14, 2) }
+    else if (c === 'R') { ctx.fillStyle = '#7d7d82'; ctx.beginPath(); ctx.ellipse(px + 16, py + 20, 13, 9, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#9a9aa0'; ctx.beginPath(); ctx.ellipse(px + 13, py + 17, 7, 5, 0, 0, 7); ctx.fill() }
     else if (c === '#') {
       ctx.fillStyle = '#5a3d22'; ctx.fillRect(px + 13, py + 18, 6, 12)
       ctx.fillStyle = '#245a2c'; ctx.beginPath(); ctx.arc(px + 16, py + 14, 13, 0, 7); ctx.fill()
@@ -2554,6 +2572,165 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     ctx.fillStyle = '#222'; ctx.fillText(txt, px, py - 2)
   }
 
+
+  /* ========== 野外即時戰鬥（階段 2）==========
+   * 妖獸由伺服器生成與行動（mon 事件），玩家攻擊送 /api/attack 由伺服器判定射程與傷害；
+   * 妖獸攻擊以 hit 事件通知（氣血仍由客戶端維護），擊殺以 kill 事件結算修為與掉落。 */
+  function townSetMobs(d) {
+    if (!d || d.m !== town.curMap) return
+    const seen = {}
+    for (const [i, t, x, y, hp, st] of d.list) {
+      seen[i] = 1
+      const o = town.mobs[i]
+      if (!o) town.mobs[i] = { i, t, x, y, tx: x, ty: y, hp, st }
+      else { o.t = t; o.tx = x; o.ty = y; o.hp = hp; o.st = st }
+      if (st === 2 && o) delete town.mobs[i]
+    }
+    for (const i of Object.keys(town.mobs)) if (!seen[i]) delete town.mobs[i]
+  }
+  const mobType = (o) => (town.map && town.map.types && town.map.types[o.t]) || { name: '妖獸', icon: '👹', hp: 100 }
+  function fieldTarget(range) {
+    let best = null, bd = range
+    for (const o of Object.values(town.mobs)) { if (o.st === 2) continue; const d = Math.hypot(o.x - town.me.x, o.y - town.me.y); if (d < bd) { bd = d; best = o } }
+    return best
+  }
+  function townFloat(x, y, txt, color) { town.fx.push({ x, y, txt, color, t0: performance.now(), k: 'txt' }) }
+  function townDrawFx(ctx) {
+    const now = performance.now()
+    town.fx = town.fx.filter((f) => now - f.t0 < 1000)
+    for (const f of town.fx) {
+      const a = (now - f.t0) / (f.k === 'slash' ? 160 : 1000)
+      if (f.k === 'slash') {
+        if (a >= 1) continue
+        ctx.strokeStyle = `rgba(255,240,180,${1 - a})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(f.x * TS, f.y * TS - 10); ctx.lineTo(f.x2 * TS, f.y2 * TS - 10); ctx.stroke()
+        continue
+      }
+      ctx.globalAlpha = 1 - a * a; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+      const y = f.y * TS - 30 - a * 28
+      ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 3; ctx.strokeText(f.txt, f.x * TS, y)
+      ctx.fillStyle = f.color; ctx.fillText(f.txt, f.x * TS, y); ctx.globalAlpha = 1
+    }
+  }
+  function townMob(ctx, o, isTarget) {
+    const ty = mobType(o), px = o.x * TS, py = o.y * TS
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(px, py + 8, 11, 4, 0, 0, 7); ctx.fill()
+    if (isTarget) { ctx.strokeStyle = 'rgba(255,220,120,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(px, py + 8, 15, 6, 0, 0, 7); ctx.stroke() }
+    const img = townImgs['mob_' + ty.id]
+    if (img) ctx.drawImage(img, px - 18, py - 30, 36, 40)
+    else { ctx.font = '28px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#fff'; ctx.fillText(ty.icon, px, py + 4) }
+    const w = 34, r = Math.max(0, Math.min(1, o.hp / ty.hp))
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(px - w / 2, py - 32, w, 5)
+    ctx.fillStyle = o.st === 1 ? '#e0533d' : '#5cc26a'; ctx.fillRect(px - w / 2 + 1, py - 31, (w - 2) * r, 3)
+    ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#f3e3b0'; ctx.fillText(ty.name, px, py - 35)
+  }
+
+  const fieldSkills = () => usableSkills().slice(0, 8)
+  function townBarUpdate(t) {
+    const el = town.wrap && town.wrap.querySelector('#townBar'); if (!el || t - town.barAt < 200) return
+    town.barAt = t
+    const ti = town.wrap.querySelector('#townTitle'); if (ti && town.map && ti.textContent !== town.map.name) ti.textContent = town.map.name
+    const sk = fieldSkills(), inField = town.curMap !== 'town'
+    const sig = [state.hp, state.mp, maxHp(), maxMp(), inField, sk.map((s) => s.id + (state.cooldowns[s.id] || 0) + (state.mp >= s.cost ? 1 : 0)).join(',')].join('|')
+    if (sig === town.barSig) return
+    town.barSig = sig
+    const pct = (a, b) => Math.max(0, Math.min(100, (a / b) * 100))
+    el.innerHTML = `
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;font-size:12px">
+        <span style="min-width:34px">氣血</span><div style="flex:1;height:10px;background:rgba(0,0,0,.4);border-radius:5px;overflow:hidden"><div style="width:${pct(state.hp, maxHp())}%;height:100%;background:#e0533d"></div></div><span class="num" style="min-width:76px;text-align:right">${Math.round(state.hp)}/${maxHp()}</span>
+        <span style="min-width:34px">靈力</span><div style="flex:1;height:10px;background:rgba(0,0,0,.4);border-radius:5px;overflow:hidden"><div style="width:${pct(state.mp, maxMp())}%;height:100%;background:#4fb8a0"></div></div><span class="num" style="min-width:60px;text-align:right">${Math.round(state.mp)}/${maxMp()}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
+        <button type="button" class="btn btn-primary" style="padding:6px 14px" data-atk ${inField ? '' : 'disabled'}>⚔ 普攻</button>
+        ${sk.map((s, i) => {
+          const cd = state.cooldowns[s.id] || 0, dmg = s.effects.some((e) => e.t === 'dmg')
+          const off = cd > 0 || state.mp < s.cost || (dmg && !inField)
+          return `<button type="button" class="btn btn-ghost" style="padding:4px 8px;font-size:12px;${off ? 'opacity:.45' : ''}" data-fskill="${s.id}" title="${esc(s.description)}">${i + 1} ${esc(s.name)}<br><small>${cd > 0 ? cd + ' 息' : s.cost + ' 靈力'}</small></button>`
+        }).join('')}
+      </div>`
+  }
+
+  async function fieldEnter(id) {
+    if (!isOnline()) return addLog('需要登入連線才能進入野外。', 'danger')
+    const r = await api('enter', { map: id })
+    if (!r.ok) { addLog(r.error || '無法進入野外。', 'danger'); return renderInfo() }
+    town.map = r.map; town.curMap = r.map.id; town.players = {}; town.mobs = {}; town.fx = []; town.inited = true
+    town.me.x = r.x; town.me.y = r.y; town.lastSent = ''; town.barSig = ''; town.near = undefined
+    town.big = true; state.lastNav = state.nav; state.nav = 'town'
+    addLog(`踏入「${r.map.name}」野外，妖獸四處遊蕩，小心！`, 'gold')
+    renderNav(); renderInfo()
+  }
+  async function fieldLeave(defeated) {
+    const r = await api('enter', { map: 'town' })
+    if (r.ok) { town.map = town.townMap = r.map; town.curMap = 'town'; town.players = {}; town.mobs = {}; town.fx = []; town.me.x = r.x; town.me.y = r.y; town.lastSent = ''; town.barSig = ''; town.near = undefined }
+    state.selectedLocation = null
+    if (!defeated) addLog('離開野外，門票作廢，再次進入須重新購票。')
+    pushSave(); render(); renderInfo()
+  }
+  function fieldDefeat() {
+    if (town.dying) return
+    town.dying = true
+    addLog('你在野外不敵妖獸，身受重傷，被傳送陣送回主城。', 'danger')
+    state.hp = Math.max(1, Math.round(maxHp() * 0.2))
+    state.xp = Math.floor(state.xp * 0.9)
+    addLog('傷重撤出秘境：損失 10% 修為，門票作廢，再次進入須重新購票。', 'danger')
+    fieldLeave(true).finally(() => { town.dying = false })
+  }
+  function fieldHit(d) {
+    if (town.curMap === 'town' || town.dying) return
+    const mitigation = Math.round(state.realm * 2 * hpRatio())
+    const reduce = Math.min(0.8, sectBonus('def') + buffVal('def'))
+    const dmg = Math.max(1, Math.round((d.dmg - mitigation) * (1 - reduce)))
+    state.hp = Math.max(0, state.hp - dmg)
+    townFloat(town.me.x, town.me.y, `-${dmg}`, '#ff6b5a')
+    if (state.hp <= 0) return fieldDefeat()
+    render()
+  }
+  function fieldKill(d) {
+    const exp = xpGain(d.exp * (1 + sectBonus('exp')))
+    state.xp = Math.min(required(), state.xp + exp)
+    const loot = (d.loot || []).filter((l) => ITEMS[l.item])
+    loot.forEach((l) => addItem(l.item, l.qty))
+    addLog(`擊敗「${d.name}」，獲得 ${exp} 點修為${loot.length ? `，拾取 ${lootText(loot)}` : ''}。`, 'success')
+    if (loot.some((l) => l.item === 'advancedEgg')) addLog('妖獸巢穴中竟藏著一顆高級靈獸蛋！', 'gold')
+    const heal = Math.round(maxHp() * sectBonus('lifesteal'))
+    if (heal > 0) state.hp = Math.min(maxHp(), state.hp + heal)
+    progressKillQuests(d.id)
+    addPetXp(activePet(), xpGain(d.exp))
+    townFloat(town.me.x, town.me.y - 0.6, `+${exp} 修為`, '#ffd966')
+    for (const l of loot) townFloat(town.me.x, town.me.y - 1.2, `${ITEMS[l.item].name}×${l.qty}`, '#8fd0ff')
+    render()
+  }
+  function townBasicAttack() {
+    const now = performance.now()
+    if (now - town.atkAt < 480 || town.curMap === 'town') return
+    if (!fieldTarget(2.0)) return
+    town.atkAt = now
+    fieldAttack(null)
+  }
+  async function fieldAttack(skill) {
+    town.atkAt = performance.now()
+    const atkB = sectBonus('atk') + buffVal('atk')
+    const bonus = skill ? (1 + atkB) * (1 + statBonus('soul')) - 1 : atkB
+    const pet = activePet(), petDmg = pet ? petStrike(pet) : 0
+    const tg = fieldTarget(skill ? 4.4 : 2.0)
+    if (tg) { town.me.f = Math.abs(tg.x - town.me.x) > Math.abs(tg.y - town.me.y) ? (tg.x > town.me.x ? 'r' : 'l') : (tg.y > town.me.y ? 'd' : 'u') }
+    const r = await api('attack', { skill: skill ? skill.id : null, bonus: +bonus.toFixed(3), pet: petDmg, lm: 1 + sectBonus('loot') })
+    if (!r.ok) {
+      if (skill) { state.mp = Math.min(maxMp(), state.mp + skill.cost); delete state.cooldowns[skill.id]; render() }   // 沒打中：退還消耗
+      return
+    }
+    town.fx.push({ k: 'slash', x: town.me.x, y: town.me.y, x2: r.mx, y2: r.my, t0: performance.now() })
+    townFloat(r.mx, r.my, `${r.dmg}`, skill ? '#ffb347' : '#ffffff')
+    const o = town.mobs[r.mi]; if (o) o.hp = r.hp
+  }
+
+  /* 快捷列事件（用 pointerdown，避免快捷列每 0.2 秒重繪而吃掉 click） */
+  document.addEventListener('pointerdown', (e) => {
+    if (!town.wrap || !town.wrap.contains(e.target)) return
+    if (e.target.closest('[data-atk]')) { e.preventDefault(); town.pad.atk = true; townBasicAttack(); return }
+    const sk = e.target.closest('[data-fskill]')
+    if (sk) { e.preventDefault(); const s = SKILLS.find((x) => x.id === sk.dataset.fskill); if (s) castSkill(s) }
+  })
   function renderNav() {
     $('nav').innerHTML = NAV.filter((n) => !n.gm || state.isGM).map((n) => `
       <li><button type="button" data-nav="${n.id}" title="${(NAV_HELP[n.id] || '').replace(/"/g, '&quot;')}" ${n.id === state.nav ? 'aria-current="page"' : ''}>${n.icon}${n.label}</button></li>`).join('')
@@ -2876,6 +3053,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         <button type="button" class="small-btn" data-back-location style="margin-bottom:12px">← 返回秘境列表</button>
         <p class="xs muted" style="margin-bottom:4px">${loc.desc}</p>
         <p class="xs" style="margin-bottom:10px;color:var(--accent)">🎫 已持門票，離開秘境後再次進入需重新購票。</p>
+        <button type="button" class="btn btn-gold" data-field-enter="${loc.id}" style="width:100%;margin-bottom:12px">⚔ 進入野外（即時戰鬥）</button>
+        <p class="xs muted" style="margin-bottom:8px">或選擇下方妖獸進行回合制挑戰：</p>
         <ul class="stack">${monsters}</ul>`
     }
     const cards = LOCATIONS.map((loc) => {
@@ -3329,7 +3508,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if ((skill.req || 0) > state.realm) { addLog(`「${skill.name}」需達到${REALMS[skill.req]}期方能施展。`, 'danger'); return }
     const dmgFx = skill.effects.find((e) => e.t === 'dmg')
     const bossMode = !state.battle && state.nav === 'boss' && net.boss && net.boss.alive
-    if (dmgFx && !state.battle && !bossMode) { addLog(`「${skill.name}」是攻伐功法，需在秘境戰鬥中，或在「魔蛟」分頁對世界王施展。`, 'danger'); return }
+    const fieldMode = !state.battle && state.nav === 'town' && town.curMap !== 'town'
+    if (dmgFx && !state.battle && !bossMode && !fieldMode) { addLog(`「${skill.name}」是攻伐功法，需在秘境戰鬥、野外，或在「魔蛟」分頁對世界王施展。`, 'danger'); return }
+    if (dmgFx && fieldMode) { if (performance.now() - town.atkAt < 470) return; if (!fieldTarget(4.4)) { townFloat(town.me.x, town.me.y - 1, '射程內沒有目標', '#ddd'); return } }
     if (dmgFx && bossMode) { const block = bossBlock(); if (block) { addLog(block, 'danger'); return } }
     state.mp -= skill.cost
     state.cooldowns[skill.id] = skill.cooldown
@@ -3350,6 +3531,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       render()
       return attackBoss(skill, dmgFx.mult * (1 + statBonus('soul')))
     }
+    if (dmgFx && fieldMode) { render(); return fieldAttack(skill) }
     if (dmgFx) {
       addLog(`施展「${skill.name}」—— ${skill.description}${notes.length ? `（${notes.join('，')}）` : ''}。`, 'success')
       return attackMonster(dmgFx.mult * (1 + statBonus('soul')), skill)
@@ -3711,6 +3893,8 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen())
       const amt = Math.max(0, Math.floor(Number(input && input.value) || 0))
       return exchangeCurrency(amt)
     }
+    const feBtn = e.target.closest('[data-field-enter]')
+    if (feBtn) return fieldEnter(feBtn.dataset.fieldEnter)
     const locBtn = e.target.closest('[data-location]')
     if (locBtn) return enterLocation(locBtn.dataset.location)
     const backBtn = e.target.closest('[data-back-location]')
