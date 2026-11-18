@@ -1765,9 +1765,10 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     try {
       const r = await fetch('/api/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: net.token }, payload)) })
       const j = await r.json().catch(() => ({}))
+      if (dc.since && !dc.fatal && net.up) hideDisconnect()   // 只有請求曾失敗、串流沒斷：請求成功即視為恢復
       if (!r.ok) return { ok: false, error: j.error || '請求失敗' }
       return j
-    } catch (e) { return { ok: false, error: '無法連線到伺服器' } }
+    } catch (e) { if (net.token) showDisconnect(false); return { ok: false, error: '無法連線到伺服器' } }
   }
   const snapshot = () => ({ realm: state.realm, layer: state.layer, xp: state.xp, hp: state.hp, mp: state.mp, stones: state.stones, jade: state.jade, inventory: encodePets(state.inventory), sect: state.sect, contribution: state.contribution })
   const pushSave = () => api('save', { save: snapshot() })
@@ -1792,11 +1793,66 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (ids.length) { api('mail/ack', { ids }); render(); if (['bag', 'market', 'auction', 'pets'].includes(state.nav)) renderInfo() }
   }
 
+
+  /* ========== 斷線提醒視窗 ==========
+   * 串流中斷時，瀏覽器會自動重連；超過 DC_GRACE 毫秒仍未恢復就彈出視窗，恢復連線後自動關閉。
+   * 連線被伺服器判定失效（readyState = CLOSED，例如伺服器重啟）時立即彈出，只能重新整理。 */
+  const DC_GRACE = 4000
+  const dc = { el: null, timer: 0, fatal: false, since: 0, tm: 0 }
+  function dcBuild() {
+    if (dc.el) return dc.el
+    const el = document.createElement('div')
+    el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'dcTitle')
+    el.style.cssText = 'position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.65);backdrop-filter:blur(3px)'
+    el.innerHTML = `
+      <div class="panel" style="width:min(380px,92vw);padding:24px;text-align:center">
+        <div style="font-size:34px;line-height:1" aria-hidden="true">📡</div>
+        <h2 id="dcTitle" class="panel-title" style="margin:10px 0 8px;font-size:16px">與天道的連線中斷</h2>
+        <p id="dcMsg" class="xs" style="line-height:1.8;margin-bottom:6px"></p>
+        <p id="dcTime" class="xs muted" style="margin-bottom:16px"></p>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <button type="button" class="btn btn-gold" id="dcReload">重新整理頁面</button>
+          <button type="button" class="small-btn" id="dcClose">稍後再說</button>
+        </div>
+      </div>`
+    document.body.appendChild(el)
+    el.querySelector('#dcReload').addEventListener('click', () => location.reload())
+    el.querySelector('#dcClose').addEventListener('click', () => { el.style.display = 'none' })
+    dc.el = el
+    return el
+  }
+  function dcPaint() {
+    const el = dcBuild()
+    el.querySelector('#dcMsg').innerHTML = dc.fatal
+      ? '連線已被伺服器終止（可能是伺服器重啟或登入已失效）。<br>請重新整理頁面並重新登入。'
+      : '正在嘗試自動重新連線……<br>連線期間你的角色無法同步，野外妖獸仍可能攻擊你。恢復後會回到主城。'
+    el.querySelector('#dcTime').textContent = dc.since ? `已中斷 ${Math.max(1, Math.round((Date.now() - dc.since) / 1000))} 秒` : ''
+    el.querySelector('#dcClose').style.display = dc.fatal ? 'none' : ''
+  }
+  function showDisconnect(fatal) {
+    if (!net.token) return
+    if (!dc.since) dc.since = Date.now()
+    if (fatal) dc.fatal = true
+    const open = () => { dc.timer = 0; dcPaint(); dcBuild().style.display = 'flex'; if (!dc.tm) dc.tm = setInterval(dcPaint, 1000) }
+    if (dc.fatal) { if (dc.timer) { clearTimeout(dc.timer); dc.timer = 0 } open(); return }
+    if (!dc.timer && dc.el?.style.display !== 'flex') dc.timer = setTimeout(open, DC_GRACE)
+  }
+  function hideDisconnect() {
+    if (dc.timer) { clearTimeout(dc.timer); dc.timer = 0 }
+    if (dc.tm) { clearInterval(dc.tm); dc.tm = 0 }
+    const was = dc.el && dc.el.style.display === 'flex'
+    dc.since = 0; dc.fatal = false
+    if (dc.el) dc.el.style.display = 'none'
+    if (was) addLog('已重新連上伺服器。', 'success')
+  }
+  window.addEventListener('offline', () => showDisconnect(false))
+  window.addEventListener('online', () => { if (dc.el && dc.el.style.display === 'flex' && !dc.fatal) dcPaint() })
+
   function connectStream() {
     const es = new EventSource('/api/stream?token=' + net.token)
     net.es = es
     const on = (ev, fn) => es.addEventListener(ev, (e) => { try { fn(JSON.parse(e.data)) } catch (err) {} })
-    on('hello', (d) => { if (d.town) { town.map = town.townMap = d.town; town.curMap = 'town'; town.mobs = {}; town.players = {}; town.inited = false; townSetPlayers(d.pos) } net.offset = d.serverTime - Date.now(); net.online = d.online; net.auctions = d.auctions; net.boss = d.boss; net.chat = d.chat; setNet(true); refreshNet('all') })
+    on('hello', (d) => { hideDisconnect(); if (d.town) { town.map = town.townMap = d.town; town.curMap = 'town'; town.mobs = {}; town.players = {}; town.inited = false; townSetPlayers(d.pos) } net.offset = d.serverTime - Date.now(); net.online = d.online; net.auctions = d.auctions; net.boss = d.boss; net.chat = d.chat; setNet(true); refreshNet('all') })
     on('pos', (d) => townSetPlayers(d))
     on('mon', (d) => townSetMobs(d))
     on('hit', (d) => fieldHit(d))
@@ -1808,7 +1864,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     on('mail', (d) => applyMail(d.mail))
     es.onerror = () => {
       setNet(false)
-      if (es.readyState === EventSource.CLOSED) addLog('與伺服器的連線已中斷，請重新整理頁面並重新登入。', 'danger')
+      if (es.readyState === EventSource.CLOSED) { addLog('與伺服器的連線已中斷，請重新整理頁面並重新登入。', 'danger'); showDisconnect(true) }
+      else showDisconnect(false)   // 瀏覽器會自動重連；超過寬限時間仍未恢復才彈窗
     }
   }
 
