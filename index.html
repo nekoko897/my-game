@@ -14,7 +14,10 @@
 <meta name="description" content="一款修仙風格的遊戲介面：修煉、突破境界、施展功法，踏上長生大道。" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet" />
+<!-- 字型改為「非阻塞」載入：Google Fonts 在中國大陸常被擋，若用一般 stylesheet 會卡住整個畫面；
+     這樣載入不到時會直接使用下方的系統字型，不影響遊玩。 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" media="print" onload="this.media='all'" />
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" /></noscript>
 <style>
   /* 墨青 · 宣紙 · 翡翠 · 鎏金 · 硃砂 */
   :root {
@@ -28,8 +31,8 @@
     --destructive: oklch(0.62 0.19 30);
     --border: oklch(0.76 0.11 165 / 20%);
     --radius: 6px;
-    --sans: 'Noto Sans TC', sans-serif;
-    --serif: 'Noto Serif TC', serif;
+    --sans: 'Noto Sans TC', 'PingFang SC', 'PingFang TC', 'Microsoft YaHei', 'Microsoft JhengHei', 'Noto Sans CJK SC', 'Noto Sans CJK TC', 'Heiti SC', sans-serif;
+    --serif: 'Noto Serif TC', 'Songti SC', 'Songti TC', 'SimSun', 'PMingLiU', 'Noto Serif CJK SC', 'Noto Serif CJK TC', serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: var(--background); color: var(--foreground); font-family: var(--sans); -webkit-font-smoothing: antialiased; width: 100%; height: 100%; overflow: hidden; }
