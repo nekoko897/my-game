@@ -214,6 +214,7 @@
   .cluster { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .item-list { display: flex; flex-direction: column; gap: 10px; }
   .item-card { display: flex; gap: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in oklch, var(--background) 40%, transparent); padding: 10px; }
+  .item-img { width: 32px; height: 32px; image-rendering: pixelated; display: block }
   .item-icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--radius); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 20px; background: color-mix(in oklch, var(--background) 60%, transparent); }
 
   /* 秘境 / 狩獵地點 */
@@ -876,6 +877,50 @@
     // ↑ 在這裡繼續加新道具，例如：
     // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
   }
+
+  /* ========== 道具圖示 ==========
+   * 圖片放在 img/items/icon_列_欄.webp（由 32×32 圖集切出，列、欄皆從 00 起算）。
+   * 想換某個道具的圖，只要改下面對應的 '列_欄'；載入失敗或未指定時自動退回 emoji。 */
+  const ITEM_IMG_DIR = 'img/items/icon_'
+  const ITEM_IMG = {
+    qi: '09_01', foundation: '09_09', hpPill: '09_04', bigQi: '09_05',
+    huichun: '09_06', bigHpPill: '09_08', xisui: '09_10', ningyuan: '09_14',
+    pojing: '09_11', kuangbao: '03_11', wudaoTea: '15_14', lingzhi: '14_12',
+    beastPill: '15_01', zhuanggu: '01_04', kaiqiao: '01_03', ningshen: '00_02',
+    zhuanyun: '11_13', cuiguDan: '00_00', tongmingDan: '10_09', tongshenDan: '10_07',
+    tianmingDan: '13_13', wuxingDan: '00_05', dujie: '13_10', jinzhong: '17_07',
+    stonePouch: '12_06', jadePouch: '12_11', treasureBox: '11_11', commonEgg: '15_06',
+    advancedEgg: '15_05', divineEgg: '18_04', commonFeed: '14_07', advancedFeed: '15_02',
+    divineFeed: '14_00', spiritGrass: '11_15', beastHide: '17_08', demonCore: '18_00',
+    jadeSlip: '13_11', thunderCrystal: '17_02', wolfFang: '17_09', batWing: '07_14',
+    blackIron: '17_01', beastBlood: '09_00', tigerBone: '15_03', snakeGall: '09_02',
+    golemCore: '07_07', spiritJade: '18_02', fireLotus: '12_01', soulFire: '04_02',
+    iceSilk: '17_06', ancientCoin: '12_07', inkPearl: '18_05', starIron: '17_04',
+    phoenixFeather: '17_10', dragonScale: '16_13', toadVenom: '00_01', crocScale: '16_10',
+    boneShard: '16_11', ghostJade: '00_04', lavaCore: '03_09', lionMane: '11_14',
+    frostCrystal: '12_14', thunderEssence: '00_08', chaosShard: '12_15', voidPearl: '18_05',
+    ancientRelic: '11_09', forgeCoal: '12_00', pigIron: '17_01', steelIngot: '12_09',
+    spiritSand: '15_10', fireCrystal: '03_12', iceIronEssence: '12_14', thunderWood: '17_00',
+    skyGold: '17_03', divineForgeStone: '17_04', jianxinStone: '11_00', qingmingPill: '18_01',
+    wanjianSlip: '13_00', taiqingDew: '00_10', xuantianFruit: '14_02', zifuTalisman: '13_07',
+    baicaoMarrow: '12_05', jiuzhuanPill: '18_03', zaohuaPill: '12_13', sheli: '08_07',
+    bodhiSeed: '08_08', budongTalisman: '06_02', bloodSoulBead: '01_00', xueshaEssence: '03_00',
+    huaxuePill: '09_13', guKing: '16_02', biXuePill: '00_01', wuduBead: '18_04',
+    ghostFire: '00_09', samsaraFruit: '14_05', soulBanner: '03_14', beastSoul: '00_04',
+    dragonBlood: '09_12', yushouRing: '08_04', cornucopia: '12_10', goldToad: '17_03',
+    wanbaoToken: '13_14', ironSword: '05_01', hideRobe: '07_06', ironCrown: '07_01',
+    wolfBoots: '08_02', boneCharm: '08_08', fireBlade: '05_07', scaleArmor: '07_07',
+    spiritCrown: '07_03', windBoots: '08_03', jadePendant: '08_06', thunderSword: '05_02',
+    dragonArmor: '07_05', phoenixCrown: '07_00', frostBoots: '08_03', voidCharm: '08_05',
+    chaosSword: '05_09', ancientArmor: '07_04', godCrown: '07_02', voidBoots: '03_13',
+    chaosCharm: '08_07', qingshuangSword: '05_03', wanjianRobe: '07_08', taiqingCrown: '07_14',
+    zifuCharm: '13_06', yaowangGourd: '09_13', danhuoRobe: '07_09', jingangHelm: '07_02',
+    arhatCassock: '07_13', xuehunBlade: '05_07', xuehaiArmor: '07_06', wanduRing: '08_04',
+    duwuMask: '10_14', zhaohunCharm: '08_05', guiwangBoots: '08_03', yushouArmor: '07_06',
+    yushouWhip: '16_00', jinsuanPan: '12_10', caishenBoots: '08_02'
+  }
+  for (const [id, cell] of Object.entries(ITEM_IMG)) if (ITEMS[id]) ITEMS[id].img = `${ITEM_IMG_DIR}${cell}.webp`
+  const itemIcon = (def) => (def.img ? `<img class="item-img" src="${def.img}" alt="" draggable="false" onerror="this.replaceWith(document.createTextNode(this.dataset.f))" data-f="${def.icon}">` : def.icon)
 
 document.getElementById('bagModalBody').addEventListener('click', (e) => {
   const unBtn = e.target.closest('[data-modal-unequip]');
@@ -1688,7 +1733,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const worn = Object.values(state.equipped).includes(r.item) ? '（已穿戴）' : ''
     return `
       <li class="item-card">
-        <div class="item-icon">${def.icon}</div>
+        <div class="item-icon">${itemIcon(def)}</div>
         <div class="col" style="flex:1;min-width:0">
           <div class="row" style="align-items:baseline"><span class="bold">${def.name}${worn}</span><span class="xs muted">持有 ${state.inventory[r.item] || 0}</span></div>
           <span class="xs" style="color:${rarityColor(def.rarity)}">${def.rarity}${sectOnly ? ' · 本宗專屬' : ''}</span>
@@ -2183,7 +2228,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return `
         <li class="card">
           <div class="row" style="align-items:flex-start">
-            <div class="cluster"><div class="item-icon">${def.icon}</div>
+            <div class="cluster"><div class="item-icon">${itemIcon(def)}</div>
               <div class="col"><span class="bold">${def.name} <span class="xs muted">× ${a.qty}</span></span>
               <span class="xs muted">賣家：${esc(a.seller)}${mineSell ? '（你）' : ''} · ${a.bidder ? `最高：${lead ? '你' : esc(a.bidder)}` : '尚無人出價'}</span></div></div>
             <span class="xs muted num" style="white-space:nowrap">剩餘 <span data-ends="${a.endsAt}"></span>s</span>
@@ -2948,7 +2993,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const def = ITEMS[id]
       return `
         <li class="item-card">
-          <div class="item-icon">${def.icon}</div>
+          <div class="item-icon">${itemIcon(def)}</div>
           <div class="col" style="flex:1;min-width:0">
             <div class="row" style="align-items:baseline">
               <span class="bold">${def.name}</span>
@@ -2984,7 +3029,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const def = ITEMS[id]
       return `
         <div class="item-card" style="margin-bottom: 10px;">
-          <div class="item-icon">${def.icon}</div>
+          <div class="item-icon">${itemIcon(def)}</div>
           <div class="col" style="flex:1;min-width:0">
             <div class="row" style="align-items:baseline">
               <span class="bold">${def.name}</span>
@@ -3039,7 +3084,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return `
         <li class="card row">
           <div class="cluster">
-            <div class="item-icon">${def.icon}</div>
+            <div class="item-icon">${itemIcon(def)}</div>
             <div class="col">
               <span class="bold">${def.name} <span class="xs muted">× ${state.inventory[id]}</span></span>
               ${itemInfo(id)}
@@ -3165,7 +3210,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const def = ITEMS[id]
       return `
         <li class="card">
-          <div class="cluster"><div class="item-icon">${def.icon}</div><span class="bold">${def.name}</span></div>
+          <div class="cluster"><div class="item-icon">${itemIcon(def)}</div><span class="bold">${def.name}</span></div>
           <div style="margin-top:6px">${itemInfo(id)}</div>
           <div class="row" style="margin-top:8px;align-items:center">
             <span class="xs muted">價格　<span class="bold num" style="color:var(--accent)">${buyPrice(id)}</span> ${def.currency === 'jade' ? '仙玉' : '靈石'}</span>
@@ -3179,7 +3224,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return `
         <li class="card row">
           <div class="cluster">
-            <div class="item-icon">${def.icon}</div>
+            <div class="item-icon">${itemIcon(def)}</div>
             <span class="bold">${def.name} <span class="xs muted">× ${qty}</span></span>
           </div>
           <button type="button" class="small-btn" data-sell-item="${id}">出售（${sellPrice(id)} 靈石）</button>
@@ -3289,7 +3334,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const def = ITEMS[item], have = state.inventory[item] || 0
       return `
         <li class="item-card">
-          <div class="item-icon">${def.icon}</div>
+          <div class="item-icon">${itemIcon(def)}</div>
           <div class="col" style="flex:1;min-width:0">
             <div class="row" style="align-items:baseline"><span class="bold">${def.name}</span><span class="xs muted">持有 ${have}</span></div>
             <span class="xs" style="color:${rarityColor(def.rarity)}">${def.rarity}${def.sect ? ' · 本宗專屬' : ''}</span>
