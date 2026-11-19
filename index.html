@@ -108,7 +108,7 @@
   @media (min-width: 768px) { .shell { padding: 16px; } }
   @media (min-width: 1024px) {
     .shell { height: 100dvh; }
-    .grid { grid-template-columns: 200px 1fr 300px; }
+    .grid { grid-template-columns: 200px 1fr 380px; }
   }
 
   .panel {
@@ -191,6 +191,7 @@
   /* Right column */
   .right { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
   .info { padding: 16px; overflow-y: auto; }
+  @media (min-width: 1024px) { .right .info { flex: 1 1 0; min-height: 180px } }
   .attr { display: flex; flex-direction: column; gap: 4px; }
   .attr + .attr { margin-top: 12px; }
   .attr-head { display: flex; align-items: baseline; justify-content: space-between; }
@@ -226,8 +227,9 @@
   /* 戰鬥 */
   .battle-row { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 8px 0; }
   .combatant { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-  .battle-log { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; padding-right: 4px; }
-  .battle-log li { border-left: 1px solid var(--border); padding-left: 8px; line-height: 1.5; }
+  .battle-log { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; padding-right: 4px; font-size: 14px; }
+  .battle-log li { border-left: 3px solid var(--border); padding: 3px 8px; line-height: 1.55; color: color-mix(in oklch, var(--foreground) 82%, transparent); }
+  .battle-log li:first-child { border-left-color: var(--accent); color: var(--foreground); font-weight: 700; background: color-mix(in oklch, var(--accent) 9%, transparent); }
 
   /* 交易所 / 拍賣場輸入框 */
   .exchange-input { flex: 1; background: color-mix(in oklch, var(--background) 60%, transparent); border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 10px; color: var(--foreground); font: inherit; min-width: 0; }
@@ -240,10 +242,19 @@
   .sect-card.selected { border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: color-mix(in oklch, var(--accent) 8%, transparent); }
 
   .log-wrap { display: flex; flex-direction: column; height: 256px; min-height: 0; }
-  @media (min-width: 1024px) { .log-wrap { height: auto; flex: 1; } }
+  @media (min-width: 1024px) { .log-wrap { height: auto; flex: 0 0 34%; min-height: 210px; } }
   .log { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 16px; }
-  .log ol { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 14px; line-height: 1.65; }
-  .log li { border-left: 1px solid var(--border); padding-left: 12px; animation: log-in .3s ease-out; }
+  .log ol { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 15px; line-height: 1.65; }
+  .log li, .log-modal li { border-left: 3px solid var(--border); padding: 6px 10px; border-radius: 0 var(--radius) var(--radius) 0; background: color-mix(in oklch, var(--foreground) 4%, transparent); animation: log-in .3s ease-out; }
+  .log li.tone-success, .log-modal li.tone-success { border-left-color: var(--primary); background: color-mix(in oklch, var(--primary) 10%, transparent); }
+  .log li.tone-danger, .log-modal li.tone-danger { border-left-color: var(--destructive); background: color-mix(in oklch, var(--destructive) 12%, transparent); font-weight: 600; }
+  .log li.tone-gold, .log-modal li.tone-gold { border-left-color: var(--accent); background: color-mix(in oklch, var(--accent) 11%, transparent); font-weight: 600; }
+  .log li:first-child { box-shadow: 0 0 0 1px color-mix(in oklch, currentColor 35%, transparent); }
+  .log time, .log-modal time { font-size: 11px; opacity: .6; margin-right: 8px; font-variant-numeric: tabular-nums; font-weight: 400; }
+  .log-modal ol { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; min-height: 0; font-size: 16px; line-height: 1.7; padding-right: 4px; }
+  .toasts { position: fixed; bottom: 108px; left: 50%; transform: translateX(-50%); z-index: 85; display: flex; flex-direction: column; gap: 8px; width: min(440px, 92vw); pointer-events: none; }
+  .toast { padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: color-mix(in oklch, var(--card) 96%, black); font-size: 15px; line-height: 1.6; box-shadow: 0 6px 24px rgba(0,0,0,.45); animation: log-in .25s ease-out; }
+  .toast.tone-danger { border-color: var(--destructive); } .toast.tone-gold { border-color: var(--accent); }
   .tone-normal { color: color-mix(in oklch, var(--foreground) 80%, transparent); }
   .tone-success { color: var(--primary); }
   .tone-danger { color: var(--destructive); }
@@ -326,7 +337,7 @@
     max-height: 55vh;
   }
   .log-wrap {
-    height: 200px;
+    height: 320px;
   }
 
   /* 5. 按鈕加大觸控區域，方便手指點擊 */
@@ -479,7 +490,7 @@
           </section>
           <div class="log-wrap">
             <section class="panel log" aria-labelledby="log-title">
-              <h2 class="panel-title" id="log-title" style="margin-bottom:12px">修仙日誌</h2>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h2 class="panel-title" id="log-title" style="margin:0">修仙日誌</h2><button type="button" class="small-btn" id="logExpand" aria-haspopup="dialog">放大</button></div>
               <ol id="log" aria-live="polite"></ol>
             </section>
           </div>
@@ -1825,6 +1836,53 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     b.style.color = up ? 'var(--primary)' : 'var(--destructive)'
   }
 
+
+  /* ========== 獎勵彈出視窗 ==========
+   * GM 發的獎勵（單發或全服）每項一封傳書，帶相同的 rw.id；同一批在 RW_WAIT 毫秒內合併成一個視窗，
+   * 多批獎勵會排隊逐一顯示。離線期間累積的獎勵會在下次登入時一併彈出。 */
+  const RW_WAIT = 400
+  const rw = { pending: {}, queue: [], timer: 0, el: null, open: false }
+  function rewardAdd(m) {
+    const g = rw.pending[m.rw.id] || (rw.pending[m.rw.id] = { title: m.rw.title || '天道賞賜', note: m.rw.note || '', lines: [] })
+    if (m.kind === 'stones') g.lines.push(`<span class="rw-ico">💎</span><span>靈石</span><b class="num">+${Math.abs(m.amount)}</b>`)
+    else if (m.kind === 'xp') g.lines.push(`<span class="rw-ico">✨</span><span>修為</span><b class="num">+${m.raw ? m.amount : xpGain(m.amount)}</b>`)
+    else if (m.kind === 'item') { const d = ITEMS[m.item] || { name: m.item, icon: '🎁' }; g.lines.push(`<span class="rw-ico">${itemIcon(d)}</span><span>${esc(d.name)}</span><b class="num">× ${m.qty || 1}</b>`) }
+    clearTimeout(rw.timer)
+    rw.timer = setTimeout(() => { rw.queue.push(...Object.values(rw.pending)); rw.pending = {}; rewardNext() }, RW_WAIT)
+  }
+  function rewardBuild() {
+    if (rw.el) return rw.el
+    const el = document.createElement('div')
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'rwTitle')
+    el.style.cssText = 'position:fixed;inset:0;z-index:95;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.65);backdrop-filter:blur(3px)'
+    el.innerHTML = `
+      <style>.rw-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(255,255,255,.03)}.rw-row span:nth-child(2){flex:1;text-align:left}.rw-ico{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:22px}@keyframes rwPop{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}</style>
+      <div class="panel" style="width:min(380px,92vw);padding:24px;text-align:center;animation:rwPop .25s ease-out">
+        <div style="font-size:38px;line-height:1" aria-hidden="true">🎁</div>
+        <h2 id="rwTitle" class="panel-title" style="margin:10px 0 4px;font-size:17px;color:var(--accent)"></h2>
+        <p class="xs muted" id="rwSub" style="margin-bottom:12px">天道降下賞賜，已存入你的背包</p>
+        <div id="rwLines" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+        <p id="rwNote" class="xs" style="line-height:1.7;margin-bottom:6px"></p>
+        <p id="rwMore" class="xs muted" style="margin-bottom:12px"></p>
+        <button type="button" class="btn btn-gold" id="rwOk" style="min-width:140px">收下</button>
+      </div>`
+    document.body.appendChild(el)
+    el.querySelector('#rwOk').addEventListener('click', () => { el.style.display = 'none'; rw.open = false; rewardNext() })
+    window.addEventListener('keydown', (e) => { if (rw.open && (e.key === 'Escape' || e.key === 'Enter')) { e.preventDefault(); e.stopPropagation(); el.querySelector('#rwOk').click() } }, true)
+    rw.el = el
+    return el
+  }
+  function rewardNext() {
+    if (rw.open || !rw.queue.length) return
+    const g = rw.queue.shift(), el = rewardBuild()
+    el.querySelector('#rwTitle').textContent = g.title
+    el.querySelector('#rwLines').innerHTML = g.lines.map((l) => `<div class="rw-row">${l}</div>`).join('')
+    el.querySelector('#rwNote').textContent = g.note ? `「${g.note}」` : ''
+    el.querySelector('#rwMore').textContent = rw.queue.length ? `還有 ${rw.queue.length} 份獎勵` : ''
+    el.style.display = 'flex'; rw.open = true
+    el.querySelector('#rwOk').focus()
+  }
+
   function applyMail(list) {
     const ids = []
     for (const m of list || []) {
@@ -1832,8 +1890,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       net.seenMail.add(m.id); ids.push(m.id)
       if (m.kind === 'stones') state.stones = Math.max(0, state.stones + m.amount)
       else if (m.kind === 'item') addItem(m.item, m.qty || 1)
-      else if (m.kind === 'xp') state.xp = Math.min(required(), state.xp + xpGain(m.amount))
+      else if (m.kind === 'xp') state.xp = Math.min(required(), state.xp + (m.raw ? m.amount : xpGain(m.amount)))   // raw = GM 發放的原數字，不套用修為縮放
       addLog(m.text || '收到一封傳書。', m.kind === 'stones' && m.amount < 0 ? 'danger' : 'gold')
+      if (m.rw) rewardAdd(m)
     }
     if (ids.length) { api('mail/ack', { ids }); render(); if (['bag', 'market', 'auction', 'pets'].includes(state.nav)) renderInfo() }
   }
@@ -2052,7 +2111,51 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <input id="gmMsg" class="exchange-input" maxlength="60" placeholder="選填" autocomplete="off" />
         </label>
         <button type="button" class="small-btn" data-gm-send>發送</button>
-      </div>${renderGMChat()}${renderGMReports()}`
+      </div>${renderGMAll(opts)}${renderGMChat()}${renderGMReports()}`
+  }
+  function renderGMAll(opts) {
+    return `
+      <div class="card stack" style="gap:10px">
+        <h3 class="xs muted" style="letter-spacing:.2em">全服獎勵 · 一次發給所有玩家</h3>
+        <p class="xs muted">選「所有玩家」時，離線玩家下次登入會自動入帳，並彈出獎勵視窗；在線玩家即時收到並彈窗。GM 帳號本身不會收到。</p>
+        <label class="xs">發放對象
+          <select id="gmAllScope" class="exchange-input"><option value="all">所有玩家（含離線）</option><option value="online">只發給目前在線</option></select>
+        </label>
+        <label class="xs">獎勵標題（彈窗大標，例如「停機補償」）
+          <input id="gmAllTitle" class="exchange-input" maxlength="20" placeholder="天道賞賜" autocomplete="off" />
+        </label>
+        <label class="xs">靈石（可留空）
+          <input id="gmAllStones" class="exchange-input" type="number" min="0" max="1000000000" placeholder="0" />
+        </label>
+        <label class="xs">修為（可留空）
+          <input id="gmAllXp" class="exchange-input" type="number" min="0" max="1000000000" placeholder="0" />
+        </label>
+        <label class="xs">道具（可留空）
+          <select id="gmAllItem" class="exchange-input"><option value="">— 不送道具 —</option>${opts}</select>
+        </label>
+        <label class="xs">道具數量
+          <input id="gmAllQty" class="exchange-input" type="number" min="1" max="99999" value="1" />
+        </label>
+        <label class="xs">說明文字（玩家會在彈窗看到）
+          <input id="gmAllMsg" class="exchange-input" maxlength="60" placeholder="選填，例如：昨晚維護造成不便，敬請見諒" autocomplete="off" />
+        </label>
+        <button type="button" class="small-btn" data-gm-sendall>發放全服獎勵</button>
+      </div>`
+  }
+  async function sendGMAll() {
+    const scope = $('gmAllScope').value, title = $('gmAllTitle').value.trim(), stones = Math.floor(Number($('gmAllStones').value) || 0), xp = Math.floor(Number($('gmAllXp').value) || 0)
+    const item = $('gmAllItem').value, qty = Math.floor(Number($('gmAllQty').value) || 1), text = $('gmAllMsg').value.trim()
+    if (stones <= 0 && xp <= 0 && !item) return addLog('請至少填寫靈石、修為或選擇道具', 'danger')
+    const parts = []
+    if (stones > 0) parts.push(`${stones} 靈石`)
+    if (xp > 0) parts.push(`${xp} 修為`)
+    if (item) parts.push(`${(ITEMS[item] || {}).name || item} × ${qty}`)
+    if (!confirm(`確定發放給「${scope === 'all' ? '所有玩家（含離線）' : '目前在線玩家'}」？\n標題：${title || '天道賞賜'}\n內容：${parts.join('、')}${text ? `\n說明：${text}` : ''}\n\n發出後無法收回。`)) return
+    const r = await api('gm/sendall', { scope, title, stones: Math.max(0, stones), xp: Math.max(0, xp), item, qty, text })
+    if (!r.ok) return addLog(r.error || '發放失敗', 'danger')
+    addLog(`已發放全服獎勵給 ${r.count} 位玩家（其中 ${r.online} 位在線即時送達）：${parts.join('、')}`, 'gold')
+    for (const id of ['gmAllStones', 'gmAllXp', 'gmAllMsg', 'gmAllTitle']) $(id).value = ''
+    $('gmAllItem').value = ''; $('gmAllQty').value = '1'
   }
   async function sendGM() {
     const target = $('gmTarget').value.trim(), stones = Math.floor(Number($('gmStones').value) || 0)
@@ -2420,13 +2523,64 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     applyMail(r.mail)
   }
 
-  function addLog(text, tone = 'normal') {
+  /* ========== 修仙日誌 ==========
+   * 側欄日誌（最新 60 則）＋歷史（最新 300 則，可按「放大」查看）＋重要訊息（danger／gold）的頂部提示＋主城畫面下方的最近訊息。 */
+  const logHist = []
+  const LOG_HIST_MAX = 300
+  const logTime = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  function logItem(e) {
     const li = document.createElement('li')
-    li.className = 'tone-' + tone
-    li.textContent = text
+    li.className = 'tone-' + e.tone
+    const t = document.createElement('time'); t.textContent = e.time
+    li.append(t, document.createTextNode(e.text))
+    return li
+  }
+  function addLog(text, tone = 'normal') {
+    const e = { text, tone, time: logTime(new Date()) }
+    logHist.unshift(e); if (logHist.length > LOG_HIST_MAX) logHist.pop()
     const log = $('log')
-    log.prepend(li)
-    while (log.children.length > 40) log.lastChild.remove()
+    if (log) { log.prepend(logItem(e)); while (log.children.length > 60) log.lastChild.remove() }
+    if (tone === 'danger' || tone === 'gold') toast(e)
+    if (logModal.open) logModalFill()
+    townLogFill()
+  }
+  const toastBox = { el: null, last: '', at: 0 }
+  function toast(e) {
+    if (performance.now() < 3500) return   // 剛載入時的歡迎訊息不跳提示
+    if (state.nav === 'town' && town.big) return   // 主城全螢幕畫面下方已有訊息列
+    if (e.text === toastBox.last && Date.now() - toastBox.at < 1500) return
+    toastBox.last = e.text; toastBox.at = Date.now()
+    if (!toastBox.el) { toastBox.el = document.createElement('div'); toastBox.el.className = 'toasts'; toastBox.el.setAttribute('role', 'status'); document.body.appendChild(toastBox.el) }
+    const d = document.createElement('div'); d.className = 'toast tone-' + e.tone; d.textContent = e.text
+    toastBox.el.appendChild(d)
+    while (toastBox.el.children.length > 3) toastBox.el.firstChild.remove()
+    setTimeout(() => { d.style.transition = 'opacity .4s'; d.style.opacity = '0'; setTimeout(() => d.remove(), 450) }, 3800)
+  }
+  const logModal = { el: null, open: false }
+  function logModalFill() { const ol = logModal.el && logModal.el.querySelector('ol'); if (!ol) return; ol.replaceChildren(...logHist.map(logItem)) }
+  function logModalShow() {
+    if (!logModal.el) {
+      const el = document.createElement('div')
+      el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'logModalTitle')
+      el.style.cssText = 'position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.65);backdrop-filter:blur(3px)'
+      el.innerHTML = `<div class="panel log-modal" style="width:min(720px,94vw);height:min(82vh,760px);padding:18px;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h2 class="panel-title" id="logModalTitle" style="margin:0">修仙日誌（最近 ${LOG_HIST_MAX} 則）</h2><button type="button" class="small-btn" id="logClose">關閉</button></div>
+        <ol></ol></div>`
+      document.body.appendChild(el)
+      const close = () => { el.style.display = 'none'; logModal.open = false }
+      el.querySelector('#logClose').addEventListener('click', close)
+      el.addEventListener('click', (ev) => { if (ev.target === el) close() })
+      window.addEventListener('keydown', (ev) => { if (logModal.open && ev.key === 'Escape') { ev.preventDefault(); close() } })
+      logModal.el = el
+    }
+    logModal.el.style.display = 'flex'; logModal.open = true; logModalFill()
+    logModal.el.querySelector('#logClose').focus()
+  }
+  document.addEventListener('click', (e) => { if (e.target.closest('#logExpand')) logModalShow() })
+  // 主城全螢幕畫面看不到側欄，改在畫面下方顯示最近 3 則訊息
+  function townLogFill() {
+    const el = town.wrap && town.wrap.querySelector('#townLog'); if (!el) return
+    el.replaceChildren(...logHist.slice(0, 3).map(logItem))
   }
 
   function setBar(id, valId, value, max) {
@@ -2475,6 +2629,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       w.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b id="townTitle" style="color:var(--accent)">主城</b><button type="button" class="small-btn" id="townToggle"></button></div>
         <canvas id="townCv" style="width:100%;display:block;border-radius:10px;border:1px solid var(--border);background:#1d2b1f;touch-action:none" aria-label="主城地圖"></canvas>
+        <ol id="townLog" class="log-modal" style="list-style:none;margin:8px 0 0;padding:0;width:100%;display:flex;flex-direction:column;gap:4px;font-size:14px;line-height:1.5;min-height:0"></ol>
         <div id="townBar" style="margin:8px 0 0;width:100%"></div>
         <div id="townPrompt" style="margin:8px 0;min-height:38px"></div>
         <div id="townPad" style="display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,44px);gap:6px;justify-content:center;margin:6px 0">
@@ -2501,6 +2656,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       wr.style.cssText = ''; host.appendChild(wr); tg.textContent = '放大全螢幕'
     }
     if (!isOnline() || !town.map) { town.wrap.querySelector('#townPrompt').innerHTML = '<p class="muted">需要登入連線後才能進入主城。</p>' }
+    townLogFill()
     townResize()
     if (!town.raf) { town.lastT = performance.now(); town.raf = requestAnimationFrame(townFrame) }
   }
@@ -2508,7 +2664,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function townResize() {
     const cv = town.cv; if (!cv) return
     let w, h
-    if (town.big) { w = Math.max(260, Math.min(1000, window.innerWidth - 24)); h = Math.max(180, Math.min(640, window.innerHeight - 330)) }
+    if (town.big) { w = Math.max(260, Math.min(1000, window.innerWidth - 24)); h = Math.max(160, Math.min(640, window.innerHeight - 400)) }
     else { w = Math.max(240, Math.min(720, (cv.parentElement && cv.parentElement.clientWidth) || 480)); h = Math.round(w * 0.65) }
     cv.style.maxWidth = w + 'px'; cv.style.width = '100%'
     const dpr = window.devicePixelRatio || 1
@@ -2519,7 +2675,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   const townTyping = () => { const a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) }
   window.addEventListener('keydown', (e) => {
-    if (state.nav !== 'town' || townTyping()) return
+    if (state.nav !== 'town' || townTyping() || rw.open) return
     const k = e.key.toLowerCase()
     if (k === 'escape' && town.big) { town.big = false; townMount(); return }
     const map = { w: 'u', arrowup: 'u', s: 'd', arrowdown: 'd', a: 'l', arrowleft: 'l', d: 'r', arrowright: 'r' }
@@ -2842,7 +2998,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('info-title').textContent = NAV.find((n) => n.id === state.nav).label
     // 重繪前記住輸入框內容與焦點，避免被每次更新清掉
     const keep = {}
-    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'reportType', 'reportText', 'gmChatQ', 'gmMuteTarget', 'gmMuteMin']) { const el = $(id); if (el) keep[id] = el.value }
+    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'gmAllScope', 'gmAllTitle', 'gmAllStones', 'gmAllXp', 'gmAllItem', 'gmAllQty', 'gmAllMsg', 'reportType', 'reportText', 'gmChatQ', 'gmMuteTarget', 'gmMuteMin']) { const el = $(id); if (el) keep[id] = el.value }
     const focusId = document.activeElement && document.activeElement.id
     let html = ''
     switch (state.nav) {
@@ -3201,7 +3357,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <button type="button" class="btn btn-gold" data-attack>攻擊</button>
           <button type="button" class="btn btn-ghost" data-flee>逃跑</button>
         </div>
-        <ol class="battle-log xs muted">${b.log.map((l) => `<li>${l}</li>`).join('')}</ol>
+        <ol class="battle-log">${b.log.map((l) => `<li>${l}</li>`).join('')}</ol>
       </div>`
   }
 
@@ -3788,7 +3944,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
   function battleLog(text) {
     state.battle.log.unshift(text)
-    if (state.battle.log.length > 6) state.battle.log.pop()
+    if (state.battle.log.length > 10) state.battle.log.pop()
   }
   // 妖獸反擊；玩家倒下回傳 true（已處理敗北）
   function monsterTurn() {
@@ -3963,6 +4119,7 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen())
   $('infoBody').addEventListener('input', (e) => { if (e.target.id === 'listPrice' || e.target.id === 'listQty') updateListSuggest(false) })
   $('infoBody').addEventListener('click', (e) => {
     if (e.target.closest('[data-suggest-apply]')) return updateListSuggest(true)
+    if (e.target.closest('[data-gm-sendall]')) return sendGMAll()
     if (e.target.closest('[data-gm-send]')) return sendGM()
     if (e.target.closest('[data-chatlog-load]')) return loadChatLog()
     const muteDo = e.target.closest('[data-mute-do]')

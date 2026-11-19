@@ -162,6 +162,14 @@ function mail(key, m) {
   m.id = db.nextId++; p.mail = p.mail || []; p.mail.push(m); dirty = true
   sendTo(key, 'mail', { mail: [m] })
 }
+/* GM 獎勵傳書：每項獎勵一封 mail，帶 rw（同一批 id、標題、備註），客戶端據此合併成一個「獎勵彈出視窗」。
+ * 沿用既有的 stones／xp／item 類型，所以不需要客戶端新增處理邏輯就能入帳。 */
+function giveReward(key, o) {
+  const rw = { id: o.id, title: o.title || '天道賞賜', note: o.reason || '' }, note = o.reason ? `（${o.reason}）` : ''
+  if (o.stones) mail(key, { kind: 'stones', amount: o.stones, rw, text: `天道傳書：獲贈 ${o.stones} 靈石${note}` })
+  if (o.xp) mail(key, { kind: 'xp', amount: o.xp, raw: true, rw, text: `天道傳書：獲贈 ${o.xp} 點修為${note}` })
+  if (o.item) { const d = ITEM_DEFS[o.item] || {}; mail(key, { kind: 'item', item: o.item, qty: o.qty, rw, text: `天道傳書：獲贈 ${d.icon || ''}「${d.name || o.item}」× ${o.qty}${note}` }) }
+}
 const NPC_PREFIX = 'npc_'
 const isNpc = (k) => typeof k === 'string' && k.startsWith(NPC_PREFIX)
 const nameOf = (k) => (db.players[k] || {}).name || (isNpc(k) ? k.slice(NPC_PREFIX.length) : k)
@@ -569,14 +577,35 @@ const server = http.createServer(async (req, res) => {
       if (!stones && !item) return json(res, 400, { error: '請至少填寫靈石或選擇道具' })
       if (item && !(/^[A-Za-z]{1,24}$/.test(item) && ITEM_DEFS[item])) return json(res, 400, { error: '無此道具' })
       const reason = String(b.text || '').trim().replace(/[<>]/g, '').slice(0, 60), note = reason ? `（${reason}）` : ''
-      if (stones) mail(tk, { kind: 'stones', amount: stones, text: `天道傳書：獲贈 ${stones} 靈石${note}` })
-      if (item) mail(tk, { kind: 'item', item, qty, text: `天道傳書：獲贈 ${ITEM_DEFS[item].icon || ''}「${ITEM_DEFS[item].name || item}」× ${qty}${note}` })
+      giveReward(tk, { id: 'rw' + db.nextId++, title: String(b.title || '').replace(/[<>]/g, '').trim().slice(0, 20), stones, item, qty, reason })
       db.gmLog = db.gmLog || []
       db.gmLog.push({ t: now(), gm: key, to: tk, stones, item, qty: item ? qty : 0, text: reason })
       if (db.gmLog.length > 500) db.gmLog.shift()
       dirty = true
       console.log(`[GM] ${key} -> ${tk}: 靈石 ${stones}${item ? `, ${item} x${qty}` : ''} ${reason}`)
       return json(res, 200, { ok: true, to: tp.name, online: onlineKeys().includes(tk) })
+    }
+    if (p === '/api/gm/sendall') {
+      // GM 專用：全服獎勵。scope = 'all'（所有玩家，含離線，離線者下次登入由傳書入帳）或 'online'（僅目前在線）
+      if (!isGMKey(key)) return json(res, 403, { error: '無權限' })
+      if (limited(key, 'gmall', 5000)) return json(res, 429, { error: '操作太快，請稍候 5 秒' })
+      const stones = num(b.stones, 0, 1e9), xp = num(b.xp, 0, 1e9), item = String(b.item || ''), qty = num(b.qty || 1, 1, 99999)
+      if (!stones && !xp && !item) return json(res, 400, { error: '請至少填寫靈石、修為或選擇道具' })
+      if (item && !(/^[A-Za-z]{1,24}$/.test(item) && ITEM_DEFS[item])) return json(res, 400, { error: '無此道具' })
+      const title = String(b.title || '').replace(/[<>]/g, '').trim().slice(0, 20) || '天道賞賜'
+      const reason = String(b.text || '').trim().replace(/[<>]/g, '').slice(0, 60)
+      const scope = b.scope === 'online' ? 'online' : 'all', on = onlineKeys()
+      const keys = Object.keys(db.players).filter((k) => !isNpc(k) && !isGMKey(k) && (scope === 'all' || on.includes(k)))
+      if (!keys.length) return json(res, 400, { error: '沒有符合條件的玩家' })
+      const id = 'rw' + db.nextId++
+      for (const k of keys) giveReward(k, { id, title, stones, xp, item, qty: item ? qty : 0, reason })
+      db.gmLog = db.gmLog || []
+      db.gmLog.push({ t: now(), gm: key, to: scope === 'all' ? '*全服*' : '*在線*', stones, xp, item, qty: item ? qty : 0, text: reason, count: keys.length })
+      if (db.gmLog.length > 500) db.gmLog.shift()
+      dirty = true
+      console.log(`[GM] ${key} 全服獎勵(${scope}) ${keys.length} 人: 靈石 ${stones} 修為 ${xp}${item ? `, ${item} x${qty}` : ''} ${reason}`)
+      sysChat(`🎁 天道降下「${title}」！${scope === 'all' ? '在線修士已收到，離線者下次登入自動入帳。' : '在線修士請查收。'}`)
+      return json(res, 200, { ok: true, count: keys.length, online: keys.filter((k) => on.includes(k)).length })
     }
     if (p === '/api/report') {
       // 玩家回報 BUG／建議：存進 db.reports（保留最近 200 筆），並通知在線 GM
@@ -769,4 +798,4 @@ const server = http.createServer(async (req, res) => {
 // 先從雲端載入資料後，再啟動伺服器
 loadFromCloud().then(() => {
   server.listen(PORT, '0.0.0.0', () => console.log(`問道長生 ORPG 已啟動：http://localhost:${PORT}`))
-})  
+})
