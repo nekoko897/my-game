@@ -1,29 +1,14 @@
 /* 問道長生 · ORPG 伺服器（零依賴，只需 Node 16+）
  * 啟動：node server.js   → 開啟 http://localhost:3000
  * 資料存於 Supabase 雲端資料庫（使用內建 https 模組）。
+ * 遊戲規則與資料在 shared/game-rules.js（前端與伺服器共用）。伺服器是唯一計算與保存數值的地方。
  */
 const http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), crypto = require('crypto')
 const PORT = process.env.PORT || 3000
-// 氣血／靈力上限隨修為成長（須與 index.html 的 hpAt／mpAt 公式一致）
-const BASE_HP = 260, BASE_MP = 120, HP_PER_LV = 20, MP_PER_LV = 4
-const lvIdx = (s) => (s.realm || 0) * 9 + (s.layer || 1) - 1
-// 根骨屬性丹：每點 +1% 氣血上限（最多 30 點），點數存在背包欄位 zqstatroot（須與 index.html 的 STAT_META／STAT_CAP 一致）
-const rootPts = (s) => Math.min(30, Math.max(0, Number(((s && s.inventory) || {}).zqstatroot) || 0))
-// 已穿戴裝備提供的氣血上限%：背包欄位 zqeqp + 裝備 id（須與 index.html 的 EQUIP_KEY／ITEMS.equip 一致）；每個部位只計一件
-let ITEM_DEFS = {}
-const gearHpPct = (s) => {
-  let sum = 0; const slots = new Set()
-  for (const [k, v] of Object.entries((s && s.inventory) || {})) {
-    if (!k.startsWith('zqeqp') || !(Number(v) > 0)) continue
-    const e = (ITEM_DEFS[k.slice(5)] || {}).equip
-    if (!e || slots.has(e.slot)) continue
-    slots.add(e.slot)
-    sum += (e.bonuses || []).filter((b) => b.type === 'hp').reduce((a, b) => a + (Number(b.value) || 0), 0)
-  }
-  return sum
-}
-const hpOf = (s) => Math.round((BASE_HP + lvIdx(s) * HP_PER_LV) * (1 + rootPts(s) * 0.01 + gearHpPct(s)))
-const mpOf = (s) => BASE_MP + lvIdx(s) * MP_PER_LV
+// 【第二、三階段】遊戲規則與資料全部來自共用檔 shared/game-rules.js（前端載入同一份）。
+// 伺服器是唯一計算與保存數值的地方：前端只送出「我要做什麼」，結果由這裡算好、存檔，再傳回前端顯示。
+const R = require('./shared/game-rules.js')
+const ITEM_DEFS = R.ITEMS
 
 // ===== GM 帳號 =====
 // GM 道號（小寫比對）與密碼。強烈建議在部署環境用環境變數 GM_PASSWORD 設定密碼，不要把真密碼寫進程式碼。
@@ -192,10 +177,26 @@ function chat(msg) {
 }
 const stripKeys = (m) => ({ t: m.t, from: m.from, to: m.to, text: m.text, sys: m.sys })
 function sysChat(text) { const m = { from: '天道', text, sys: true, t: now() }; chatHistory.push(m); if (chatHistory.length > 60) chatHistory.shift(); broadcast('chat', m) }
+// 傳書：伺服器發給玩家的東西（拍賣所得、退款、GM 贈送、魔蛟獎勵、切磋輸贏…）。
+// 【第二階段】在這裡「直接入帳」到伺服器存檔，再通知前端顯示訊息；前端不再自己加減數值。
+// pl.mail 只保留通知文字（玩家離線時，下次登入會看到），最多 50 則。
 function mail(key, m) {
   const p = db.players[key]; if (!p) return
-  m.id = db.nextId++; p.mail = p.mail || []; p.mail.push(m); dirty = true
-  sendTo(key, 'mail', { mail: [m] })
+  const s = getSave(key)
+  if (m.kind === 'stones') s.stones = Math.max(0, s.stones + (Number(m.amount) || 0))
+  else if (m.kind === 'item' && R.ITEMS[m.item]) s.inventory[m.item] = (s.inventory[m.item] || 0) + (Number(m.qty) || 1)
+  else if (m.kind === 'xp') s.xp = Math.min(R.required(s), s.xp + R.xpGain(s, Number(m.amount) || 0))
+  s.v = (s.v || 0) + 1
+  m.id = db.nextId++; p.mail = p.mail || []; p.mail.push(m); if (p.mail.length > 50) p.mail.splice(0, p.mail.length - 50)
+  dirty = true
+  sendTo(key, 'mail', { mail: [m], state: R.publicSave(s) })
+}
+// 取得玩家存檔（必要時建立新存檔，或把舊格式轉成新格式）
+function getSave(key) {
+  const p = db.players[key]
+  if (!p.save || p.save.fmt !== R.SAVE_FMT) { p.save = R.migrate(p.save); dirty = true }
+  p.save.gm = isGMKey(key)
+  return p.save
 }
 const NPC_PREFIX = 'npc_'
 const isNpc = (k) => typeof k === 'string' && k.startsWith(NPC_PREFIX)
@@ -206,9 +207,7 @@ const pubBoss = () => ({ name: boss.name, maxHp: boss.maxHp, hp: boss.hp, alive:
 /* ---------- 世界 Boss ---------- */
 const boss = { name: '九幽魔蛟', maxHp: 50000, hp: 50000, alive: true, respawnAt: 0, damage: {}, lastHit: null }
 // 世界王掉落由伺服器判定（客戶端不再自己擲）：每次出手各擲一次，境界須達 BOSS_LOOT_MIN_REALM（0 煉氣…3 元嬰）才有機會
-// 須與 index.html 的 BOSS_PET_LOOT／BOSS_LOOT_MIN_REALM 一致（那邊只用來顯示說明文字）
-const BOSS_LOOT_MIN_REALM = 3
-const BOSS_PET_LOOT = [{ item: 'divineEgg', chance: 0.001 }, { item: 'divineFeed', chance: 0.005 }, { item: 'wuxingDan', chance: 0.0005 }]
+const BOSS_LOOT_MIN_REALM = R.BOSS_LOOT_MIN_REALM, BOSS_PET_LOOT = R.BOSS_PET_LOOT   // 機率在 shared/game-rules.js
 const bossMaxHpNow = () => Math.min(500000, 30000 + 20000 * Math.max(1, onlineKeys().length))   // 重生時依在線人數調整血量
 function topDamage(n) { return Object.entries(boss.damage).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, d]) => ({ name: (db.players[k] || {}).name || k, dmg: d })) }
 function atkRange(s) { const base = 8 + (s.realm || 0) * 10 + (s.layer || 1) * 2, v = Math.round(base * 0.3); return [Math.max(1, base - v), base + v] }
@@ -253,7 +252,7 @@ setInterval(() => {
 
 /* ---------- 全服拍賣 NPC 隨機上架 ----------
  * 每隔 1～5 分鐘（隨機）會有一位 NPC 上架一件物品；物品越高級，被選中的機率越低。
- * 物品清單直接從 index.html 的 ITEMS 讀取（交易所販售的 SHOP_ITEMS 除外），之後在 index.html 新增道具會自動納入。
+ * 物品清單來自 shared/game-rules.js 的 ITEMS（交易所販售的 SHOP_ITEMS 除外），之後新增道具會自動納入。
  * 調整頻率改 NPC_LIST_MIN／NPC_LIST_MAX（秒）；調整稀有度機率改 NPC_RARITY_WEIGHT。 */
 const NPC_NAMES = ['天機子', '素衣仙子', '赤霄道人', '青鸞上仙']
 const NPC_LIST_MIN = 60, NPC_LIST_MAX = 300
@@ -262,32 +261,13 @@ const NPC_RARITY_QTY = { '普通': [1, 6], '精良': [1, 4], '稀有': [1, 2], '
 const NPC_MAX_LISTINGS = 6                                                      // NPC 同時上架的上限
 let NPC_POOL = []
 function loadNpcPool() {
-  try {
-    const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8')
-    const start = src.indexOf('const ITEMS = {')
-    if (start < 0) throw new Error('找不到 ITEMS')
-    // 逐字掃描找出 ITEMS 物件結尾的大括號（略過字串內容）
-    let i = src.indexOf('{', start), depth = 0, quote = null, end = -1
-    for (; i < src.length; i++) {
-      const c = src[i]
-      if (quote) { if (c === '\\') i++; else if (c === quote) quote = null; continue }
-      if (c === "'" || c === '"' || c === '`') { quote = c; continue }
-      if (c === '/' && src[i + 1] === '/') { i = src.indexOf('\n', i); if (i < 0) break; continue }
-      if (c === '{') depth++
-      else if (c === '}' && --depth === 0) { end = i; break }
-    }
-    if (end < 0) throw new Error('ITEMS 結尾不明')
-    const items = require('vm').runInNewContext('(' + src.slice(src.indexOf('{', start), end + 1) + ')')
-    ITEM_DEFS = items   // 裝備加成（氣血上限）計算也要用
-    const shop = (/const SHOP_ITEMS = \[([^\]]*)\]/.exec(src) || [, ''])[1].match(/[A-Za-z]+/g) || []
-    NPC_POOL = Object.entries(items)
-      .filter(([id, d]) => /^[A-Za-z]{1,24}$/.test(id) && !shop.includes(id) && NPC_RARITY_WEIGHT[d.rarity] && d.sell > 0)
-      .map(([id, d]) => ({ id, name: d.name || id, icon: d.icon || '', rarity: d.rarity, sell: d.sell, w: NPC_RARITY_WEIGHT[d.rarity] }))
-    // 以「稀有度」為單位分配機率（普通約 60%、史詩約 3%…），同稀有度內平均分配，不受該稀有度道具種類多寡影響
-    const cnt = {}; NPC_POOL.forEach((x) => { cnt[x.rarity] = (cnt[x.rarity] || 0) + 1 })
-    NPC_POOL.forEach((x) => { x.w = NPC_RARITY_WEIGHT[x.rarity] / cnt[x.rarity] })
-    console.log(`拍賣 NPC 物品池：${NPC_POOL.length} 種`)
-  } catch (e) { console.error('載入 NPC 拍賣物品池失敗，NPC 不會上架：', e.message) }
+  NPC_POOL = Object.entries(R.ITEMS)
+    .filter(([id, d]) => !R.SHOP_ITEMS.includes(id) && NPC_RARITY_WEIGHT[d.rarity] && d.sell > 0)
+    .map(([id, d]) => ({ id, name: d.name || id, icon: d.icon || '', rarity: d.rarity, sell: d.sell, w: NPC_RARITY_WEIGHT[d.rarity] }))
+  // 以「稀有度」為單位分配機率（普通約 60%、史詩約 3%…），同稀有度內平均分配，不受該稀有度道具種類多寡影響
+  const cnt = {}; NPC_POOL.forEach((x) => { cnt[x.rarity] = (cnt[x.rarity] || 0) + 1 })
+  NPC_POOL.forEach((x) => { x.w = NPC_RARITY_WEIGHT[x.rarity] / cnt[x.rarity] })
+  console.log(`拍賣 NPC 物品池：${NPC_POOL.length} 種`)
 }
 loadNpcPool()
 let nextNpcListAt = now() + rnd(NPC_LIST_MIN, NPC_LIST_MAX) * 1000
@@ -328,13 +308,13 @@ setInterval(() => {
 
 /* ---------- PvP ---------- */
 function duel(a, b) {
-  let ha = hpOf(a), hb = hpOf(b)
+  let ha = R.maxHp(a), hb = R.maxHp(b)
   const ra = atkRange(a), rb = atkRange(b)
   for (let i = 0; i < 40; i++) {
     hb -= rnd(ra[0], ra[1]); if (hb <= 0) return true
     ha -= rnd(rb[0], rb[1]); if (ha <= 0) return false
   }
-  return ha / hpOf(a) >= hb / hpOf(b)
+  return ha / R.maxHp(a) >= hb / R.maxHp(b)
 }
 
 /* ---------- HTTP ---------- */
@@ -349,223 +329,12 @@ const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'applic
 const cleanName = (n) => String(n || '').trim().replace(/[<>&"'\s]/g, '').slice(0, 12)
 const num = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0)))
 
-// 每層突破所需修為（須與 index.html 的 required() 一致）
-const requiredXp = (realm, layer) => Math.round(100 * Math.pow(1.6, realm) * (1 + layer * 0.25))
-function sanitizeSave(s) {
-  if (!s || typeof s !== 'object') return null
-  const inv = {}
-  const known = Object.keys(ITEM_DEFS).length > 0
-  for (const [k, v] of Object.entries(s.inventory || {})) {
-    if (!/^[A-Za-z]{1,24}$/.test(k)) continue
-    // 【第一階段】只收「zq 開頭的編碼欄位」與「ITEMS 裡真的存在的道具」，亂塞的 key 直接丟掉
-    if (!k.startsWith('zq') && known && !ITEM_DEFS[k]) continue
-    inv[k] = num(v, 0, k.startsWith('zqqcd') ? 1e9 : k.startsWith('zqstat') ? 30 : 99999)   // zqqcd = 任務冷卻（分鐘）；zqstat = 屬性丹點數，上限 30
-  }
-  const realm = num(s.realm, 0, 6), layer = num(s.layer, 1, 9), cap = { realm, layer, inventory: inv }
-  return {
-    realm, layer, xp: num(s.xp, 0, requiredXp(realm, layer)), hp: num(s.hp, 0, hpOf(cap)), mp: num(s.mp, 0, mpOf(cap)),
-    stones: num(s.stones, 0, 1e12), jade: num(s.jade, 0, 1e9), inventory: inv,
-    sect: String(s.sect || '').slice(0, 16), contribution: num(s.contribution, 0, 1e9),
-  }
-}
-
-/* ======================================================================
- * 【第一階段】存檔異常檢查
- * 目前遊戲的買賣、開寶箱、回合制戰鬥都還在前端計算，伺服器無法逐筆驗證（第二、三階段才會搬到伺服器）。
- * 這裡先做「合理性檢查」：每次存檔都跟伺服器上一份存檔比較，增加的量超出「可能的來源」就拒收，
- * 並把伺服器版本傳回前端覆蓋，同時在 GM 分頁「玩家回報」留下一筆「系統偵測」紀錄。
- *
- * 可能的來源：
- *   ① 伺服器發出去的東西（傳書：拍賣所得、GM 贈送、魔蛟獎勵；野外即時戰鬥的掉落）→ 記在 pl.grants，5 分鐘內有效
- *   ② 背包裡少掉的東西（賣掉、開靈石袋／寶箱、交任務）→ 依道具的出售價或開出上限換算
- *   ③ 回合制戰鬥的掉落 → 依目前境界可進入的秘境，估一個「每秒最多能撿多少」的額度
- *   ④ 宗門任務的靈石獎勵（依這次增加的貢獻換算）＋少量寬限值
- *
- * 檢查項目：
- *   - 境界：一次最多升 1 層，且兩次升層至少間隔 10 秒
- *   - 宗門貢獻：單次存檔最多 +130，20 分鐘內最多 +240（所有宗門任務一輪約 100 出頭）
- *   - 靈石＋仙玉（仙玉以 500 靈石計）：增加量 ≤ ① + ② + 寬限
- *   - 總資產（錢＋背包所有道具的出售價）：增加量 ≤ ① + ② + ③ + 花掉的貢獻 + 寬限
- *   - 屬性丹點數（zqstat）：只能隨「吃掉屬性丹」增加
- *   - 高階功法（zqskl）：新習得的功法要扣得出對應的宗門貢獻
- * GM 帳號不檢查。數值要放寬或收緊，改下面的 SAVE_CHECK。
- * ====================================================================== */
-const JADE_RATE = 500                         // 須與 index.html 的 JADE_RATE 一致
-const SAVE_CHECK = {
-  moneySlack: 100, valueSlack: 150,           // 每次存檔的寬限（靈石價值；四捨五入誤差等）
-  questStonesPerContrib: 14,                  // 宗門任務的靈石獎勵最多是貢獻的幾倍（目前最高 200/15 ≈ 13.3）
-  lvUpGapMs: 10000,                           // 兩次升層最短間隔
-  contribPerSave: 130, contribWindow: 240, contribWindowMs: 20 * 60000,
-  grantTtlMs: 5 * 60000,                      // 伺服器發放紀錄的有效時間
-  maxDt: 15,                                  // 回合制掉落額度最多累計幾秒
-  flagGapMs: 5 * 60000,                       // 同一人多久最多記一筆「系統偵測」
-}
-const DEFAULT_SAVE = { realm: 0, layer: 1, xp: 0, stones: 1000, jade: 1, contribution: 0, inventory: { qi: 5, foundation: 2, spiritGrass: 3, commonEgg: 1, commonFeed: 5 } }   // 須與 index.html 的初始 state 一致
-const saveMeta = new Map()                    // key -> { t: 上次存檔時間, lvUpAt, contrib: [{t,a}], flaggedAt }
-let SKILL_COST = {}                           // 高階功法 id -> 兌換所需貢獻
-let LOOT_ROLL_MAX = 1200                      // 寶箱每抽最多值多少（載入資料後重算）
-let DROP_EV = [150, 150, 150, 150, 150, 150, 150]          // 各境界回合制「每殺一隻」的掉落額度（期望值 × 2，載入資料後重算）
-let DROP_LUCK = [600, 600, 600, 600, 600, 600, 600]        // 各境界「單件大獎」額度（例如仙玉袋），每分鐘最多用一次
-const KILL_GAP_S = 3                                       // 回合制估計最快每 3 秒擊殺一隻
-
-const sellOf = (id) => Number((ITEM_DEFS[id] || {}).sell) || 0
-const effList = (id) => { const e = (ITEM_DEFS[id] || {}).effect; return !e ? [] : Array.isArray(e) ? e : [e] }
-const moneyFromUse = (id) => effList(id).reduce((n, e) => n + (e.type === 'stones' ? Number(e.max) || 0 : e.type === 'jade' ? (Number(e.max) || 0) * JADE_RATE : 0), 0)
-const valueFromUse = (id) => moneyFromUse(id) + effList(id).reduce((n, e) => n + (e.type === 'lootbox' ? (Number(e.rolls) || 0) * LOOT_ROLL_MAX : 0), 0)
-const statFromUse = (id) => effList(id).reduce((n, e) => n + (e.type === 'stat' ? Number(e.value) || 0 : 0), 0)
-const moneyOf = (s) => (Number(s.stones) || 0) + (Number(s.jade) || 0) * JADE_RATE
-// 背包道具數量（已穿戴的 zqeqp+id 併回原道具計算，穿脫裝備不影響總數）
-function itemCounts(inv) {
-  const c = {}
-  for (const [k, v] of Object.entries(inv || {})) {
-    let id = k
-    if (k.startsWith('zqeqp')) id = k.slice(5)
-    else if (k.startsWith('zq')) continue
-    if (!ITEM_DEFS[id]) continue
-    c[id] = (c[id] || 0) + (Number(v) || 0)
-  }
-  return c
-}
-const statSum = (inv) => Object.entries(inv || {}).reduce((n, [k, v]) => n + (k.startsWith('zqstat') ? Number(v) || 0 : 0), 0)
-
-// 記錄「伺服器發給玩家的東西」：money = 靈石價值，value = 總價值（含道具出售價）
-function grant(key, money, value) {
-  const p = db.players[key]
-  if (!p || (!(money > 0) && !(value > 0))) return
-  const t = now()
-  p.grants = (p.grants || []).filter((g) => t - g.t < SAVE_CHECK.grantTtlMs)
-  p.grants.push({ t, m: Math.max(0, money || 0), v: Math.max(0, value || 0) })
-  dirty = true
-}
-const mailValue = (m) => m.kind === 'stones' ? Math.max(0, Number(m.amount) || 0) : m.kind === 'item' ? (Number(m.qty) || 1) * sellOf(m.item) : 0
-
-// 回傳 null = 合理；回傳字串 = 拒收原因
-function checkSave(key, pl, s) {
-  if (isGMKey(key)) return null
-  const t = now(), old = pl.save || DEFAULT_SAVE
-  const meta = saveMeta.get(key) || { t: t - SAVE_CHECK.maxDt * 1000, lvUpAt: 0, contrib: [] }
-  const dt = Math.min(SAVE_CHECK.maxDt, Math.max(1, (t - meta.t) / 1000))
-
-  // 1. 境界
-  const dLv = lvIdx(s) - lvIdx(old)
-  if (dLv > 1) return `境界一次提升 ${dLv} 層`
-  if (dLv === 1 && t - meta.lvUpAt < SAVE_CHECK.lvUpGapMs) return '境界提升速度異常'
-
-  // 2. 宗門貢獻
-  const dC = (s.contribution || 0) - (old.contribution || 0)
-  const recentC = meta.contrib.filter((c) => t - c.t < SAVE_CHECK.contribWindowMs).reduce((n, c) => n + c.a, 0)
-  if (dC > SAVE_CHECK.contribPerSave || (dC > 0 && recentC + dC > SAVE_CHECK.contribWindow)) return `宗門貢獻增加異常（+${dC}）`
-  const contribSpent = Math.max(0, -dC)
-
-  // 3. 背包增減
-  const oc = itemCounts(old.inventory), nc = itemCounts(s.inventory)
-  let gainVal = 0, lossVal = 0, fromMoney = 0, fromValue = 0, fromStat = 0
-  for (const id of new Set([...Object.keys(oc), ...Object.keys(nc)])) {
-    const d = (nc[id] || 0) - (oc[id] || 0)
-    if (d > 0) gainVal += d * sellOf(id)
-    else if (d < 0) {
-      const n = -d, sp = sellOf(id)
-      lossVal += n * sp
-      fromMoney += n * Math.max(sp * 1.4, moneyFromUse(id))   // 賣掉（出售加成最多約 +38%）或打開靈石袋／仙玉袋
-      fromValue += n * Math.max(sp * 0.4, valueFromUse(id))   // 同上，再加上寶箱開出的道具
-      fromStat += n * statFromUse(id)                          // 屬性丹
-    }
-  }
-  const grants = (pl.grants || []).filter((g) => t - g.t < SAVE_CHECK.grantTtlMs)
-  const gM = grants.reduce((n, g) => n + g.m, 0), gV = grants.reduce((n, g) => n + g.v, 0)
-
-  // 4. 錢
-  const dMoney = moneyOf(s) - moneyOf(old)
-  const questMoney = Math.max(0, dC) * SAVE_CHECK.questStonesPerContrib   // 交宗門任務順便拿到的靈石
-  const moneyCap = gM + fromMoney + questMoney + SAVE_CHECK.moneySlack
-  if (dMoney > moneyCap) return `靈石／仙玉來源不明（+${Math.round(dMoney)}，上限 ${Math.round(moneyCap)}）`
-
-  // 5. 總資產
-  const dW = dMoney + gainVal - lossVal
-  const r = Math.max(s.realm, old.realm || 0)
-  const drop = (DROP_EV[r] || 150) * (1 + dt / KILL_GAP_S)
-  const wCap = gV + fromValue + drop + contribSpent + questMoney + SAVE_CHECK.valueSlack
-  let usedLuck = false
-  if (dW > wCap) {
-    // 超出一般額度：若在「單件大獎」範圍內、且一分鐘內沒用過，就當作運氣好放行一次
-    const luck = DROP_LUCK[r] || 600
-    if (dW <= wCap + luck && t - (meta.luckAt || 0) > 60000) usedLuck = true
-    else return `資產增加異常（+${Math.round(dW)}，上限 ${Math.round(wCap)}）`
-  }
-
-  // 6. 屬性丹點數
-  if (statSum(s.inventory) - statSum(old.inventory) > fromStat) return '屬性點數來源不明'
-
-  // 7. 高階功法
-  let skillCost = 0
-  for (const k of Object.keys(s.inventory)) if (k.startsWith('zqskl') && !(old.inventory || {})[k]) skillCost += SKILL_COST[k.slice(5)] || 1e9
-  if (skillCost > contribSpent) return '高階功法來源不明'
-
-  // 通過：更新紀錄
-  meta.t = t
-  if (usedLuck) meta.luckAt = t
-  if (dLv === 1) meta.lvUpAt = t
-  if (dC > 0) meta.contrib = meta.contrib.filter((c) => t - c.t < SAVE_CHECK.contribWindowMs).concat({ t, a: dC })
-  saveMeta.set(key, meta)
-  // 這次存檔「實際用掉」多少伺服器獎勵額度，就從紀錄扣掉多少（同一份獎勵不能用兩次）；
-  // 沒用到的留著，給還在路上、尚未包含這份獎勵的存檔使用
-  let needM = Math.max(0, Math.min(gM, dMoney - fromMoney - questMoney - SAVE_CHECK.moneySlack))
-  let needV = Math.max(0, Math.min(gV, dW - (fromValue + drop + contribSpent + questMoney + SAVE_CHECK.valueSlack + (usedLuck ? DROP_LUCK[r] || 600 : 0))))
-  for (const g of grants) {
-    const tm = Math.min(g.m, needM); g.m -= tm; needM -= tm
-    const tv = Math.min(g.v, needV); g.v -= tv; needV -= tv
-  }
-  pl.grants = grants.filter((g) => g.m > 0 || g.v > 0)
-  return null
-}
-// 存檔被拒：記到伺服器 log，並在 GM 分頁「玩家回報」留一筆（同一人 5 分鐘最多一筆，避免洗版）
-function flagSave(key, pl, reason, s) {
-  console.log(`[可疑存檔] ${pl.name}: ${reason}`)
-  const meta = saveMeta.get(key) || { t: now() - SAVE_CHECK.maxDt * 1000, lvUpAt: 0, contrib: [] }
-  saveMeta.set(key, meta)
-  if (now() - (meta.flaggedAt || 0) < SAVE_CHECK.flagGapMs) return
-  meta.flaggedAt = now()
-  db.reports = db.reports || []
-  db.reports.push({ id: 'r' + db.nextId++, t: now(), key, from: pl.name, type: '系統偵測', text: `存檔被拒絕：${reason}`, ctx: { page: 'save', realm: s.realm, layer: s.layer, sect: s.sect || '', ua: '' }, done: false })
-  if (db.reports.length > 200) db.reports.shift()
-  dirty = true
-  for (const gk of GM_NAMES) sendTo(gk, 'chat', { t: now(), from: '天道', text: `🚨 可疑存檔：「${pl.name}」（${reason}）`, sys: true })
-}
-// 載入秘境、寶箱資料後，算出「寶箱每抽上限」與「各境界回合制每殺上限」
-function buildEconomy(src) {
-  try {
-    const at = src.indexOf('const LOOTBOX_POOL = [')
-    if (at >= 0) {
-      const pool = require('vm').runInNewContext('(' + src.slice(src.indexOf('[', at), src.indexOf('\n  ]', at) + 4) + ')')
-      LOOT_ROLL_MAX = Math.max(...pool.map((e) => (e.max || 1) * (sellOf(e.item) + moneyFromUse(e.item))))
-    }
-  } catch (e) { console.log('寶箱資料載入失敗，使用預設值：', e.message) }
-  DROP_EV = [], DROP_LUCK = []
-  for (let r = 0; r <= 6; r++) {
-    let ev2 = 150, luck = 600
-    for (const loc of LOCS) {
-      if (loc.reqRealm > r) continue
-      for (const m of loc.monsters) {
-        let ev = 0
-        for (const l of m.loot) {
-          const v = sellOf(l.item) + valueFromUse(l.item)
-          ev += Math.min(1, l.chance * 1.6) * ((l.min + l.max) / 2) * v   // 1.6 = 掉落加成上限
-          luck = Math.max(luck, l.max * v)
-        }
-        ev2 = Math.max(ev2, Math.round(ev * 2))
-      }
-    }
-    DROP_EV.push(ev2); DROP_LUCK.push(luck)
-  }
-  console.log(`存檔檢查：寶箱每抽上限 ${LOOT_ROLL_MAX}；回合制每殺額度 ${DROP_EV.join('/')}；大獎額度 ${DROP_LUCK.join('/')}`)
-}
-
 /* ---------- 地圖與即時戰鬥 ----------
  * 地圖資料以伺服器為準（MAPS），進入時傳給客戶端。座標單位為「格」（浮點數）。
  * 圖例：. 草地  = 道路  # 樹/圍牆（不可走）  ~ 水（不可走）  B 建築（不可走）  R 岩石（不可走）
  * 主城（town）是安全區；每個秘境（LOCATIONS）各有一張野外地圖，妖獸由伺服器生成、移動、攻擊。
- * 玩家氣血由客戶端自己維護（與既有存檔一致）；伺服器負責：妖獸氣血/位置/AI、玩家攻擊距離與冷卻、
- * 基礎傷害（依存檔境界）、功法倍率與冷卻（依 index.html 的 SKILLS）、掉落與修為結算。 */
+ * 【第三階段】全部由伺服器計算：妖獸氣血/位置/AI、玩家攻擊距離與冷卻、傷害（境界、宗門、增益、神識、靈寵）、
+ * 功法靈力與冷卻、妖獸對玩家的傷害與重傷撤退、擊殺的修為／掉落／任務進度。前端只負責畫面。 */
 const MOVE_SPEED = 5.5, MOVE_R = 0.3
 const TOWN_NPCS = [
   { id: 'market', name: '交易所掌櫃', x: 14.5, y: 8.5, panel: 'market', color: '#c9a24a' },
@@ -596,26 +365,11 @@ const mkTownRows = () => {
 const MAPS = {}
 MAPS.town = { id: 'town', name: '主城', rows: mkTownRows(), npcs: TOWN_NPCS, spawn: TOWN_SPAWN, theme: { g1: '#3f6b3a', g2: '#447443' } }
 
-/* 從 index.html 取出秘境（LOCATIONS，已含成長換算與掉落表）與功法（SKILLS），讓客戶端與伺服器用同一份資料 */
-let LOCS = [], SKILL_DEFS = {}
+let LOCS = []
 function loadGameData() {
-  try {
-    const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8')
-    const line = (re) => { const m = re.exec(src); if (!m) throw new Error('找不到 ' + re); return m[0] }
-    const prelude = [line(/const MAX_LAYER = [^\n]+/), line(/const BASE_HP = [^\n]+/), line(/const lvIdx = [^\n]+/), line(/const hpAt = [^\n]+/)].join('\n') + '\n'
-    const a = src.indexOf('const LOCATIONS = ['), mk = 'LOCATIONS.forEach((loc) => loc.monsters.forEach((m) => m.loot.push('
-    const b0 = src.indexOf(mk); if (a < 0 || b0 < 0) throw new Error('找不到 LOCATIONS')
-    LOCS = require('vm').runInNewContext(prelude + src.slice(a, src.indexOf('\n', b0)) + '\n;LOCATIONS')
-    const sa = src.indexOf('const fxDmg ='), ss = src.indexOf('const SKILLS = ['), lines = src.slice(ss).split('\n')
-    const endRel = lines.findIndex((l, i) => i > 0 && /^\s*\]\s*$/.test(l))
-    const skillSrc = src.slice(sa, ss) + lines.slice(0, endRel + 1).join('\n')
-    const skills = require('vm').runInNewContext(skillSrc + '\n;SKILLS')
-    skills.forEach((k) => { const d = (k.effects || []).find((e) => e.t === 'dmg'); if (d) SKILL_DEFS[k.id] = { mult: d.mult, cd: k.cooldown, req: k.req || 0 } })
-    skills.forEach((k) => { if (k.shopCost) SKILL_COST[k.id] = k.shopCost })
-    LOCS.forEach((loc, idx) => { MAPS[loc.id] = genField(loc, idx) })
-    buildEconomy(src)
-    console.log(`野外地圖：${LOCS.length} 張，攻伐功法：${Object.keys(SKILL_DEFS).length} 種`)
-  } catch (e) { console.log('野外資料載入失敗（即時戰鬥停用）：', e.message) }
+  LOCS = R.LOCATIONS
+  LOCS.forEach((loc, idx) => { MAPS[loc.id] = genField(loc, idx) })
+  console.log(`野外地圖：${LOCS.length} 張`)
 }
 const mkRng = (seed) => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296 }
 function genField(loc, idx) {
@@ -694,12 +448,29 @@ function killMon(map, f, m) {
   m.dmg = {}
   if (!entries.length) return
   const top = entries.sort((a, b) => b[1].d - a[1].d)[0][0]
-  const lm = Math.min(1.6, Math.max(1, (entries.find(([k]) => k === top)[1].lm) || 1))
+  const lm = 1 + R.sectBonus(getSave(top), 'loot')   // 掉落加成依傷害第一者的存檔計算
   const loot = []
-  for (const e of def.loot) if (Math.random() < e.chance * lm && ITEM_DEFS && ITEM_DEFS[e.item]) loot.push({ item: e.item, qty: rint(e.min, e.max) })
-  const lootVal = loot.reduce((n, l) => n + l.qty * sellOf(l.item), 0)
-  grant(top, 0, lootVal)   // 【第一階段】記下伺服器發的掉落，存檔檢查時算作合法來源
-  for (const [k] of entries) sendTo(k, 'kill', { id: def.id, name: def.name, icon: def.icon, exp: def.exp, loot: k === top ? loot : [] })
+  for (const e of def.loot) if (Math.random() < e.chance * lm && R.ITEMS[e.item]) loot.push({ item: e.item, qty: rint(e.min, e.max) })
+  for (const [k] of entries) {
+    const s = getSave(k), out = []
+    R.advance(s, now(), out)
+    const mine = k === top ? loot : []
+    const exp = R.fieldKill(s, def, mine, out)
+    s.v++; dirty = true
+    sendTo(k, 'kill', { name: def.name, exp, loot: mine, logs: out, state: R.publicSave(s) })
+  }
+}
+// 妖獸打中玩家：伺服器扣氣血；氣血歸零就重傷、送回主城
+function monHit(key, def, raw) {
+  const s = getSave(key), out = []
+  R.advance(s, now(), out)
+  const r = R.fieldHit(s, raw)
+  s.v++; dirty = true
+  if (!r.dead) return sendTo(key, 'hit', { name: def.name, icon: def.icon, dmg: r.dmg, hp: s.hp, v: s.v, logs: out })
+  R.fieldDefeat(s, out); s.v++
+  const me = positions.get(key)
+  if (me) { me.m = 'town'; me.x = TOWN_SPAWN.x; me.y = TOWN_SPAWN.y; me.t = Date.now(); me.f = 'd'; posDirty = true }
+  sendTo(key, 'defeat', { dmg: r.dmg, logs: out, state: R.publicSave(s), map: townInfo(), x: TOWN_SPAWN.x, y: TOWN_SPAWN.y })
 }
 setInterval(() => {
   const dt = 0.1, byMap = {}
@@ -720,7 +491,7 @@ setInterval(() => {
         m.tg = tgt[0]; m.st = 1
         const d = Math.hypot(tgt[1].x - m.x, tgt[1].y - m.y)
         if (d > 1.0) stepMon(map, m, tgt[1].x, tgt[1].y, 2.6, dt)
-        if (d < 1.25 && m.cd <= 0) { m.cd = 1.5 + Math.random() * 0.4; sendTo(tgt[0], 'hit', { mi: m.i, name: def.name, icon: def.icon, dmg: rint(def.atkMin, def.atkMax) }) }
+        if (d < 1.25 && m.cd <= 0) { m.cd = 1.5 + Math.random() * 0.4; monHit(tgt[0], def, rint(def.atkMin, def.atkMax)) }
       } else {
         m.tg = null
         const away = Math.hypot(m.x - m.sx, m.y - m.sy)
@@ -791,25 +562,36 @@ async function handle(req, res) {
       } else if (hashPw(pw, pl.salt) !== pl.hash) return failLogin()
       loginFails.delete(key)
       const token = crypto.randomBytes(24).toString('hex'); sessions.set(token, key)
-      return json(res, 200, { token, name: pl.name, created, gm: isGMKey(key), save: pl.save, mail: pl.mail || [] })
+      // 登入時不補算離線時間；戰鬥、門票、閉關狀態重設（與舊版重新整理頁面時的行為相同）
+      const sv = getSave(key)
+      sv.t = now(); sv.battle = null; sv.selectedLocation = null; sv.secluded = false
+      R.advance(sv, now(), [])   // 不補算時間（t 剛設為現在），只套用 GM 全道具等即時設定
+      sv.v = (sv.v || 0) + 1; dirty = true
+      return json(res, 200, { token, name: pl.name, created, gm: isGMKey(key), save: R.publicSave(sv), mail: pl.mail || [] })
     }
     const key = sessions.get(b.token)
     if (!key) return json(res, 401, { error: '登入已失效，請重新登入' })
     const pl = db.players[key]
 
     if (p === '/api/save') {
-      const s = sanitizeSave(b.save); if (!s) return json(res, 400, { error: '資料無效' })
-      // 【第一階段】合理性檢查：不合理就拒收，並把伺服器上的存檔傳回去讓前端還原
-      const bad = checkSave(key, pl, s)
-      if (bad) { flagSave(key, pl, bad, s); return json(res, 200, { ok: false, rejected: true, error: bad, save: pl.save }) }
-      const old = pl.save || {}; pl.save = s; dirty = true
-      if (old.realm !== s.realm || old.layer !== s.layer || old.sect !== s.sect) broadcast('presence', presence())
-      return json(res, 200, { ok: true })
+      // 【第二、三階段】已停用：存檔完全由伺服器保存，前端上傳的存檔一律不收（舊版網頁快取請重新整理）
+      return json(res, 410, { error: '遊戲已更新，請重新整理頁面。' })
+    }
+    if (p === '/api/act') {
+      // 所有會改變數值的操作都走這裡：前端送 { type, p }，規則在 shared/game-rules.js 的 ACTIONS
+      const type = String(b.type || '')
+      if (type === 'sync' ? limited(key, 'sync', 900) : limited(key, 'act', 60)) return json(res, 429, { error: '操作太快' })
+      const s = getSave(key), before = s.realm + '|' + s.layer + '|' + s.sect
+      let logs, error = null
+      try { logs = R.runAction(s, type, b.p && typeof b.p === 'object' ? b.p : {}, now()) }
+      catch (e) { if (!e.game) throw e; logs = e.out || []; error = e.message }
+      dirty = true
+      if (before !== s.realm + '|' + s.layer + '|' + s.sect) broadcast('presence', presence())
+      return json(res, 200, { ok: !error, error, logs, state: R.publicSave(s) })
     }
     if (p === '/api/mail/ack') {
+      // 傳書在送出時已入帳，這裡只是清掉已讀的通知
       const ids = new Set((b.ids || []).map(Number))
-      // 【第一階段】玩家確認收下的傳書，記成合法來源（存檔檢查用）
-      for (const m of pl.mail || []) if (ids.has(m.id)) { const v = mailValue(m); grant(key, m.kind === 'stones' ? v : 0, v) }
       pl.mail = (pl.mail || []).filter((m) => !ids.has(m.id)); dirty = true
       return json(res, 200, { ok: true })
     }
@@ -904,32 +686,38 @@ async function handle(req, res) {
       const id = String(b.map || ''), map = MAPS[id]
       if (!map) return json(res, 400, { error: '地圖不存在' })
       if (limited(key, 'enter', 600)) return json(res, 429, { error: '操作太頻繁' })
-      if (map.loc && ((pl.save || {}).realm || 0) < map.loc.reqRealm) return json(res, 403, { error: '境界不足，無法進入' })
-      const me = ensurePos(key)
+      const s = getSave(key), me = ensurePos(key)
+      if (map.loc) {
+        if (s.realm < map.loc.reqRealm) return json(res, 403, { error: '境界不足，無法進入' })
+        if (s.selectedLocation !== id) return json(res, 403, { error: '請先在「秘境」購買此地門票。' })
+        s.battle = null
+      } else if (me.m !== 'town') s.selectedLocation = null   // 離開野外：門票作廢
+      s.v = (s.v || 0) + 1; dirty = true
       me.m = id; me.x = map.spawn.x; me.y = map.spawn.y; me.t = Date.now(); me.f = 'd'; posDirty = true
-      return json(res, 200, { ok: true, map: mapInfo(map), x: me.x, y: me.y })
+      return json(res, 200, { ok: true, map: mapInfo(map), x: me.x, y: me.y, state: R.publicSave(s) })
     }
     if (p === '/api/attack') {   // 即時攻擊：自動鎖定射程內最近的妖獸
       const me = positions.get(key), map = me && MAPS[me.m]
       if (!map || !map.loc || !fields[me.m]) return json(res, 200, { ok: false, miss: true })
-      const sk = b.skill ? SKILL_DEFS[String(b.skill)] : null
-      if (b.skill && !sk) return json(res, 400, { error: '功法無效' })
-      const s = (pl.save || {}), realm = s.realm || 0, layer = s.layer || 1
-      if (sk && sk.req > realm) return json(res, 403, { error: '境界不足以施展此功法' })
       if (limited(key, 'atk', 450)) return json(res, 200, { ok: false, cd: true })
-      if (sk && limited(key, 'sk' + b.skill, Math.max(500, sk.cd * 1000 * 0.9))) return json(res, 200, { ok: false, cd: true })
-      const range = sk ? 4.5 : 2.0
+      const skillId = b.skill ? String(b.skill) : null
+      const range = skillId ? 4.5 : 2.0
       let tm = null, bd = range
       for (const m of fields[me.m].mons) { if (m.st === 2) continue; const d = Math.hypot(m.x - me.x, m.y - me.y); if (d < bd) { bd = d; tm = m } }
       if (!tm) return json(res, 200, { ok: false, miss: true })
-      const base = 8 + realm * 10 + layer * 2, bonus = Math.min(1.5, Math.max(0, Number(b.bonus) || 0)), lm = Math.min(1.6, Math.max(1, Number(b.lm) || 1))
-      const pet = Math.min(base * 1.5, Math.max(0, Math.round(Number(b.pet) || 0)))
-      const dmg = Math.max(1, Math.round(rint(Math.round(base * 0.7), Math.round(base * 1.3)) * (sk ? sk.mult : 1) * (1 + bonus))) + pet
+      const s = getSave(key), out = []
+      R.advance(s, now(), out)
+      let prm
+      try { prm = R.fieldStrikeParams(s, skillId) }   // 檢查功法、扣靈力、上冷卻、算加成（攻擊、神識、靈寵）
+      catch (e) { if (!e.game) throw e; s.v++; dirty = true; return json(res, 200, { ok: false, error: e.message, logs: out, state: R.publicSave(s) }) }
+      s.v++; dirty = true
+      const base = 8 + s.realm * 10 + s.layer * 2
+      const dmg = Math.max(1, Math.round(rint(Math.round(base * 0.7), Math.round(base * 1.3)) * prm.mult * (1 + prm.bonus))) + prm.pet
       tm.hp -= dmg; tm.tg = key; tm.st = 1
-      const rec = tm.dmg[key] || (tm.dmg[key] = { d: 0, lm }); rec.d += dmg; rec.lm = lm
+      const rec = tm.dmg[key] || (tm.dmg[key] = { d: 0 }); rec.d += dmg
       const def = map.loc.monsters[tm.t], hpLeft = Math.max(0, Math.ceil(tm.hp))
       if (tm.hp <= 0) killMon(map, fields[me.m], tm)
-      return json(res, 200, { ok: true, mi: tm.i, dmg, hp: hpLeft, mx: tm.x, my: tm.y, name: def.name })
+      return json(res, 200, { ok: true, mi: tm.i, dmg, hp: hpLeft, mx: tm.x, my: tm.y, name: def.name, logs: out, state: R.publicSave(s) })
     }
     if (p === '/api/chat') {
       const raw = String(b.text || '').trim().slice(0, 100), text = filterText(raw)
@@ -949,16 +737,17 @@ async function handle(req, res) {
       const item = String(b.item || ''), qty = num(b.qty || 1, 1, 99999), price = num(b.price, 1, 1e12)
       if (!/^[A-Za-z]{1,24}$/.test(item) || price < 1 || qty < 1) return json(res, 400, { error: '參數錯誤' })
       if (db.auctions.filter((a) => a.seller === key).length >= 5) return json(res, 400, { error: '最多同時上架 5 件' })
-      // 以伺服器記錄的背包（Supabase 存檔）驗證持有數量，並先在伺服器端扣除
-      const inv = (pl.save && pl.save.inventory) || {}
+      if (!R.ITEMS[item]) return json(res, 400, { error: '無此道具' })
+      if (R.SHOP_ITEMS.includes(item)) return json(res, 400, { error: '交易所販售的道具無法上架拍賣場。' })
+      // 以伺服器存檔驗證持有數量，並在伺服器端扣除（GM 物品無限）
+      const s = getSave(key), inv = s.inventory
       if ((inv[item] || 0) < qty) return json(res, 400, { error: '背包中的物品數量不足' })
-      inv[item] -= qty
-      if (inv[item] <= 0) delete inv[item]
-      pl.save.inventory = inv
+      if (!s.gm) { inv[item] -= qty; if (inv[item] <= 0) delete inv[item] }
+      s.v = (s.v || 0) + 1
       const a = { id: 'a' + db.nextId++, seller: key, item, qty, start: price, current: price, bidder: null, inc: Math.max(3, Math.round(price * 0.1)), endsAt: now() + 180000 }
       db.auctions.push(a); dirty = true
       broadcast('auctions', pubAuctions())
-      return json(res, 200, { ok: true })
+      return json(res, 200, { ok: true, state: R.publicSave(s) })
     }
     if (p === '/api/auction/bid') {
       const a = db.auctions.find((x) => x.id === b.id)
@@ -971,10 +760,10 @@ async function handle(req, res) {
 
       if (amount <= basePrice) return json(res, 400, { error: '出價必須高於目前底價' })
       // 【第一階段】伺服器自己檢查並扣款（舊版只有前端扣，直接呼叫 API 出價不用錢、被超價還會退錢 = 印鈔機）
-      const ps = pl.save
-      if (!ps || (ps.stones || 0) < amount) return json(res, 400, { error: '靈石不足，無法出價' })
+      const ps = getSave(key)
+      if (ps.stones < amount) return json(res, 400, { error: '靈石不足，無法出價' })
       if (limited(key, 'bid', 400)) return json(res, 429, { error: '操作太快' })
-      ps.stones -= amount
+      ps.stones -= amount; ps.v = (ps.v || 0) + 1
 
       if (a.bidder) mail(a.bidder, { kind: 'stones', amount: a.current, text: `你在拍賣中被超越，退還 ${a.current} 靈石。` })
       a.current = amount; a.bidder = key; 
@@ -982,37 +771,42 @@ async function handle(req, res) {
       dirty = true
       
       broadcast('auctions', pubAuctions())
-      return json(res, 200, { ok: true, amount })
+      return json(res, 200, { ok: true, amount, state: R.publicSave(ps) })
     }
     if (p === '/api/pvp') {
       const tk = String(b.target || '').toLowerCase(), tp = db.players[tk]
       if (!tp || tk === key || !onlineKeys().includes(tk)) return json(res, 400, { error: '對手不在線上' })
       if (limited(key, 'pvp', 30000)) return json(res, 429, { error: '切磋冷卻中（30 秒）' })
-      const a = pl.save, c = tp.save
-      if (!a || !c) return json(res, 400, { error: '對手尚未初始化' })
+      const a = getSave(key), c = getSave(tk)
       const win = duel(a, c), winner = win ? key : tk, loser = win ? tk : key
-      const loot = Math.min(300, Math.floor(((db.players[loser].save || {}).stones || 0) * 0.05))
+      const loot = Math.min(300, Math.floor(getSave(loser).stones * 0.05))
       if (loot > 0) {
-        // 【第一階段】輸家的靈石由伺服器直接扣（舊版只靠傳書通知前端自己扣，改過的前端可以不扣）
-        const ls = db.players[loser].save; if (ls) ls.stones = Math.max(0, (ls.stones || 0) - loot)
         mail(winner, { kind: 'stones', amount: loot, text: `切磋勝出，奪得 ${loot} 靈石。` })
         mail(loser, { kind: 'stones', amount: -loot, text: `切磋落敗，損失 ${loot} 靈石。` })
       }
       sysChat(`👤「${pl.name}」向「${tp.name}」發起切磋，勝者：${db.players[winner].name}${loot > 0 ? `（奪得 ${loot} 靈石）` : ''}。`)
-      return json(res, 200, { ok: true, win, loot })
+      return json(res, 200, { ok: true, win, loot, state: R.publicSave(getSave(key)) })
     }
     if (p === '/api/boss/attack') {
       if (!boss.alive) return json(res, 400, { error: '魔蛟尚未現世' })
       if (limited(key, 'boss', 1800)) return json(res, 429, { error: '出手太快' })
-      const s = pl.save || {}, r = atkRange(s)
-      // 攻伐功法出手時，客戶端帶上傷害倍率（神識加成後最高約 7.3，上限 8，防止亂報）
-      const mult = Math.max(1, Math.min(8, Number(b.mult) || 1)), dmg = Math.round(rnd(r[0], r[1]) * 3 * mult)
+      const s = getSave(key), out = []
+      R.advance(s, now(), out)
+      let prm
+      try { prm = R.bossStrikeParams(s, b.skill ? String(b.skill) : null) }   // 檢查氣血門檻、扣靈力或功法消耗、算倍率
+      catch (e) { if (!e.game) throw e; s.v++; dirty = true; return json(res, 200, { ok: false, error: e.message, logs: out, state: R.publicSave(s) }) }
+      s.v++; dirty = true
+      const r = atkRange(s), dmg = Math.round(rnd(r[0], r[1]) * 3 * prm.mult)
       boss.hp = Math.max(0, boss.hp - dmg); boss.damage[key] = (boss.damage[key] || 0) + dmg; boss.lastHit = key
-      if ((s.realm || 0) >= BOSS_LOOT_MIN_REALM) {
+      out.push([prm.skill ? `你施展「${prm.skill.name}」轟向「${boss.name}」，造成 ${dmg} 點傷害。` : `你向「${boss.name}」發出一擊，造成 ${dmg} 點傷害。`, 'success'])
+      const bossLog = [prm.skill ? `你施展「${prm.skill.name}」，造成 ${dmg} 點傷害。` : `你出手造成 ${dmg} 點傷害。`]
+      if (s.realm >= BOSS_LOOT_MIN_REALM) {
         for (const l of BOSS_PET_LOOT) if (Math.random() < l.chance) mail(key, { kind: 'item', item: l.item, qty: 1, text: `魔蛟鱗甲崩落之間，你眼明手快拾得 ${(ITEM_DEFS[l.item] || {}).icon || ''}「${(ITEM_DEFS[l.item] || {}).name || l.item}」！` })
       }
-      if (boss.hp <= 0) killBoss(); else broadcast('boss', pubBoss())
-      return json(res, 200, { ok: true, dmg })
+      const killed = boss.hp <= 0
+      if (killed) killBoss()
+      else { bossLog.push(R.bossCounter(s, boss.name, boss.hp / boss.maxHp < 0.3, out)); broadcast('boss', pubBoss()) }
+      return json(res, 200, { ok: true, dmg, killed, logs: out, bossLog, state: R.publicSave(s) })
     }
     return json(res, 404, { error: '未知的請求' })
   }
@@ -1020,6 +814,7 @@ async function handle(req, res) {
   // 靜態檔案
   // 【第一階段】改成白名單：只開放遊戲畫面用得到的檔案（index.html、style.css、根目錄圖片、img/ 底下的圖片）。
   // 舊版是黑名單，package.json、game.js、python/、node_modules 等全都能被下載。要開放新檔案就改 PUBLIC_FILE。
+  // shared/game-rules.js 是前端也要載入的共用規則（沒有任何密碼或金鑰）。
   let f
   try { f = decodeURIComponent(p === '/' ? '/index.html' : p) } catch (e) { res.writeHead(400); return res.end('Bad request') }
   if (!PUBLIC_FILE.test(f) || f.split('/').some((seg) => seg.startsWith('.'))) { res.writeHead(404); return res.end('Not found') }
@@ -1030,7 +825,7 @@ async function handle(req, res) {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(full).toLowerCase()] || 'application/octet-stream' }); res.end(buf)
   })
 }
-const PUBLIC_FILE = /^\/(?:index\.html|style\.css|[^/]+\.(?:jpe?g|png|webp|gif|svg|ico)|img\/(?:[^/]+\/)*[^/]+\.(?:jpe?g|png|webp|gif|svg|ico))$/i
+const PUBLIC_FILE = /^\/(?:index\.html|style\.css|shared\/game-rules\.js|[^/]+\.(?:jpe?g|png|webp|gif|svg|ico)|img\/(?:[^/]+\/)*[^/]+\.(?:jpe?g|png|webp|gif|svg|ico))$/i
 // 【第一階段】任何請求出錯都只回 500，不會讓整個伺服器當掉
 // （舊版：瀏覽器打開 /%E0 這種壞網址，decodeURIComponent 會丟錯，Node 會直接結束程序 → 全服斷線）
 const server = http.createServer((req, res) => {
