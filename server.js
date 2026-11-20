@@ -33,8 +33,17 @@ const GM_PASSWORD = process.env.GM_PASSWORD || ''
 const isGMKey = (k) => GM_NAMES.includes(k)
 
 // ===== Supabase 雲端資料庫設定 =====
-const SUPABASE_HOST = 'iedoalfukazgzzpbgdzu.supabase.co'
-const SUPABASE_KEY = 'sb_publishable_AzWFfTrZKE4UDBUPfICxHg_xlcsPvz7'
+// 【第一階段】金鑰不再寫死在程式碼，一律從環境變數讀（Render → Environment）：
+//   SUPABASE_HOST  例：xxxx.supabase.co（或改填 SUPABASE_URL：https://xxxx.supabase.co，兩者擇一）
+//   SUPABASE_KEY   請用「secret key」（sb_secret_...），它只放在伺服器，不會給玩家看到
+// 缺少任一個就拒絕啟動，避免伺服器在「連不上資料庫」的狀態下運作。
+const SUPABASE_HOST = String(process.env.SUPABASE_HOST || process.env.SUPABASE_URL || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+const SUPABASE_KEY = String(process.env.SUPABASE_KEY || '').trim()
+if (!SUPABASE_HOST || !SUPABASE_KEY) {
+  console.error('【啟動失敗】缺少環境變數 SUPABASE_HOST（或 SUPABASE_URL）與 SUPABASE_KEY，請到 Render 的 Environment 設定。')
+  process.exit(1)
+}
+if (SUPABASE_KEY.startsWith('sb_publishable_')) console.warn('【警告】SUPABASE_KEY 目前是 publishable key，建議改用 secret key（sb_secret_...），並開啟資料表的 RLS。')
 
 let db = { players: {}, nextId: 1, auctions: [] }
 
@@ -48,7 +57,8 @@ function supabaseRequest(method, endpoint, data = null) {
       method: method,
       headers: {
         'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        // 新版金鑰（sb_publishable_ / sb_secret_）不是 JWT，只能放在 apikey；舊版 JWT 金鑰（eyJ 開頭）才另外放 Authorization
+        ...(SUPABASE_KEY.startsWith('eyJ') ? { 'Authorization': `Bearer ${SUPABASE_KEY}` } : {}),
         'Content-Type': 'application/json',
         ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
         'Prefer': 'return=minimal'
@@ -75,29 +85,36 @@ function supabaseRequest(method, endpoint, data = null) {
 }
 
 // 從 Supabase 雲端載入資料
+// 【第一階段】回傳是否「確實讀到雲端」。讀不到（網路錯誤、金鑰錯誤、權限不足）時回傳 false，
+// 伺服器就不會啟動，也絕不會把空白資料寫回雲端（舊版在這種情況會把全部玩家資料洗掉）。
+let cloudReady = false
 async function loadFromCloud() {
   try {
     const result = await supabaseRequest('GET', '/rest/v1/game_store?id=eq.main_db&select=data')
-    if (result.status >= 200 && result.status < 300) {
+    if (result.status >= 200 && result.status < 300 && Array.isArray(result.data)) {
       const rows = result.data
-      if (rows && rows.length > 0 && rows[0].data && Object.keys(rows[0].data).length > 0) {
+      if (!rows.length) console.warn('【警告】資料表 game_store 找不到 id = main_db 的資料列，存檔會寫不進去，請先在 Supabase 建立這一列。')
+      if (rows.length > 0 && rows[0].data && Object.keys(rows[0].data).length > 0) {
         db = Object.assign(db, rows[0].data)
         console.log('成功從雲端載入遊戲資料！')
       } else {
         console.log('雲端目前資料為空，使用初始空資料')
       }
-    } else {
-      console.error('從雲端載入失敗，HTTP 狀態碼：', result.status, result.data)
+      cloudReady = true
+      return true
     }
+    console.error('從雲端載入失敗，HTTP 狀態碼：', result.status, result.data)
   } catch (e) {
     console.error('從雲端載入發生例外錯誤：', e.message)
   }
+  return false
 }
 
 // 寫入資料到 Supabase 雲端
 let dirty = false
 const persist = () => { dirty = true }
 async function persistToCloud() {
+  if (!cloudReady) return   // 還沒成功讀過雲端，就不准寫，避免空資料覆蓋
   if (!dirty) return
   dirty = false
   try {
@@ -112,11 +129,17 @@ async function persistToCloud() {
   }
 }
 setInterval(persistToCloud, 5000)
-process.on('SIGINT', async () => { 
-  dirty = true
-  await persistToCloud()
-  process.exit(0) 
-})
+// 【第一階段】Render 重新部署／重啟時送的是 SIGTERM（本機按 Ctrl+C 是 SIGINT），兩種都要先存檔再關
+let shuttingDown = false
+async function shutdown(sig) {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log(`收到 ${sig}，存檔後關閉…`)
+  if (cloudReady) { dirty = true; await persistToCloud() }
+  process.exit(0)
+}
+process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGTERM', () => shutdown('SIGTERM'))
 
 const sessions = new Map()   // token -> name key
 const clients = new Map()    // token -> { res, key }
@@ -125,6 +148,18 @@ const lastAct = {}           // rate limit: key+action -> ts
 const rnd = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a
 const now = () => Date.now()
 const limited = (key, act, ms) => { const k = key + act, t = now(); if (lastAct[k] && t - lastAct[k] < ms) return true; lastAct[k] = t; return false }
+// 【第一階段】限流紀錄每 10 分鐘清掉舊的，避免記憶體越長越大
+setInterval(() => { const t = now(); for (const k of Object.keys(lastAct)) if (t - lastAct[k] > 600000) delete lastAct[k] }, 600000)
+
+// 【第一階段】取得玩家真實 IP：Render 前面有代理，req.socket.remoteAddress 只會拿到代理的 IP（全服共用同一個）
+function clientIp(req) {
+  const h = req.headers
+  const xff = String(h['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean)
+  return String(h['cf-connecting-ip'] || h['true-client-ip'] || xff[xff.length - 1] || req.socket.remoteAddress || '')
+}
+// 【第一階段】同一個道號連續輸錯密碼 5 次 → 鎖 5 分鐘（防止別人一直猜密碼）
+const LOGIN_MAX_FAIL = 5, LOGIN_LOCK_MS = 5 * 60000
+const loginFails = new Map()   // 道號小寫 -> { n, until }
 
 /* ---------- 聊天管理 ----------
  * 所有玩家聊天（含密語）都記錄在 db.chatLog（保留最近 CHAT_LOG_MAX 則，隨資料庫一起存雲端），GM 分頁可查詢。
@@ -161,14 +196,6 @@ function mail(key, m) {
   const p = db.players[key]; if (!p) return
   m.id = db.nextId++; p.mail = p.mail || []; p.mail.push(m); dirty = true
   sendTo(key, 'mail', { mail: [m] })
-}
-/* GM 獎勵傳書：每項獎勵一封 mail，帶 rw（同一批 id、標題、備註），客戶端據此合併成一個「獎勵彈出視窗」。
- * 沿用既有的 stones／xp／item 類型，所以不需要客戶端新增處理邏輯就能入帳。 */
-function giveReward(key, o) {
-  const rw = { id: o.id, title: o.title || '天道賞賜', note: o.reason || '' }, note = o.reason ? `（${o.reason}）` : ''
-  if (o.stones) mail(key, { kind: 'stones', amount: o.stones, rw, text: `天道傳書：獲贈 ${o.stones} 靈石${note}` })
-  if (o.xp) mail(key, { kind: 'xp', amount: o.xp, raw: true, rw, text: `天道傳書：獲贈 ${o.xp} 點修為${note}` })
-  if (o.item) { const d = ITEM_DEFS[o.item] || {}; mail(key, { kind: 'item', item: o.item, qty: o.qty, rw, text: `天道傳書：獲贈 ${d.icon || ''}「${d.name || o.item}」× ${o.qty}${note}` }) }
 }
 const NPC_PREFIX = 'npc_'
 const isNpc = (k) => typeof k === 'string' && k.startsWith(NPC_PREFIX)
@@ -311,7 +338,7 @@ function duel(a, b) {
 }
 
 /* ---------- HTTP ---------- */
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' }
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.gif': 'image/gif' }
 function body(req) {
   return new Promise((resolve) => {
     let s = ''; req.on('data', (c) => { s += c; if (s.length > 30000) { req.destroy(); resolve({}) } })
@@ -322,16 +349,215 @@ const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'applic
 const cleanName = (n) => String(n || '').trim().replace(/[<>&"'\s]/g, '').slice(0, 12)
 const num = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0)))
 
+// 每層突破所需修為（須與 index.html 的 required() 一致）
+const requiredXp = (realm, layer) => Math.round(100 * Math.pow(1.6, realm) * (1 + layer * 0.25))
 function sanitizeSave(s) {
   if (!s || typeof s !== 'object') return null
   const inv = {}
-  for (const [k, v] of Object.entries(s.inventory || {})) if (/^[A-Za-z]{1,24}$/.test(k)) inv[k] = num(v, 0, k.startsWith('zqqcd') ? 1e9 : 99999)   // zqqcd = 宗門任務冷卻（解除時間，分鐘），數值較大
+  const known = Object.keys(ITEM_DEFS).length > 0
+  for (const [k, v] of Object.entries(s.inventory || {})) {
+    if (!/^[A-Za-z]{1,24}$/.test(k)) continue
+    // 【第一階段】只收「zq 開頭的編碼欄位」與「ITEMS 裡真的存在的道具」，亂塞的 key 直接丟掉
+    if (!k.startsWith('zq') && known && !ITEM_DEFS[k]) continue
+    inv[k] = num(v, 0, k.startsWith('zqqcd') ? 1e9 : k.startsWith('zqstat') ? 30 : 99999)   // zqqcd = 任務冷卻（分鐘）；zqstat = 屬性丹點數，上限 30
+  }
   const realm = num(s.realm, 0, 6), layer = num(s.layer, 1, 9), cap = { realm, layer, inventory: inv }
   return {
-    realm, layer, xp: num(s.xp, 0, 1e9), hp: num(s.hp, 0, hpOf(cap)), mp: num(s.mp, 0, mpOf(cap)),
+    realm, layer, xp: num(s.xp, 0, requiredXp(realm, layer)), hp: num(s.hp, 0, hpOf(cap)), mp: num(s.mp, 0, mpOf(cap)),
     stones: num(s.stones, 0, 1e12), jade: num(s.jade, 0, 1e9), inventory: inv,
     sect: String(s.sect || '').slice(0, 16), contribution: num(s.contribution, 0, 1e9),
   }
+}
+
+/* ======================================================================
+ * 【第一階段】存檔異常檢查
+ * 目前遊戲的買賣、開寶箱、回合制戰鬥都還在前端計算，伺服器無法逐筆驗證（第二、三階段才會搬到伺服器）。
+ * 這裡先做「合理性檢查」：每次存檔都跟伺服器上一份存檔比較，增加的量超出「可能的來源」就拒收，
+ * 並把伺服器版本傳回前端覆蓋，同時在 GM 分頁「玩家回報」留下一筆「系統偵測」紀錄。
+ *
+ * 可能的來源：
+ *   ① 伺服器發出去的東西（傳書：拍賣所得、GM 贈送、魔蛟獎勵；野外即時戰鬥的掉落）→ 記在 pl.grants，5 分鐘內有效
+ *   ② 背包裡少掉的東西（賣掉、開靈石袋／寶箱、交任務）→ 依道具的出售價或開出上限換算
+ *   ③ 回合制戰鬥的掉落 → 依目前境界可進入的秘境，估一個「每秒最多能撿多少」的額度
+ *   ④ 宗門任務的靈石獎勵（依這次增加的貢獻換算）＋少量寬限值
+ *
+ * 檢查項目：
+ *   - 境界：一次最多升 1 層，且兩次升層至少間隔 10 秒
+ *   - 宗門貢獻：單次存檔最多 +130，20 分鐘內最多 +240（所有宗門任務一輪約 100 出頭）
+ *   - 靈石＋仙玉（仙玉以 500 靈石計）：增加量 ≤ ① + ② + 寬限
+ *   - 總資產（錢＋背包所有道具的出售價）：增加量 ≤ ① + ② + ③ + 花掉的貢獻 + 寬限
+ *   - 屬性丹點數（zqstat）：只能隨「吃掉屬性丹」增加
+ *   - 高階功法（zqskl）：新習得的功法要扣得出對應的宗門貢獻
+ * GM 帳號不檢查。數值要放寬或收緊，改下面的 SAVE_CHECK。
+ * ====================================================================== */
+const JADE_RATE = 500                         // 須與 index.html 的 JADE_RATE 一致
+const SAVE_CHECK = {
+  moneySlack: 100, valueSlack: 150,           // 每次存檔的寬限（靈石價值；四捨五入誤差等）
+  questStonesPerContrib: 14,                  // 宗門任務的靈石獎勵最多是貢獻的幾倍（目前最高 200/15 ≈ 13.3）
+  lvUpGapMs: 10000,                           // 兩次升層最短間隔
+  contribPerSave: 130, contribWindow: 240, contribWindowMs: 20 * 60000,
+  grantTtlMs: 5 * 60000,                      // 伺服器發放紀錄的有效時間
+  maxDt: 15,                                  // 回合制掉落額度最多累計幾秒
+  flagGapMs: 5 * 60000,                       // 同一人多久最多記一筆「系統偵測」
+}
+const DEFAULT_SAVE = { realm: 0, layer: 1, xp: 0, stones: 1000, jade: 1, contribution: 0, inventory: { qi: 5, foundation: 2, spiritGrass: 3, commonEgg: 1, commonFeed: 5 } }   // 須與 index.html 的初始 state 一致
+const saveMeta = new Map()                    // key -> { t: 上次存檔時間, lvUpAt, contrib: [{t,a}], flaggedAt }
+let SKILL_COST = {}                           // 高階功法 id -> 兌換所需貢獻
+let LOOT_ROLL_MAX = 1200                      // 寶箱每抽最多值多少（載入資料後重算）
+let DROP_EV = [150, 150, 150, 150, 150, 150, 150]          // 各境界回合制「每殺一隻」的掉落額度（期望值 × 2，載入資料後重算）
+let DROP_LUCK = [600, 600, 600, 600, 600, 600, 600]        // 各境界「單件大獎」額度（例如仙玉袋），每分鐘最多用一次
+const KILL_GAP_S = 3                                       // 回合制估計最快每 3 秒擊殺一隻
+
+const sellOf = (id) => Number((ITEM_DEFS[id] || {}).sell) || 0
+const effList = (id) => { const e = (ITEM_DEFS[id] || {}).effect; return !e ? [] : Array.isArray(e) ? e : [e] }
+const moneyFromUse = (id) => effList(id).reduce((n, e) => n + (e.type === 'stones' ? Number(e.max) || 0 : e.type === 'jade' ? (Number(e.max) || 0) * JADE_RATE : 0), 0)
+const valueFromUse = (id) => moneyFromUse(id) + effList(id).reduce((n, e) => n + (e.type === 'lootbox' ? (Number(e.rolls) || 0) * LOOT_ROLL_MAX : 0), 0)
+const statFromUse = (id) => effList(id).reduce((n, e) => n + (e.type === 'stat' ? Number(e.value) || 0 : 0), 0)
+const moneyOf = (s) => (Number(s.stones) || 0) + (Number(s.jade) || 0) * JADE_RATE
+// 背包道具數量（已穿戴的 zqeqp+id 併回原道具計算，穿脫裝備不影響總數）
+function itemCounts(inv) {
+  const c = {}
+  for (const [k, v] of Object.entries(inv || {})) {
+    let id = k
+    if (k.startsWith('zqeqp')) id = k.slice(5)
+    else if (k.startsWith('zq')) continue
+    if (!ITEM_DEFS[id]) continue
+    c[id] = (c[id] || 0) + (Number(v) || 0)
+  }
+  return c
+}
+const statSum = (inv) => Object.entries(inv || {}).reduce((n, [k, v]) => n + (k.startsWith('zqstat') ? Number(v) || 0 : 0), 0)
+
+// 記錄「伺服器發給玩家的東西」：money = 靈石價值，value = 總價值（含道具出售價）
+function grant(key, money, value) {
+  const p = db.players[key]
+  if (!p || (!(money > 0) && !(value > 0))) return
+  const t = now()
+  p.grants = (p.grants || []).filter((g) => t - g.t < SAVE_CHECK.grantTtlMs)
+  p.grants.push({ t, m: Math.max(0, money || 0), v: Math.max(0, value || 0) })
+  dirty = true
+}
+const mailValue = (m) => m.kind === 'stones' ? Math.max(0, Number(m.amount) || 0) : m.kind === 'item' ? (Number(m.qty) || 1) * sellOf(m.item) : 0
+
+// 回傳 null = 合理；回傳字串 = 拒收原因
+function checkSave(key, pl, s) {
+  if (isGMKey(key)) return null
+  const t = now(), old = pl.save || DEFAULT_SAVE
+  const meta = saveMeta.get(key) || { t: t - SAVE_CHECK.maxDt * 1000, lvUpAt: 0, contrib: [] }
+  const dt = Math.min(SAVE_CHECK.maxDt, Math.max(1, (t - meta.t) / 1000))
+
+  // 1. 境界
+  const dLv = lvIdx(s) - lvIdx(old)
+  if (dLv > 1) return `境界一次提升 ${dLv} 層`
+  if (dLv === 1 && t - meta.lvUpAt < SAVE_CHECK.lvUpGapMs) return '境界提升速度異常'
+
+  // 2. 宗門貢獻
+  const dC = (s.contribution || 0) - (old.contribution || 0)
+  const recentC = meta.contrib.filter((c) => t - c.t < SAVE_CHECK.contribWindowMs).reduce((n, c) => n + c.a, 0)
+  if (dC > SAVE_CHECK.contribPerSave || (dC > 0 && recentC + dC > SAVE_CHECK.contribWindow)) return `宗門貢獻增加異常（+${dC}）`
+  const contribSpent = Math.max(0, -dC)
+
+  // 3. 背包增減
+  const oc = itemCounts(old.inventory), nc = itemCounts(s.inventory)
+  let gainVal = 0, lossVal = 0, fromMoney = 0, fromValue = 0, fromStat = 0
+  for (const id of new Set([...Object.keys(oc), ...Object.keys(nc)])) {
+    const d = (nc[id] || 0) - (oc[id] || 0)
+    if (d > 0) gainVal += d * sellOf(id)
+    else if (d < 0) {
+      const n = -d, sp = sellOf(id)
+      lossVal += n * sp
+      fromMoney += n * Math.max(sp * 1.4, moneyFromUse(id))   // 賣掉（出售加成最多約 +38%）或打開靈石袋／仙玉袋
+      fromValue += n * Math.max(sp * 0.4, valueFromUse(id))   // 同上，再加上寶箱開出的道具
+      fromStat += n * statFromUse(id)                          // 屬性丹
+    }
+  }
+  const grants = (pl.grants || []).filter((g) => t - g.t < SAVE_CHECK.grantTtlMs)
+  const gM = grants.reduce((n, g) => n + g.m, 0), gV = grants.reduce((n, g) => n + g.v, 0)
+
+  // 4. 錢
+  const dMoney = moneyOf(s) - moneyOf(old)
+  const questMoney = Math.max(0, dC) * SAVE_CHECK.questStonesPerContrib   // 交宗門任務順便拿到的靈石
+  const moneyCap = gM + fromMoney + questMoney + SAVE_CHECK.moneySlack
+  if (dMoney > moneyCap) return `靈石／仙玉來源不明（+${Math.round(dMoney)}，上限 ${Math.round(moneyCap)}）`
+
+  // 5. 總資產
+  const dW = dMoney + gainVal - lossVal
+  const r = Math.max(s.realm, old.realm || 0)
+  const drop = (DROP_EV[r] || 150) * (1 + dt / KILL_GAP_S)
+  const wCap = gV + fromValue + drop + contribSpent + questMoney + SAVE_CHECK.valueSlack
+  let usedLuck = false
+  if (dW > wCap) {
+    // 超出一般額度：若在「單件大獎」範圍內、且一分鐘內沒用過，就當作運氣好放行一次
+    const luck = DROP_LUCK[r] || 600
+    if (dW <= wCap + luck && t - (meta.luckAt || 0) > 60000) usedLuck = true
+    else return `資產增加異常（+${Math.round(dW)}，上限 ${Math.round(wCap)}）`
+  }
+
+  // 6. 屬性丹點數
+  if (statSum(s.inventory) - statSum(old.inventory) > fromStat) return '屬性點數來源不明'
+
+  // 7. 高階功法
+  let skillCost = 0
+  for (const k of Object.keys(s.inventory)) if (k.startsWith('zqskl') && !(old.inventory || {})[k]) skillCost += SKILL_COST[k.slice(5)] || 1e9
+  if (skillCost > contribSpent) return '高階功法來源不明'
+
+  // 通過：更新紀錄
+  meta.t = t
+  if (usedLuck) meta.luckAt = t
+  if (dLv === 1) meta.lvUpAt = t
+  if (dC > 0) meta.contrib = meta.contrib.filter((c) => t - c.t < SAVE_CHECK.contribWindowMs).concat({ t, a: dC })
+  saveMeta.set(key, meta)
+  // 這次存檔「實際用掉」多少伺服器獎勵額度，就從紀錄扣掉多少（同一份獎勵不能用兩次）；
+  // 沒用到的留著，給還在路上、尚未包含這份獎勵的存檔使用
+  let needM = Math.max(0, Math.min(gM, dMoney - fromMoney - questMoney - SAVE_CHECK.moneySlack))
+  let needV = Math.max(0, Math.min(gV, dW - (fromValue + drop + contribSpent + questMoney + SAVE_CHECK.valueSlack + (usedLuck ? DROP_LUCK[r] || 600 : 0))))
+  for (const g of grants) {
+    const tm = Math.min(g.m, needM); g.m -= tm; needM -= tm
+    const tv = Math.min(g.v, needV); g.v -= tv; needV -= tv
+  }
+  pl.grants = grants.filter((g) => g.m > 0 || g.v > 0)
+  return null
+}
+// 存檔被拒：記到伺服器 log，並在 GM 分頁「玩家回報」留一筆（同一人 5 分鐘最多一筆，避免洗版）
+function flagSave(key, pl, reason, s) {
+  console.log(`[可疑存檔] ${pl.name}: ${reason}`)
+  const meta = saveMeta.get(key) || { t: now() - SAVE_CHECK.maxDt * 1000, lvUpAt: 0, contrib: [] }
+  saveMeta.set(key, meta)
+  if (now() - (meta.flaggedAt || 0) < SAVE_CHECK.flagGapMs) return
+  meta.flaggedAt = now()
+  db.reports = db.reports || []
+  db.reports.push({ id: 'r' + db.nextId++, t: now(), key, from: pl.name, type: '系統偵測', text: `存檔被拒絕：${reason}`, ctx: { page: 'save', realm: s.realm, layer: s.layer, sect: s.sect || '', ua: '' }, done: false })
+  if (db.reports.length > 200) db.reports.shift()
+  dirty = true
+  for (const gk of GM_NAMES) sendTo(gk, 'chat', { t: now(), from: '天道', text: `🚨 可疑存檔：「${pl.name}」（${reason}）`, sys: true })
+}
+// 載入秘境、寶箱資料後，算出「寶箱每抽上限」與「各境界回合制每殺上限」
+function buildEconomy(src) {
+  try {
+    const at = src.indexOf('const LOOTBOX_POOL = [')
+    if (at >= 0) {
+      const pool = require('vm').runInNewContext('(' + src.slice(src.indexOf('[', at), src.indexOf('\n  ]', at) + 4) + ')')
+      LOOT_ROLL_MAX = Math.max(...pool.map((e) => (e.max || 1) * (sellOf(e.item) + moneyFromUse(e.item))))
+    }
+  } catch (e) { console.log('寶箱資料載入失敗，使用預設值：', e.message) }
+  DROP_EV = [], DROP_LUCK = []
+  for (let r = 0; r <= 6; r++) {
+    let ev2 = 150, luck = 600
+    for (const loc of LOCS) {
+      if (loc.reqRealm > r) continue
+      for (const m of loc.monsters) {
+        let ev = 0
+        for (const l of m.loot) {
+          const v = sellOf(l.item) + valueFromUse(l.item)
+          ev += Math.min(1, l.chance * 1.6) * ((l.min + l.max) / 2) * v   // 1.6 = 掉落加成上限
+          luck = Math.max(luck, l.max * v)
+        }
+        ev2 = Math.max(ev2, Math.round(ev * 2))
+      }
+    }
+    DROP_EV.push(ev2); DROP_LUCK.push(luck)
+  }
+  console.log(`存檔檢查：寶箱每抽上限 ${LOOT_ROLL_MAX}；回合制每殺額度 ${DROP_EV.join('/')}；大獎額度 ${DROP_LUCK.join('/')}`)
 }
 
 /* ---------- 地圖與即時戰鬥 ----------
@@ -385,7 +611,9 @@ function loadGameData() {
     const skillSrc = src.slice(sa, ss) + lines.slice(0, endRel + 1).join('\n')
     const skills = require('vm').runInNewContext(skillSrc + '\n;SKILLS')
     skills.forEach((k) => { const d = (k.effects || []).find((e) => e.t === 'dmg'); if (d) SKILL_DEFS[k.id] = { mult: d.mult, cd: k.cooldown, req: k.req || 0 } })
+    skills.forEach((k) => { if (k.shopCost) SKILL_COST[k.id] = k.shopCost })
     LOCS.forEach((loc, idx) => { MAPS[loc.id] = genField(loc, idx) })
+    buildEconomy(src)
     console.log(`野外地圖：${LOCS.length} 張，攻伐功法：${Object.keys(SKILL_DEFS).length} 種`)
   } catch (e) { console.log('野外資料載入失敗（即時戰鬥停用）：', e.message) }
 }
@@ -469,6 +697,8 @@ function killMon(map, f, m) {
   const lm = Math.min(1.6, Math.max(1, (entries.find(([k]) => k === top)[1].lm) || 1))
   const loot = []
   for (const e of def.loot) if (Math.random() < e.chance * lm && ITEM_DEFS && ITEM_DEFS[e.item]) loot.push({ item: e.item, qty: rint(e.min, e.max) })
+  const lootVal = loot.reduce((n, l) => n + l.qty * sellOf(l.item), 0)
+  grant(top, 0, lootVal)   // 【第一階段】記下伺服器發的掉落，存檔檢查時算作合法來源
   for (const [k] of entries) sendTo(k, 'kill', { id: def.id, name: def.name, icon: def.icon, exp: def.exp, loot: k === top ? loot : [] })
 }
 setInterval(() => {
@@ -509,7 +739,7 @@ setInterval(() => {
 }, 100)
 
 
-const server = http.createServer(async (req, res) => {
+async function handle(req, res) {
   const url = new URL(req.url, 'http://x')
   const p = url.pathname
 
@@ -534,21 +764,32 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && p.startsWith('/api/')) {
     const b = await body(req)
     if (p === '/api/login') {
-      if (limited(req.socket.remoteAddress || '', 'login', 500)) return json(res, 429, { error: '操作太頻繁' })
+      if (limited(clientIp(req), 'login', 500)) return json(res, 429, { error: '操作太頻繁' })
       const name = cleanName(b.name), pw = String(b.password || '')
       if (name.toLowerCase().startsWith(NPC_PREFIX)) return json(res, 400, { error: '道號不可使用此前綴' })
       if (name.length < 2) return json(res, 400, { error: '道號需 2–12 字' })
       if (pw.length < 4) return json(res, 400, { error: '密碼至少 4 字元' })
       const key = name.toLowerCase()
+      const lf = loginFails.get(key)
+      if (lf && lf.until > now()) return json(res, 429, { error: `密碼錯誤次數過多，請 ${Math.ceil((lf.until - now()) / 60000)} 分鐘後再試` })
+      const failLogin = () => {
+        const f = loginFails.get(key) || { n: 0, until: 0 }
+        f.n++
+        if (f.n >= LOGIN_MAX_FAIL) { f.n = 0; f.until = now() + LOGIN_LOCK_MS; console.log(`[登入] ${key} 密碼連錯 ${LOGIN_MAX_FAIL} 次，鎖定 5 分鐘（IP ${clientIp(req)}）`) }
+        loginFails.set(key, f)
+        return json(res, 403, { error: '密碼錯誤' })
+      }
       let pl = db.players[key], created = false
       if (isGMKey(key)) {
         if (!GM_PASSWORD) return json(res, 403, { error: '伺服器尚未設定 GM_PASSWORD，GM 帳號停用' })
-        if (pw !== GM_PASSWORD) return json(res, 403, { error: '密碼錯誤' })
+        if (pw !== GM_PASSWORD) return failLogin()
         if (!pl) { const salt = crypto.randomBytes(16).toString('hex'); pl = db.players[key] = { name, salt, hash: hashPw(pw, salt), save: null, mail: [], created: now() }; created = true; dirty = true }
       } else if (!pl) {
+        if (pw.length < 6) return json(res, 400, { error: '建立新角色時，密碼至少 6 字元' })   // 舊帳號仍可用原本的 4 字密碼登入
         const salt = crypto.randomBytes(16).toString('hex')
         pl = db.players[key] = { name, salt, hash: hashPw(pw, salt), save: null, mail: [], created: now() }; created = true; dirty = true
-      } else if (hashPw(pw, pl.salt) !== pl.hash) return json(res, 403, { error: '密碼錯誤' })
+      } else if (hashPw(pw, pl.salt) !== pl.hash) return failLogin()
+      loginFails.delete(key)
       const token = crypto.randomBytes(24).toString('hex'); sessions.set(token, key)
       return json(res, 200, { token, name: pl.name, created, gm: isGMKey(key), save: pl.save, mail: pl.mail || [] })
     }
@@ -558,12 +799,18 @@ const server = http.createServer(async (req, res) => {
 
     if (p === '/api/save') {
       const s = sanitizeSave(b.save); if (!s) return json(res, 400, { error: '資料無效' })
+      // 【第一階段】合理性檢查：不合理就拒收，並把伺服器上的存檔傳回去讓前端還原
+      const bad = checkSave(key, pl, s)
+      if (bad) { flagSave(key, pl, bad, s); return json(res, 200, { ok: false, rejected: true, error: bad, save: pl.save }) }
       const old = pl.save || {}; pl.save = s; dirty = true
       if (old.realm !== s.realm || old.layer !== s.layer || old.sect !== s.sect) broadcast('presence', presence())
       return json(res, 200, { ok: true })
     }
     if (p === '/api/mail/ack') {
-      const ids = new Set((b.ids || []).map(Number)); pl.mail = (pl.mail || []).filter((m) => !ids.has(m.id)); dirty = true
+      const ids = new Set((b.ids || []).map(Number))
+      // 【第一階段】玩家確認收下的傳書，記成合法來源（存檔檢查用）
+      for (const m of pl.mail || []) if (ids.has(m.id)) { const v = mailValue(m); grant(key, m.kind === 'stones' ? v : 0, v) }
+      pl.mail = (pl.mail || []).filter((m) => !ids.has(m.id)); dirty = true
       return json(res, 200, { ok: true })
     }
     if (p === '/api/gm/send') {
@@ -577,35 +824,14 @@ const server = http.createServer(async (req, res) => {
       if (!stones && !item) return json(res, 400, { error: '請至少填寫靈石或選擇道具' })
       if (item && !(/^[A-Za-z]{1,24}$/.test(item) && ITEM_DEFS[item])) return json(res, 400, { error: '無此道具' })
       const reason = String(b.text || '').trim().replace(/[<>]/g, '').slice(0, 60), note = reason ? `（${reason}）` : ''
-      giveReward(tk, { id: 'rw' + db.nextId++, title: String(b.title || '').replace(/[<>]/g, '').trim().slice(0, 20), stones, item, qty, reason })
+      if (stones) mail(tk, { kind: 'stones', amount: stones, text: `天道傳書：獲贈 ${stones} 靈石${note}` })
+      if (item) mail(tk, { kind: 'item', item, qty, text: `天道傳書：獲贈 ${ITEM_DEFS[item].icon || ''}「${ITEM_DEFS[item].name || item}」× ${qty}${note}` })
       db.gmLog = db.gmLog || []
       db.gmLog.push({ t: now(), gm: key, to: tk, stones, item, qty: item ? qty : 0, text: reason })
       if (db.gmLog.length > 500) db.gmLog.shift()
       dirty = true
       console.log(`[GM] ${key} -> ${tk}: 靈石 ${stones}${item ? `, ${item} x${qty}` : ''} ${reason}`)
       return json(res, 200, { ok: true, to: tp.name, online: onlineKeys().includes(tk) })
-    }
-    if (p === '/api/gm/sendall') {
-      // GM 專用：全服獎勵。scope = 'all'（所有玩家，含離線，離線者下次登入由傳書入帳）或 'online'（僅目前在線）
-      if (!isGMKey(key)) return json(res, 403, { error: '無權限' })
-      if (limited(key, 'gmall', 5000)) return json(res, 429, { error: '操作太快，請稍候 5 秒' })
-      const stones = num(b.stones, 0, 1e9), xp = num(b.xp, 0, 1e9), item = String(b.item || ''), qty = num(b.qty || 1, 1, 99999)
-      if (!stones && !xp && !item) return json(res, 400, { error: '請至少填寫靈石、修為或選擇道具' })
-      if (item && !(/^[A-Za-z]{1,24}$/.test(item) && ITEM_DEFS[item])) return json(res, 400, { error: '無此道具' })
-      const title = String(b.title || '').replace(/[<>]/g, '').trim().slice(0, 20) || '天道賞賜'
-      const reason = String(b.text || '').trim().replace(/[<>]/g, '').slice(0, 60)
-      const scope = b.scope === 'online' ? 'online' : 'all', on = onlineKeys()
-      const keys = Object.keys(db.players).filter((k) => !isNpc(k) && !isGMKey(k) && (scope === 'all' || on.includes(k)))
-      if (!keys.length) return json(res, 400, { error: '沒有符合條件的玩家' })
-      const id = 'rw' + db.nextId++
-      for (const k of keys) giveReward(k, { id, title, stones, xp, item, qty: item ? qty : 0, reason })
-      db.gmLog = db.gmLog || []
-      db.gmLog.push({ t: now(), gm: key, to: scope === 'all' ? '*全服*' : '*在線*', stones, xp, item, qty: item ? qty : 0, text: reason, count: keys.length })
-      if (db.gmLog.length > 500) db.gmLog.shift()
-      dirty = true
-      console.log(`[GM] ${key} 全服獎勵(${scope}) ${keys.length} 人: 靈石 ${stones} 修為 ${xp}${item ? `, ${item} x${qty}` : ''} ${reason}`)
-      sysChat(`🎁 天道降下「${title}」！${scope === 'all' ? '在線修士已收到，離線者下次登入自動入帳。' : '在線修士請查收。'}`)
-      return json(res, 200, { ok: true, count: keys.length, online: keys.filter((k) => on.includes(k)).length })
     }
     if (p === '/api/report') {
       // 玩家回報 BUG／建議：存進 db.reports（保留最近 200 筆），並通知在線 GM
@@ -744,8 +970,12 @@ const server = http.createServer(async (req, res) => {
       const amount = b.amount ? num(b.amount, basePrice + 1, 1e12) : (a.bidder ? a.current + a.inc : a.start);
 
       if (amount <= basePrice) return json(res, 400, { error: '出價必須高於目前底價' })
+      // 【第一階段】伺服器自己檢查並扣款（舊版只有前端扣，直接呼叫 API 出價不用錢、被超價還會退錢 = 印鈔機）
+      const ps = pl.save
+      if (!ps || (ps.stones || 0) < amount) return json(res, 400, { error: '靈石不足，無法出價' })
       if (limited(key, 'bid', 400)) return json(res, 429, { error: '操作太快' })
-      
+      ps.stones -= amount
+
       if (a.bidder) mail(a.bidder, { kind: 'stones', amount: a.current, text: `你在拍賣中被超越，退還 ${a.current} 靈石。` })
       a.current = amount; a.bidder = key; 
       if (a.endsAt - now() < 15000) a.endsAt += 15000; 
@@ -763,6 +993,8 @@ const server = http.createServer(async (req, res) => {
       const win = duel(a, c), winner = win ? key : tk, loser = win ? tk : key
       const loot = Math.min(300, Math.floor(((db.players[loser].save || {}).stones || 0) * 0.05))
       if (loot > 0) {
+        // 【第一階段】輸家的靈石由伺服器直接扣（舊版只靠傳書通知前端自己扣，改過的前端可以不扣）
+        const ls = db.players[loser].save; if (ls) ls.stones = Math.max(0, (ls.stones || 0) - loot)
         mail(winner, { kind: 'stones', amount: loot, text: `切磋勝出，奪得 ${loot} 靈石。` })
         mail(loser, { kind: 'stones', amount: -loot, text: `切磋落敗，損失 ${loot} 靈石。` })
       }
@@ -786,16 +1018,35 @@ const server = http.createServer(async (req, res) => {
   }
 
   // 靜態檔案
-  let f = decodeURIComponent(p === '/' ? '/index.html' : p)
+  // 【第一階段】改成白名單：只開放遊戲畫面用得到的檔案（index.html、style.css、根目錄圖片、img/ 底下的圖片）。
+  // 舊版是黑名單，package.json、game.js、python/、node_modules 等全都能被下載。要開放新檔案就改 PUBLIC_FILE。
+  let f
+  try { f = decodeURIComponent(p === '/' ? '/index.html' : p) } catch (e) { res.writeHead(400); return res.end('Bad request') }
+  if (!PUBLIC_FILE.test(f) || f.split('/').some((seg) => seg.startsWith('.'))) { res.writeHead(404); return res.end('Not found') }
   const full = path.join(__dirname, f)
-  if (!full.startsWith(__dirname + path.sep) || /(^|[\\/])(data\.json|server\.js)/.test(f)) { res.writeHead(403); return res.end('Forbidden') }
+  if (!full.startsWith(__dirname + path.sep)) { res.writeHead(403); return res.end('Forbidden') }
   fs.readFile(full, (err, buf) => {
     if (err) { res.writeHead(404); return res.end('Not found') }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(full).toLowerCase()] || 'application/octet-stream' }); res.end(buf)
   })
+}
+const PUBLIC_FILE = /^\/(?:index\.html|style\.css|[^/]+\.(?:jpe?g|png|webp|gif|svg|ico)|img\/(?:[^/]+\/)*[^/]+\.(?:jpe?g|png|webp|gif|svg|ico))$/i
+// 【第一階段】任何請求出錯都只回 500，不會讓整個伺服器當掉
+// （舊版：瀏覽器打開 /%E0 這種壞網址，decodeURIComponent 會丟錯，Node 會直接結束程序 → 全服斷線）
+const server = http.createServer((req, res) => {
+  handle(req, res).catch((e) => {
+    console.error('請求處理錯誤：', req.method, req.url, e && e.stack || e)
+    try { if (!res.headersSent) { res.writeHead(500); res.end('Server error') } else res.end() } catch (_) {}
+  })
 })
 
 // 先從雲端載入資料後，再啟動伺服器
-loadFromCloud().then(() => {
+// 【第一階段】雲端讀取成功才開放連線；失敗就每 5 秒重試，期間玩家連不進來，但資料絕對不會被空白覆蓋
+async function start() {
+  for (let i = 1; !(await loadFromCloud()); i++) {
+    console.error(`雲端資料讀取失敗（第 ${i} 次），5 秒後重試…（請檢查 SUPABASE_HOST／SUPABASE_KEY 與網路）`)
+    await new Promise((r) => setTimeout(r, 5000))
+  }
   server.listen(PORT, '0.0.0.0', () => console.log(`問道長生 ORPG 已啟動：http://localhost:${PORT}`))
-})
+}
+start()

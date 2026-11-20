@@ -14,10 +14,7 @@
 <meta name="description" content="一款修仙風格的遊戲介面：修煉、突破境界、施展功法，踏上長生大道。" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<!-- 字型改為「非阻塞」載入：Google Fonts 在中國大陸常被擋，若用一般 stylesheet 會卡住整個畫面；
-     這樣載入不到時會直接使用下方的系統字型，不影響遊玩。 -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" media="print" onload="this.media='all'" />
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" /></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet" />
 <style>
   /* 墨青 · 宣紙 · 翡翠 · 鎏金 · 硃砂 */
   :root {
@@ -31,8 +28,8 @@
     --destructive: oklch(0.62 0.19 30);
     --border: oklch(0.76 0.11 165 / 20%);
     --radius: 6px;
-    --sans: 'Noto Sans TC', 'PingFang SC', 'PingFang TC', 'Microsoft YaHei', 'Microsoft JhengHei', 'Noto Sans CJK SC', 'Noto Sans CJK TC', 'Heiti SC', sans-serif;
-    --serif: 'Noto Serif TC', 'Songti SC', 'Songti TC', 'SimSun', 'PMingLiU', 'Noto Serif CJK SC', 'Noto Serif CJK TC', serif;
+    --sans: 'Noto Sans TC', sans-serif;
+    --serif: 'Noto Serif TC', serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: var(--background); color: var(--foreground); font-family: var(--sans); -webkit-font-smoothing: antialiased; width: 100%; height: 100%; overflow: hidden; }
@@ -111,7 +108,7 @@
   @media (min-width: 768px) { .shell { padding: 16px; } }
   @media (min-width: 1024px) {
     .shell { height: 100dvh; }
-    .grid { grid-template-columns: 200px 1fr 380px; }
+    .grid { grid-template-columns: 200px 1fr 300px; }
   }
 
   .panel {
@@ -194,7 +191,6 @@
   /* Right column */
   .right { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
   .info { padding: 16px; overflow-y: auto; }
-  @media (min-width: 1024px) { .right .info { flex: 1 1 0; min-height: 180px } }
   .attr { display: flex; flex-direction: column; gap: 4px; }
   .attr + .attr { margin-top: 12px; }
   .attr-head { display: flex; align-items: baseline; justify-content: space-between; }
@@ -218,7 +214,6 @@
   .cluster { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .item-list { display: flex; flex-direction: column; gap: 10px; }
   .item-card { display: flex; gap: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in oklch, var(--background) 40%, transparent); padding: 10px; }
-  .item-img { width: 32px; height: 32px; image-rendering: pixelated; display: block }
   .item-icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--radius); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 20px; background: color-mix(in oklch, var(--background) 60%, transparent); }
 
   /* 秘境 / 狩獵地點 */
@@ -230,9 +225,8 @@
   /* 戰鬥 */
   .battle-row { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 8px 0; }
   .combatant { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-  .battle-log { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; padding-right: 4px; font-size: 14px; }
-  .battle-log li { border-left: 3px solid var(--border); padding: 3px 8px; line-height: 1.55; color: color-mix(in oklch, var(--foreground) 82%, transparent); }
-  .battle-log li:first-child { border-left-color: var(--accent); color: var(--foreground); font-weight: 700; background: color-mix(in oklch, var(--accent) 9%, transparent); }
+  .battle-log { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; padding-right: 4px; }
+  .battle-log li { border-left: 1px solid var(--border); padding-left: 8px; line-height: 1.5; }
 
   /* 交易所 / 拍賣場輸入框 */
   .exchange-input { flex: 1; background: color-mix(in oklch, var(--background) 60%, transparent); border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 10px; color: var(--foreground); font: inherit; min-width: 0; }
@@ -245,19 +239,10 @@
   .sect-card.selected { border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: color-mix(in oklch, var(--accent) 8%, transparent); }
 
   .log-wrap { display: flex; flex-direction: column; height: 256px; min-height: 0; }
-  @media (min-width: 1024px) { .log-wrap { height: auto; flex: 0 0 34%; min-height: 210px; } }
+  @media (min-width: 1024px) { .log-wrap { height: auto; flex: 1; } }
   .log { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 16px; }
-  .log ol { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 15px; line-height: 1.65; }
-  .log li, .log-modal li { border-left: 3px solid var(--border); padding: 6px 10px; border-radius: 0 var(--radius) var(--radius) 0; background: color-mix(in oklch, var(--foreground) 4%, transparent); animation: log-in .3s ease-out; }
-  .log li.tone-success, .log-modal li.tone-success { border-left-color: var(--primary); background: color-mix(in oklch, var(--primary) 10%, transparent); }
-  .log li.tone-danger, .log-modal li.tone-danger { border-left-color: var(--destructive); background: color-mix(in oklch, var(--destructive) 12%, transparent); font-weight: 600; }
-  .log li.tone-gold, .log-modal li.tone-gold { border-left-color: var(--accent); background: color-mix(in oklch, var(--accent) 11%, transparent); font-weight: 600; }
-  .log li:first-child { box-shadow: 0 0 0 1px color-mix(in oklch, currentColor 35%, transparent); }
-  .log time, .log-modal time { font-size: 11px; opacity: .6; margin-right: 8px; font-variant-numeric: tabular-nums; font-weight: 400; }
-  .log-modal ol { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; min-height: 0; font-size: 16px; line-height: 1.7; padding-right: 4px; }
-  .toasts { position: fixed; bottom: 108px; left: 50%; transform: translateX(-50%); z-index: 85; display: flex; flex-direction: column; gap: 8px; width: min(440px, 92vw); pointer-events: none; }
-  .toast { padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: color-mix(in oklch, var(--card) 96%, black); font-size: 15px; line-height: 1.6; box-shadow: 0 6px 24px rgba(0,0,0,.45); animation: log-in .25s ease-out; }
-  .toast.tone-danger { border-color: var(--destructive); } .toast.tone-gold { border-color: var(--accent); }
+  .log ol { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; font-size: 14px; line-height: 1.65; }
+  .log li { border-left: 1px solid var(--border); padding-left: 12px; animation: log-in .3s ease-out; }
   .tone-normal { color: color-mix(in oklch, var(--foreground) 80%, transparent); }
   .tone-success { color: var(--primary); }
   .tone-danger { color: var(--destructive); }
@@ -340,7 +325,7 @@
     max-height: 55vh;
   }
   .log-wrap {
-    height: 320px;
+    height: 200px;
   }
 
   /* 5. 按鈕加大觸控區域，方便手指點擊 */
@@ -384,7 +369,7 @@
     <h2 class="panel-title" style="text-align:center;font-size:18px">踏入修仙界</h2>
     <div class="stack">
       <input id="loginName" class="exchange-input" type="text" maxlength="12" placeholder="道號（2–12 字）" autocomplete="username" required />
-      <input id="loginPw" class="exchange-input" type="password" minlength="4" placeholder="密碼（至少 4 字元）" autocomplete="current-password" required />
+      <input id="loginPw" class="exchange-input" type="password" minlength="4" placeholder="密碼（新角色至少 6 字元）" autocomplete="current-password" required />
       <p class="xs muted">道號不存在時會自動建立新角色。</p>
       <p class="xs" id="loginErr" style="color:var(--destructive);min-height:1.2em" role="alert"></p>
       <button type="submit" class="btn btn-gold" id="loginBtn" style="width:100%">連線登入</button>
@@ -493,7 +478,7 @@
           </section>
           <div class="log-wrap">
             <section class="panel log" aria-labelledby="log-title">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h2 class="panel-title" id="log-title" style="margin:0">修仙日誌</h2><button type="button" class="small-btn" id="logExpand" aria-haspopup="dialog">放大</button></div>
+              <h2 class="panel-title" id="log-title" style="margin-bottom:12px">修仙日誌</h2>
               <ol id="log" aria-live="polite"></ol>
             </section>
           </div>
@@ -891,50 +876,6 @@
     // ↑ 在這裡繼續加新道具，例如：
     // newItem: { name: '新道具', icon: '✨', type: 'material', rarity: '稀有', sell: 50, desc: '描述文字' },
   }
-
-  /* ========== 道具圖示 ==========
-   * 圖片放在 img/items/icon_列_欄.webp（由 32×32 圖集切出，列、欄皆從 00 起算）。
-   * 想換某個道具的圖，只要改下面對應的 '列_欄'；載入失敗或未指定時自動退回 emoji。 */
-  const ITEM_IMG_DIR = 'img/items/icon_'
-  const ITEM_IMG = {
-    qi: '09_01', foundation: '09_09', hpPill: '09_04', bigQi: '09_05',
-    huichun: '09_06', bigHpPill: '09_08', xisui: '09_10', ningyuan: '09_14',
-    pojing: '09_11', kuangbao: '03_11', wudaoTea: '15_14', lingzhi: '14_12',
-    beastPill: '15_01', zhuanggu: '01_04', kaiqiao: '01_03', ningshen: '00_02',
-    zhuanyun: '11_13', cuiguDan: '00_00', tongmingDan: '10_09', tongshenDan: '10_07',
-    tianmingDan: '13_13', wuxingDan: '00_05', dujie: '13_10', jinzhong: '17_07',
-    stonePouch: '12_06', jadePouch: '12_11', treasureBox: '11_11', commonEgg: '15_06',
-    advancedEgg: '15_05', divineEgg: '18_04', commonFeed: '14_07', advancedFeed: '15_02',
-    divineFeed: '14_00', spiritGrass: '11_15', beastHide: '17_08', demonCore: '18_00',
-    jadeSlip: '13_11', thunderCrystal: '17_02', wolfFang: '17_09', batWing: '07_14',
-    blackIron: '17_01', beastBlood: '09_00', tigerBone: '15_03', snakeGall: '09_02',
-    golemCore: '07_07', spiritJade: '18_02', fireLotus: '12_01', soulFire: '04_02',
-    iceSilk: '17_06', ancientCoin: '12_07', inkPearl: '18_05', starIron: '17_04',
-    phoenixFeather: '17_10', dragonScale: '16_13', toadVenom: '00_01', crocScale: '16_10',
-    boneShard: '16_11', ghostJade: '00_04', lavaCore: '03_09', lionMane: '11_14',
-    frostCrystal: '12_14', thunderEssence: '00_08', chaosShard: '12_15', voidPearl: '18_05',
-    ancientRelic: '11_09', forgeCoal: '12_00', pigIron: '17_01', steelIngot: '12_09',
-    spiritSand: '15_10', fireCrystal: '03_12', iceIronEssence: '12_14', thunderWood: '17_00',
-    skyGold: '17_03', divineForgeStone: '17_04', jianxinStone: '11_00', qingmingPill: '18_01',
-    wanjianSlip: '13_00', taiqingDew: '00_10', xuantianFruit: '14_02', zifuTalisman: '13_07',
-    baicaoMarrow: '12_05', jiuzhuanPill: '18_03', zaohuaPill: '12_13', sheli: '08_07',
-    bodhiSeed: '08_08', budongTalisman: '06_02', bloodSoulBead: '01_00', xueshaEssence: '03_00',
-    huaxuePill: '09_13', guKing: '16_02', biXuePill: '00_01', wuduBead: '18_04',
-    ghostFire: '00_09', samsaraFruit: '14_05', soulBanner: '03_14', beastSoul: '00_04',
-    dragonBlood: '09_12', yushouRing: '08_04', cornucopia: '12_10', goldToad: '17_03',
-    wanbaoToken: '13_14', ironSword: '05_01', hideRobe: '07_06', ironCrown: '07_01',
-    wolfBoots: '08_02', boneCharm: '08_08', fireBlade: '05_07', scaleArmor: '07_07',
-    spiritCrown: '07_03', windBoots: '08_03', jadePendant: '08_06', thunderSword: '05_02',
-    dragonArmor: '07_05', phoenixCrown: '07_00', frostBoots: '08_03', voidCharm: '08_05',
-    chaosSword: '05_09', ancientArmor: '07_04', godCrown: '07_02', voidBoots: '03_13',
-    chaosCharm: '08_07', qingshuangSword: '05_03', wanjianRobe: '07_08', taiqingCrown: '07_14',
-    zifuCharm: '13_06', yaowangGourd: '09_13', danhuoRobe: '07_09', jingangHelm: '07_02',
-    arhatCassock: '07_13', xuehunBlade: '05_07', xuehaiArmor: '07_06', wanduRing: '08_04',
-    duwuMask: '10_14', zhaohunCharm: '08_05', guiwangBoots: '08_03', yushouArmor: '07_06',
-    yushouWhip: '16_00', jinsuanPan: '12_10', caishenBoots: '08_02'
-  }
-  for (const [id, cell] of Object.entries(ITEM_IMG)) if (ITEMS[id]) ITEMS[id].img = `${ITEM_IMG_DIR}${cell}.webp`
-  const itemIcon = (def) => (def.img ? `<img class="item-img" src="${def.img}" alt="" draggable="false" onerror="this.replaceWith(document.createTextNode(this.dataset.f))" data-f="${def.icon}">` : def.icon)
 
 document.getElementById('bagModalBody').addEventListener('click', (e) => {
   const unBtn = e.target.closest('[data-modal-unequip]');
@@ -1747,7 +1688,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const worn = Object.values(state.equipped).includes(r.item) ? '（已穿戴）' : ''
     return `
       <li class="item-card">
-        <div class="item-icon">${itemIcon(def)}</div>
+        <div class="item-icon">${def.icon}</div>
         <div class="col" style="flex:1;min-width:0">
           <div class="row" style="align-items:baseline"><span class="bold">${def.name}${worn}</span><span class="xs muted">持有 ${state.inventory[r.item] || 0}</span></div>
           <span class="xs" style="color:${rarityColor(def.rarity)}">${def.rarity}${sectOnly ? ' · 本宗專屬' : ''}</span>
@@ -1830,60 +1771,26 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     } catch (e) { if (net.token) showDisconnect(false); return { ok: false, error: '無法連線到伺服器' } }
   }
   const snapshot = () => ({ realm: state.realm, layer: state.layer, xp: state.xp, hp: state.hp, mp: state.mp, stones: state.stones, jade: state.jade, inventory: encodePets(state.inventory), sect: state.sect, contribution: state.contribution })
-  const pushSave = () => api('save', { save: snapshot() })
+  // 存檔：伺服器若判定不合理會拒收（第一階段的存檔檢查），並傳回伺服器上的版本，這裡直接套用還原
+  const pushSave = () => api('save', { save: snapshot() }).then((r) => {
+    if (r && r.rejected && r.save) resyncFromServer(r.save, r.error)
+    return r
+  })
+  let lastResyncLog = 0
+  function resyncFromServer(save, why) {
+    // 和登入時一樣，從乾淨狀態套用伺服器存檔，再解出靈寵／任務／裝備等編碼欄位
+    Object.assign(state, { pets: [], activePet: null, quests: {}, questCd: {}, learned: {}, attrs: {}, equipped: {}, inventory: {}, secluded: false, battle: null }, save)
+    state.inventory = Object.assign({}, save.inventory || {})
+    normalizeState()
+    if (Date.now() - lastResyncLog > 10000) { lastResyncLog = Date.now(); addLog(`伺服器拒絕了這次存檔（${why || '數值異常'}），已還原為伺服器上的進度。`, 'danger') }
+    render(); renderInfo()
+  }
 
   function setNet(up) {
     net.up = up
     const b = $('netBadge'); if (!b) return
     b.textContent = up ? `在線 · ${net.online.length} 人` : '連線中…'
     b.style.color = up ? 'var(--primary)' : 'var(--destructive)'
-  }
-
-
-  /* ========== 獎勵彈出視窗 ==========
-   * GM 發的獎勵（單發或全服）每項一封傳書，帶相同的 rw.id；同一批在 RW_WAIT 毫秒內合併成一個視窗，
-   * 多批獎勵會排隊逐一顯示。離線期間累積的獎勵會在下次登入時一併彈出。 */
-  const RW_WAIT = 400
-  const rw = { pending: {}, queue: [], timer: 0, el: null, open: false }
-  function rewardAdd(m) {
-    const g = rw.pending[m.rw.id] || (rw.pending[m.rw.id] = { title: m.rw.title || '天道賞賜', note: m.rw.note || '', lines: [] })
-    if (m.kind === 'stones') g.lines.push(`<span class="rw-ico">💎</span><span>靈石</span><b class="num">+${Math.abs(m.amount)}</b>`)
-    else if (m.kind === 'xp') g.lines.push(`<span class="rw-ico">✨</span><span>修為</span><b class="num">+${m.raw ? m.amount : xpGain(m.amount)}</b>`)
-    else if (m.kind === 'item') { const d = ITEMS[m.item] || { name: m.item, icon: '🎁' }; g.lines.push(`<span class="rw-ico">${itemIcon(d)}</span><span>${esc(d.name)}</span><b class="num">× ${m.qty || 1}</b>`) }
-    clearTimeout(rw.timer)
-    rw.timer = setTimeout(() => { rw.queue.push(...Object.values(rw.pending)); rw.pending = {}; rewardNext() }, RW_WAIT)
-  }
-  function rewardBuild() {
-    if (rw.el) return rw.el
-    const el = document.createElement('div')
-    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'rwTitle')
-    el.style.cssText = 'position:fixed;inset:0;z-index:95;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.65);backdrop-filter:blur(3px)'
-    el.innerHTML = `
-      <style>.rw-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(255,255,255,.03)}.rw-row span:nth-child(2){flex:1;text-align:left}.rw-ico{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:22px}@keyframes rwPop{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}</style>
-      <div class="panel" style="width:min(380px,92vw);padding:24px;text-align:center;animation:rwPop .25s ease-out">
-        <div style="font-size:38px;line-height:1" aria-hidden="true">🎁</div>
-        <h2 id="rwTitle" class="panel-title" style="margin:10px 0 4px;font-size:17px;color:var(--accent)"></h2>
-        <p class="xs muted" id="rwSub" style="margin-bottom:12px">天道降下賞賜，已存入你的背包</p>
-        <div id="rwLines" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
-        <p id="rwNote" class="xs" style="line-height:1.7;margin-bottom:6px"></p>
-        <p id="rwMore" class="xs muted" style="margin-bottom:12px"></p>
-        <button type="button" class="btn btn-gold" id="rwOk" style="min-width:140px">收下</button>
-      </div>`
-    document.body.appendChild(el)
-    el.querySelector('#rwOk').addEventListener('click', () => { el.style.display = 'none'; rw.open = false; rewardNext() })
-    window.addEventListener('keydown', (e) => { if (rw.open && (e.key === 'Escape' || e.key === 'Enter')) { e.preventDefault(); e.stopPropagation(); el.querySelector('#rwOk').click() } }, true)
-    rw.el = el
-    return el
-  }
-  function rewardNext() {
-    if (rw.open || !rw.queue.length) return
-    const g = rw.queue.shift(), el = rewardBuild()
-    el.querySelector('#rwTitle').textContent = g.title
-    el.querySelector('#rwLines').innerHTML = g.lines.map((l) => `<div class="rw-row">${l}</div>`).join('')
-    el.querySelector('#rwNote').textContent = g.note ? `「${g.note}」` : ''
-    el.querySelector('#rwMore').textContent = rw.queue.length ? `還有 ${rw.queue.length} 份獎勵` : ''
-    el.style.display = 'flex'; rw.open = true
-    el.querySelector('#rwOk').focus()
   }
 
   function applyMail(list) {
@@ -1893,9 +1800,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       net.seenMail.add(m.id); ids.push(m.id)
       if (m.kind === 'stones') state.stones = Math.max(0, state.stones + m.amount)
       else if (m.kind === 'item') addItem(m.item, m.qty || 1)
-      else if (m.kind === 'xp') state.xp = Math.min(required(), state.xp + (m.raw ? m.amount : xpGain(m.amount)))   // raw = GM 發放的原數字，不套用修為縮放
+      else if (m.kind === 'xp') state.xp = Math.min(required(), state.xp + xpGain(m.amount))
       addLog(m.text || '收到一封傳書。', m.kind === 'stones' && m.amount < 0 ? 'danger' : 'gold')
-      if (m.rw) rewardAdd(m)
     }
     if (ids.length) { api('mail/ack', { ids }); render(); if (['bag', 'market', 'auction', 'pets'].includes(state.nav)) renderInfo() }
   }
@@ -2114,51 +2020,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <input id="gmMsg" class="exchange-input" maxlength="60" placeholder="選填" autocomplete="off" />
         </label>
         <button type="button" class="small-btn" data-gm-send>發送</button>
-      </div>${renderGMAll(opts)}${renderGMChat()}${renderGMReports()}`
-  }
-  function renderGMAll(opts) {
-    return `
-      <div class="card stack" style="gap:10px">
-        <h3 class="xs muted" style="letter-spacing:.2em">全服獎勵 · 一次發給所有玩家</h3>
-        <p class="xs muted">選「所有玩家」時，離線玩家下次登入會自動入帳，並彈出獎勵視窗；在線玩家即時收到並彈窗。GM 帳號本身不會收到。</p>
-        <label class="xs">發放對象
-          <select id="gmAllScope" class="exchange-input"><option value="all">所有玩家（含離線）</option><option value="online">只發給目前在線</option></select>
-        </label>
-        <label class="xs">獎勵標題（彈窗大標，例如「停機補償」）
-          <input id="gmAllTitle" class="exchange-input" maxlength="20" placeholder="天道賞賜" autocomplete="off" />
-        </label>
-        <label class="xs">靈石（可留空）
-          <input id="gmAllStones" class="exchange-input" type="number" min="0" max="1000000000" placeholder="0" />
-        </label>
-        <label class="xs">修為（可留空）
-          <input id="gmAllXp" class="exchange-input" type="number" min="0" max="1000000000" placeholder="0" />
-        </label>
-        <label class="xs">道具（可留空）
-          <select id="gmAllItem" class="exchange-input"><option value="">— 不送道具 —</option>${opts}</select>
-        </label>
-        <label class="xs">道具數量
-          <input id="gmAllQty" class="exchange-input" type="number" min="1" max="99999" value="1" />
-        </label>
-        <label class="xs">說明文字（玩家會在彈窗看到）
-          <input id="gmAllMsg" class="exchange-input" maxlength="60" placeholder="選填，例如：昨晚維護造成不便，敬請見諒" autocomplete="off" />
-        </label>
-        <button type="button" class="small-btn" data-gm-sendall>發放全服獎勵</button>
-      </div>`
-  }
-  async function sendGMAll() {
-    const scope = $('gmAllScope').value, title = $('gmAllTitle').value.trim(), stones = Math.floor(Number($('gmAllStones').value) || 0), xp = Math.floor(Number($('gmAllXp').value) || 0)
-    const item = $('gmAllItem').value, qty = Math.floor(Number($('gmAllQty').value) || 1), text = $('gmAllMsg').value.trim()
-    if (stones <= 0 && xp <= 0 && !item) return addLog('請至少填寫靈石、修為或選擇道具', 'danger')
-    const parts = []
-    if (stones > 0) parts.push(`${stones} 靈石`)
-    if (xp > 0) parts.push(`${xp} 修為`)
-    if (item) parts.push(`${(ITEMS[item] || {}).name || item} × ${qty}`)
-    if (!confirm(`確定發放給「${scope === 'all' ? '所有玩家（含離線）' : '目前在線玩家'}」？\n標題：${title || '天道賞賜'}\n內容：${parts.join('、')}${text ? `\n說明：${text}` : ''}\n\n發出後無法收回。`)) return
-    const r = await api('gm/sendall', { scope, title, stones: Math.max(0, stones), xp: Math.max(0, xp), item, qty, text })
-    if (!r.ok) return addLog(r.error || '發放失敗', 'danger')
-    addLog(`已發放全服獎勵給 ${r.count} 位玩家（其中 ${r.online} 位在線即時送達）：${parts.join('、')}`, 'gold')
-    for (const id of ['gmAllStones', 'gmAllXp', 'gmAllMsg', 'gmAllTitle']) $(id).value = ''
-    $('gmAllItem').value = ''; $('gmAllQty').value = '1'
+      </div>${renderGMChat()}${renderGMReports()}`
   }
   async function sendGM() {
     const target = $('gmTarget').value.trim(), stones = Math.floor(Number($('gmStones').value) || 0)
@@ -2334,7 +2196,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return `
         <li class="card">
           <div class="row" style="align-items:flex-start">
-            <div class="cluster"><div class="item-icon">${itemIcon(def)}</div>
+            <div class="cluster"><div class="item-icon">${def.icon}</div>
               <div class="col"><span class="bold">${def.name} <span class="xs muted">× ${a.qty}</span></span>
               <span class="xs muted">賣家：${esc(a.seller)}${mineSell ? '（你）' : ''} · ${a.bidder ? `最高：${lead ? '你' : esc(a.bidder)}` : '尚無人出價'}</span></div></div>
             <span class="xs muted num" style="white-space:nowrap">剩餘 <span data-ends="${a.endsAt}"></span>s</span>
@@ -2526,64 +2388,13 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     applyMail(r.mail)
   }
 
-  /* ========== 修仙日誌 ==========
-   * 側欄日誌（最新 60 則）＋歷史（最新 300 則，可按「放大」查看）＋重要訊息（danger／gold）的頂部提示＋主城畫面下方的最近訊息。 */
-  const logHist = []
-  const LOG_HIST_MAX = 300
-  const logTime = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  function logItem(e) {
-    const li = document.createElement('li')
-    li.className = 'tone-' + e.tone
-    const t = document.createElement('time'); t.textContent = e.time
-    li.append(t, document.createTextNode(e.text))
-    return li
-  }
   function addLog(text, tone = 'normal') {
-    const e = { text, tone, time: logTime(new Date()) }
-    logHist.unshift(e); if (logHist.length > LOG_HIST_MAX) logHist.pop()
+    const li = document.createElement('li')
+    li.className = 'tone-' + tone
+    li.textContent = text
     const log = $('log')
-    if (log) { log.prepend(logItem(e)); while (log.children.length > 60) log.lastChild.remove() }
-    if (tone === 'danger' || tone === 'gold') toast(e)
-    if (logModal.open) logModalFill()
-    townLogFill()
-  }
-  const toastBox = { el: null, last: '', at: 0 }
-  function toast(e) {
-    if (performance.now() < 3500) return   // 剛載入時的歡迎訊息不跳提示
-    if (state.nav === 'town' && town.big) return   // 主城全螢幕畫面下方已有訊息列
-    if (e.text === toastBox.last && Date.now() - toastBox.at < 1500) return
-    toastBox.last = e.text; toastBox.at = Date.now()
-    if (!toastBox.el) { toastBox.el = document.createElement('div'); toastBox.el.className = 'toasts'; toastBox.el.setAttribute('role', 'status'); document.body.appendChild(toastBox.el) }
-    const d = document.createElement('div'); d.className = 'toast tone-' + e.tone; d.textContent = e.text
-    toastBox.el.appendChild(d)
-    while (toastBox.el.children.length > 3) toastBox.el.firstChild.remove()
-    setTimeout(() => { d.style.transition = 'opacity .4s'; d.style.opacity = '0'; setTimeout(() => d.remove(), 450) }, 3800)
-  }
-  const logModal = { el: null, open: false }
-  function logModalFill() { const ol = logModal.el && logModal.el.querySelector('ol'); if (!ol) return; ol.replaceChildren(...logHist.map(logItem)) }
-  function logModalShow() {
-    if (!logModal.el) {
-      const el = document.createElement('div')
-      el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'logModalTitle')
-      el.style.cssText = 'position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.65);backdrop-filter:blur(3px)'
-      el.innerHTML = `<div class="panel log-modal" style="width:min(720px,94vw);height:min(82vh,760px);padding:18px;display:flex;flex-direction:column">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h2 class="panel-title" id="logModalTitle" style="margin:0">修仙日誌（最近 ${LOG_HIST_MAX} 則）</h2><button type="button" class="small-btn" id="logClose">關閉</button></div>
-        <ol></ol></div>`
-      document.body.appendChild(el)
-      const close = () => { el.style.display = 'none'; logModal.open = false }
-      el.querySelector('#logClose').addEventListener('click', close)
-      el.addEventListener('click', (ev) => { if (ev.target === el) close() })
-      window.addEventListener('keydown', (ev) => { if (logModal.open && ev.key === 'Escape') { ev.preventDefault(); close() } })
-      logModal.el = el
-    }
-    logModal.el.style.display = 'flex'; logModal.open = true; logModalFill()
-    logModal.el.querySelector('#logClose').focus()
-  }
-  document.addEventListener('click', (e) => { if (e.target.closest('#logExpand')) logModalShow() })
-  // 主城全螢幕畫面看不到側欄，改在畫面下方顯示最近 3 則訊息
-  function townLogFill() {
-    const el = town.wrap && town.wrap.querySelector('#townLog'); if (!el) return
-    el.replaceChildren(...logHist.slice(0, 3).map(logItem))
+    log.prepend(li)
+    while (log.children.length > 40) log.lastChild.remove()
   }
 
   function setBar(id, valId, value, max) {
@@ -2632,7 +2443,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       w.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b id="townTitle" style="color:var(--accent)">主城</b><button type="button" class="small-btn" id="townToggle"></button></div>
         <canvas id="townCv" style="width:100%;display:block;border-radius:10px;border:1px solid var(--border);background:#1d2b1f;touch-action:none" aria-label="主城地圖"></canvas>
-        <ol id="townLog" class="log-modal" style="list-style:none;margin:8px 0 0;padding:0;width:100%;display:flex;flex-direction:column;gap:4px;font-size:14px;line-height:1.5;min-height:0"></ol>
         <div id="townBar" style="margin:8px 0 0;width:100%"></div>
         <div id="townPrompt" style="margin:8px 0;min-height:38px"></div>
         <div id="townPad" style="display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,44px);gap:6px;justify-content:center;margin:6px 0">
@@ -2659,7 +2469,6 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       wr.style.cssText = ''; host.appendChild(wr); tg.textContent = '放大全螢幕'
     }
     if (!isOnline() || !town.map) { town.wrap.querySelector('#townPrompt').innerHTML = '<p class="muted">需要登入連線後才能進入主城。</p>' }
-    townLogFill()
     townResize()
     if (!town.raf) { town.lastT = performance.now(); town.raf = requestAnimationFrame(townFrame) }
   }
@@ -2667,7 +2476,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function townResize() {
     const cv = town.cv; if (!cv) return
     let w, h
-    if (town.big) { w = Math.max(260, Math.min(1000, window.innerWidth - 24)); h = Math.max(160, Math.min(640, window.innerHeight - 400)) }
+    if (town.big) { w = Math.max(260, Math.min(1000, window.innerWidth - 24)); h = Math.max(180, Math.min(640, window.innerHeight - 330)) }
     else { w = Math.max(240, Math.min(720, (cv.parentElement && cv.parentElement.clientWidth) || 480)); h = Math.round(w * 0.65) }
     cv.style.maxWidth = w + 'px'; cv.style.width = '100%'
     const dpr = window.devicePixelRatio || 1
@@ -2678,7 +2487,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   const townTyping = () => { const a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) }
   window.addEventListener('keydown', (e) => {
-    if (state.nav !== 'town' || townTyping() || rw.open) return
+    if (state.nav !== 'town' || townTyping()) return
     const k = e.key.toLowerCase()
     if (k === 'escape' && town.big) { town.big = false; townMount(); return }
     const map = { w: 'u', arrowup: 'u', s: 'd', arrowdown: 'd', a: 'l', arrowleft: 'l', d: 'r', arrowright: 'r' }
@@ -3001,7 +2810,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('info-title').textContent = NAV.find((n) => n.id === state.nav).label
     // 重繪前記住輸入框內容與焦點，避免被每次更新清掉
     const keep = {}
-    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'gmAllScope', 'gmAllTitle', 'gmAllStones', 'gmAllXp', 'gmAllItem', 'gmAllQty', 'gmAllMsg', 'reportType', 'reportText', 'gmChatQ', 'gmMuteTarget', 'gmMuteMin']) { const el = $(id); if (el) keep[id] = el.value }
+    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'reportType', 'reportText', 'gmChatQ', 'gmMuteTarget', 'gmMuteMin']) { const el = $(id); if (el) keep[id] = el.value }
     const focusId = document.activeElement && document.activeElement.id
     let html = ''
     switch (state.nav) {
@@ -3152,7 +2961,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const def = ITEMS[id]
       return `
         <li class="item-card">
-          <div class="item-icon">${itemIcon(def)}</div>
+          <div class="item-icon">${def.icon}</div>
           <div class="col" style="flex:1;min-width:0">
             <div class="row" style="align-items:baseline">
               <span class="bold">${def.name}</span>
@@ -3188,7 +2997,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const def = ITEMS[id]
       return `
         <div class="item-card" style="margin-bottom: 10px;">
-          <div class="item-icon">${itemIcon(def)}</div>
+          <div class="item-icon">${def.icon}</div>
           <div class="col" style="flex:1;min-width:0">
             <div class="row" style="align-items:baseline">
               <span class="bold">${def.name}</span>
@@ -3243,7 +3052,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return `
         <li class="card row">
           <div class="cluster">
-            <div class="item-icon">${itemIcon(def)}</div>
+            <div class="item-icon">${def.icon}</div>
             <div class="col">
               <span class="bold">${def.name} <span class="xs muted">× ${state.inventory[id]}</span></span>
               ${itemInfo(id)}
@@ -3360,7 +3169,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <button type="button" class="btn btn-gold" data-attack>攻擊</button>
           <button type="button" class="btn btn-ghost" data-flee>逃跑</button>
         </div>
-        <ol class="battle-log">${b.log.map((l) => `<li>${l}</li>`).join('')}</ol>
+        <ol class="battle-log xs muted">${b.log.map((l) => `<li>${l}</li>`).join('')}</ol>
       </div>`
   }
 
@@ -3369,7 +3178,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const def = ITEMS[id]
       return `
         <li class="card">
-          <div class="cluster"><div class="item-icon">${itemIcon(def)}</div><span class="bold">${def.name}</span></div>
+          <div class="cluster"><div class="item-icon">${def.icon}</div><span class="bold">${def.name}</span></div>
           <div style="margin-top:6px">${itemInfo(id)}</div>
           <div class="row" style="margin-top:8px;align-items:center">
             <span class="xs muted">價格　<span class="bold num" style="color:var(--accent)">${buyPrice(id)}</span> ${def.currency === 'jade' ? '仙玉' : '靈石'}</span>
@@ -3383,7 +3192,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return `
         <li class="card row">
           <div class="cluster">
-            <div class="item-icon">${itemIcon(def)}</div>
+            <div class="item-icon">${def.icon}</div>
             <span class="bold">${def.name} <span class="xs muted">× ${qty}</span></span>
           </div>
           <button type="button" class="small-btn" data-sell-item="${id}">出售（${sellPrice(id)} 靈石）</button>
@@ -3493,7 +3302,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const def = ITEMS[item], have = state.inventory[item] || 0
       return `
         <li class="item-card">
-          <div class="item-icon">${itemIcon(def)}</div>
+          <div class="item-icon">${def.icon}</div>
           <div class="col" style="flex:1;min-width:0">
             <div class="row" style="align-items:baseline"><span class="bold">${def.name}</span><span class="xs muted">持有 ${have}</span></div>
             <span class="xs" style="color:${rarityColor(def.rarity)}">${def.rarity}${def.sect ? ' · 本宗專屬' : ''}</span>
@@ -3947,7 +3756,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
   function battleLog(text) {
     state.battle.log.unshift(text)
-    if (state.battle.log.length > 10) state.battle.log.pop()
+    if (state.battle.log.length > 6) state.battle.log.pop()
   }
   // 妖獸反擊；玩家倒下回傳 true（已處理敗北）
   function monsterTurn() {
@@ -4122,7 +3931,6 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen())
   $('infoBody').addEventListener('input', (e) => { if (e.target.id === 'listPrice' || e.target.id === 'listQty') updateListSuggest(false) })
   $('infoBody').addEventListener('click', (e) => {
     if (e.target.closest('[data-suggest-apply]')) return updateListSuggest(true)
-    if (e.target.closest('[data-gm-sendall]')) return sendGMAll()
     if (e.target.closest('[data-gm-send]')) return sendGM()
     if (e.target.closest('[data-chatlog-load]')) return loadChatLog()
     const muteDo = e.target.closest('[data-mute-do]')
