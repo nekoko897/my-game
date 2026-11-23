@@ -331,39 +331,75 @@ const num = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0))
 
 /* ---------- 地圖與即時戰鬥 ----------
  * 地圖資料以伺服器為準（MAPS），進入時傳給客戶端。座標單位為「格」（浮點數）。
- * 圖例：. 草地  = 道路  # 樹/圍牆（不可走）  ~ 水（不可走）  B 建築（不可走）  R 岩石（不可走）
+ * 圖例：. 草地  , 石板地坪  = 道路  H 橋  # 樹（不可走）  ~ 水（不可走）  B 建築（不可走）  R 岩石（不可走）  W 城牆（不可走）
  * 主城（town）是安全區；每個秘境（LOCATIONS）各有一張野外地圖，妖獸由伺服器生成、移動、攻擊。
  * 【第三階段】全部由伺服器計算：妖獸氣血/位置/AI、玩家攻擊距離與冷卻、傷害（境界、宗門、增益、神識、靈寵）、
  * 功法靈力與冷卻、妖獸對玩家的傷害與重傷撤退、擊殺的修為／掉落／任務進度。前端只負責畫面。 */
 const MOVE_SPEED = 5.5, MOVE_R = 0.3
 const TOWN_NPCS = [
-  { id: 'market', name: '交易所掌櫃', x: 14.5, y: 8.5, panel: 'market', color: '#c9a24a' },
-  { id: 'auction', name: '拍賣官', x: 25.5, y: 8.5, panel: 'auction', color: '#b35a3c' },
-  { id: 'sect', name: '宗門長老', x: 20.5, y: 5.5, panel: 'sect', color: '#4a7fb5' },
-  { id: 'realm', name: '秘境引路人', x: 8.5, y: 15.5, panel: 'realm', color: '#6a4ab5' },
-  { id: 'boss', name: '鎮魔使', x: 32.5, y: 15.5, panel: 'boss', color: '#a33' },
-  { id: 'pets', name: '靈寵司', x: 14.5, y: 21.5, panel: 'pets', color: '#3a9a6a' },
-  { id: 'world', name: '傳訊童子', x: 25.5, y: 21.5, panel: 'world', color: '#5aa5b5' },
+  { id: 'sect', name: '宗門長老', x: 46.5, y: 17.5, panel: 'sect', color: '#4a7fb5' },
+  { id: 'character', name: '修煉導師', x: 17.5, y: 19.5, panel: 'character', color: '#5f8f5a' },
+  { id: 'techniques', name: '藏經閣執事', x: 53.5, y: 17.5, panel: 'techniques', color: '#8a6bd1' },
+  { id: 'market', name: '交易所掌櫃', x: 11.5, y: 41.5, panel: 'market', color: '#c9a24a' },
+  { id: 'auction', name: '拍賣官', x: 22.5, y: 41.5, panel: 'auction', color: '#b35a3c' },
+  { id: 'world', name: '傳訊童子', x: 45.5, y: 40.5, panel: 'world', color: '#5aa5b5' },
+  { id: 'realm', name: '秘境引路人', x: 56.5, y: 31.5, panel: 'realm', color: '#6a4ab5' },
+  { id: 'boss', name: '鎮魔使', x: 82.5, y: 24.5, panel: 'boss', color: '#a33' },
+  { id: 'pets', name: '靈寵司', x: 87.5, y: 47.5, panel: 'pets', color: '#3a9a6a' },
 ]
-const TOWN_SPAWN = { x: 20.5, y: 13.5 }
+const TOWN_SPAWN = { x: 50, y: 41 }
+/* 天玄城（100×75 格，每格 32px）。由 tianxuan_city_orpg 的主城移植，拆成 Tile：
+ * .草地 ,石板地坪 =道路 H橋 ~河流 B建築 #樹 W城牆 R岩石（後五種不可走）
+ * buildings / zones / portals 只給前端畫外觀用，碰撞一律以 rows 為準。 */
+const TOWN_ZONES = [
+  { name: '修煉區', x: 5, y: 5, w: 26, h: 18, floor: '.' },
+  { name: '天玄宮', x: 35, y: 2, w: 30, h: 21, floor: ',' },
+  { name: '坊市', x: 4, y: 29, w: 27, h: 20, floor: ',' },
+  { name: '中央廣場', x: 35, y: 27, w: 30, h: 22, floor: ',' },
+  { name: '任務大廳', x: 70, y: 5, w: 25, h: 22, floor: ',' },
+  { name: '藥材區', x: 70, y: 31, w: 25, h: 20, floor: '.' },
+  { name: '居民區', x: 4, y: 53, w: 27, h: 18, floor: ',' },
+  { name: '鍛造坊', x: 70, y: 54, w: 25, h: 17, floor: ',' },
+]
+const TOWN_BUILDINGS = [
+  { x: 11, y: 9, w: 13, h: 8, name: '修煉殿', kind: 'hall' },
+  { x: 40, y: 4, w: 20, h: 12, name: '天玄宮', kind: 'palace' },
+  { x: 74, y: 9, w: 17, h: 12, name: '任務大廳', kind: 'hall' },
+  { x: 8, y: 33, w: 8, h: 7, name: '靈寶閣', kind: 'shop' },
+  { x: 19, y: 33, w: 8, h: 7, name: '萬寶樓', kind: 'shop' },
+  { x: 73, y: 34, w: 9, h: 8, name: '百草堂', kind: 'shop' },
+  { x: 84, y: 34, w: 8, h: 8, name: '靈植園', kind: 'garden' },
+  { x: 8, y: 56, w: 9, h: 8, name: '客棧', kind: 'shop' },
+  { x: 20, y: 56, w: 8, h: 8, name: '居民院', kind: 'house' },
+  { x: 74, y: 57, w: 18, h: 10, name: '百煉坊', kind: 'forge' },
+  { x: 46, y: 72, w: 8, h: 3, name: '天玄城門', kind: 'gate' },
+]
+const TOWN_PORTALS = [{ x: 58.5, y: 30.5, name: '秘境傳送陣' }]
 const mkTownRows = () => {
-  const W = 40, H = 28
+  const W = 100, H = 75
   const g = Array.from({ length: H }, () => Array(W).fill('.'))
-  const rect = (x0, y0, x1, y1, c) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (g[y] && g[y][x] !== undefined) g[y][x] = c }
-  for (let x = 0; x < W; x++) { g[0][x] = '#'; g[H - 1][x] = '#' }
-  for (let y = 0; y < H; y++) { g[y][0] = '#'; g[y][W - 1] = '#' }
-  rect(3, 12, 36, 14, '='); rect(19, 2, 21, 25, '='); rect(12, 6, 27, 7, '=')
-  rect(8, 14, 9, 16, '='); rect(32, 14, 33, 16, '='); rect(12, 14, 15, 21, '='); rect(24, 14, 27, 21, '='); rect(12, 21, 27, 22, '=')
-  rect(12, 2, 17, 5, 'B'); rect(23, 2, 28, 5, 'B'); rect(17, 1, 22, 3, 'B')
-  rect(4, 17, 10, 20, 'B'); rect(30, 17, 36, 20, 'B'); rect(11, 23, 16, 26, 'B'); rect(23, 23, 28, 26, 'B')
-  rect(30, 3, 36, 8, '~'); rect(32, 4, 35, 7, '~')
-  for (const [x, y] of [[3,3],[4,5],[6,3],[7,8],[2,9],[5,10],[3,22],[5,24],[7,22],[33,23],[35,25],[31,22],[36,10],[2,16],[37,16],[16,10],[24,10]]) g[y][x] = '#'
-  for (const n of TOWN_NPCS) { const tx = Math.floor(n.x), ty = Math.floor(n.y); if (g[ty][tx] !== '=') g[ty][tx] = '.' }
-  g[Math.floor(TOWN_SPAWN.y)][Math.floor(TOWN_SPAWN.x)] = '='
+  const rect = (x0, y0, w, h, c) => { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) if (g[y] && g[y][x] !== undefined) g[y][x] = c }
+  for (const z of TOWN_ZONES) rect(z.x, z.y, z.w, z.h, z.floor)                 // 城區地坪
+  rect(32, 2, 2, 71, '~'); rect(66, 2, 2, 71, '~')                               // 河流（縱）
+  rect(34, 24, 32, 2, '~'); rect(34, 50, 32, 2, '~')                             // 河流（橫）
+  rect(48, 16, 4, 57, '=')                                                       // 主幹道：宮門 → 城門
+  rect(3, 21, 94, 2, '='); rect(3, 43, 94, 3, '='); rect(3, 67, 94, 2, '=')      // 東西向道路
+  rect(17, 23, 2, 20, '='); rect(82, 23, 2, 20, '='); rect(17, 46, 2, 21, '='); rect(82, 46, 2, 11, '=')   // 南北支路
+  for (const [x, y, w, h] of [[32, 21, 2, 2], [66, 21, 2, 2], [32, 43, 2, 3], [66, 43, 2, 3], [32, 67, 2, 2], [66, 67, 2, 2], [48, 24, 4, 2], [48, 50, 4, 2]]) rect(x, y, w, h, 'H')   // 橋
+  for (const b of TOWN_BUILDINGS) rect(b.x, b.y, b.w, b.h, 'B')
+  for (let x = 0; x < W; x++) { g[0][x] = g[1][x] = 'W'; if (g[73][x] !== 'B') g[73][x] = g[74][x] = 'W' }   // 城牆
+  for (let y = 0; y < H; y++) { g[y][0] = g[y][1] = 'W'; g[y][98] = g[y][99] = 'W' }
+  const trees = [[5, 3], [28, 4], [4, 24], [28, 25], [70, 3], [94, 28], [5, 50], [28, 70], [94, 51], [95, 71], [36, 69], [63, 69],
+    [6, 7], [8, 18], [27, 9], [27, 15], [25, 18], [3, 12], [72, 28], [92, 4], [96, 15], [37, 60], [40, 56], [60, 56], [62, 62],
+    [72, 32], [93, 33], [77, 48], [93, 47], [71, 44], [3, 30], [3, 47], [29, 30], [29, 48], [3, 54], [29, 54], [5, 70], [93, 70],
+    [36, 28], [63, 28], [36, 47], [63, 47], [36, 4], [63, 4], [36, 21], [63, 21], [44, 66], [56, 66], [40, 63], [60, 59]]
+  for (const [x, y] of trees) if (g[y][x] === '.' || g[y][x] === ',') g[y][x] = '#'
+  for (const [x, y] of [[12, 26], [24, 27], [78, 52], [88, 29], [9, 51], [91, 69]]) if (g[y][x] === '.' || g[y][x] === ',') g[y][x] = 'R'
+  for (const n of [...TOWN_NPCS, TOWN_SPAWN, ...TOWN_PORTALS]) { const tx = Math.floor(n.x), ty = Math.floor(n.y); if ('#R'.includes(g[ty][tx])) g[ty][tx] = ',' }
   return g.map((r) => r.join(''))
 }
 const MAPS = {}
-MAPS.town = { id: 'town', name: '主城', rows: mkTownRows(), npcs: TOWN_NPCS, spawn: TOWN_SPAWN, theme: { g1: '#3f6b3a', g2: '#447443' } }
+MAPS.town = { id: 'town', name: '天玄城', rows: mkTownRows(), npcs: TOWN_NPCS, spawn: TOWN_SPAWN, theme: { g1: '#4f744d', g2: '#52784f' }, deco: { zones: TOWN_ZONES.map(({ name, x, y, w, h }) => ({ name, x, y, w, h })), buildings: TOWN_BUILDINGS, portals: TOWN_PORTALS } }
 
 let LOCS = []
 function loadGameData() {
@@ -406,11 +442,11 @@ function genField(loc, idx) {
     types: loc.monsters.map((m) => ({ id: m.id, name: m.name, icon: m.icon, hp: m.hp, atkMin: m.atkMin, atkMax: m.atkMax, exp: m.exp })),
   }
 }
-const mapInfo = (m) => ({ id: m.id, name: m.name, w: m.rows[0].length, h: m.rows.length, rows: m.rows, npcs: m.npcs, speed: MOVE_SPEED, r: MOVE_R, theme: m.theme, types: m.types || null })
+const mapInfo = (m) => ({ id: m.id, name: m.name, w: m.rows[0].length, h: m.rows.length, rows: m.rows, npcs: m.npcs, speed: MOVE_SPEED, r: MOVE_R, theme: m.theme, types: m.types || null, deco: m.deco || null })
 const tileBlocked = (m, x, y) => {
   const tx = Math.floor(x), ty = Math.floor(y)
   if (tx < 0 || ty < 0 || ty >= m.rows.length || tx >= m.rows[0].length) return true
-  return '#~BR'.includes(m.rows[ty][tx])
+  return '#~BRW'.includes(m.rows[ty][tx])
 }
 const mapCollide = (m, x, y, r = MOVE_R) => tileBlocked(m, x - r, y - r) || tileBlocked(m, x + r, y - r) || tileBlocked(m, x - r, y + r) || tileBlocked(m, x + r, y + r)
 
