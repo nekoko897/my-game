@@ -590,7 +590,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   if (tabBtn) {
     state.bagTab = tabBtn.dataset.bagTab;
     renderBagPanel(true);
-    if (state.nav === 'bag') renderInfo();
+    if (infoView() === 'bag') renderInfo();
     return;
   }
   const useBtn = e.target.closest('[data-modal-use]');
@@ -759,7 +759,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   function refreshAfterItem() {
     render()
-    if (['bag', 'market', 'auction', 'pets', 'sect', 'character'].includes(state.nav)) renderInfo()
+    if (['bag', 'market', 'auction', 'pets', 'sect', 'character'].includes(infoView())) renderInfo()
   }
 
 
@@ -871,10 +871,10 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
 
   function refreshNet(kind) {
-    if (kind === 'chat') { if (state.nav === 'world') updateChat(); return }
-    if (kind === 'presence') { if (state.nav === 'world') updateOnline(); return }
-    if (kind === 'auctions') { if (state.nav === 'auction') renderInfo(); return }
-    if (kind === 'boss') { if (state.nav === 'boss') renderInfo(); return }
+    if (kind === 'chat') { if (infoView() === 'world') updateChat(); return }
+    if (kind === 'presence') { if (infoView() === 'world') updateOnline(); return }
+    if (kind === 'auctions') { if (infoView() === 'auction') renderInfo(); return }
+    if (kind === 'boss') { if (infoView() === 'boss') renderInfo(); return }
     renderInfo()
   }
 
@@ -949,7 +949,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   async function loadReports() {
     const r = await api('gm/reports', {})
     state.gmReports = r.ok ? r.reports : []
-    if (state.nav === 'gm') renderInfo()
+    if (infoView() === 'gm') renderInfo()
   }
   async function actReport(id, action) {
     if (action === 'delete' && !confirm('確定刪除這筆回報？')) return
@@ -1033,7 +1033,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (!r.ok) addLog(r.error || '載入聊天紀錄失敗', 'danger')
     state.gmChat = r.ok ? r.log : []
     state.gmMutes = r.ok ? r.mutes : []
-    if (state.nav === 'gm') renderInfo()
+    if (infoView() === 'gm') renderInfo()
   }
   const muteLabel = (m) => (m >= 525600 ? '永久' : m >= 1440 ? `${m / 1440} 天` : m >= 60 ? `${m / 60} 小時` : `${m} 分鐘`)
   async function doMute(name, minutes) {
@@ -1272,16 +1272,26 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const m = town.map, tx = Math.floor(x), ty = Math.floor(y)
     if (!m || tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) return true
     const c = m.rows[ty][tx]
-    return c === '#' || c === '~' || c === 'B' || c === 'R' || c === 'W'
+    return c === '#' || c === '~' || c === 'B' || c === 'R' || c === 'W' || c === 'F'
   }
   const townCollide = (x, y) => { const r = town.map.r; return townBlocked(x - r, y - r) || townBlocked(x + r, y - r) || townBlocked(x - r, y + r) || townBlocked(x + r, y + r) }
 
+  const TOWN_SIDE_W = 380
+  let INFO_SEC = null, INFO_HOME = null
+  function infoSecHome() {   // 把右側資訊面板放回原位
+    if (INFO_SEC && INFO_SEC.parentNode !== INFO_HOME) { INFO_HOME.insertBefore(INFO_SEC, INFO_HOME.firstChild); INFO_SEC.style.maxHeight = '' }
+  }
+  function closeTownPanel() { if (!state.townPanel) return; state.townPanel = null; town.panelNpc = null; renderInfo() }
   function townMount() {
-    const host = $('townHost'); if (!host) return
+    const host = $('townHost'); if (!host && !town.big) return
+    if (!INFO_SEC) { INFO_SEC = $('info-title').closest('section'); INFO_HOME = INFO_SEC.parentNode }
+    if (!(town.big && state.townPanel)) infoSecHome()   // 先把面板放回原位，地圖才能塞回面板裡
     if (!town.wrap) {
       const w = document.createElement('div')
       w.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b id="townTitle" style="color:var(--accent)">主城</b><button type="button" class="small-btn" id="townToggle"></button></div>
+        <div id="townMain" style="display:flex;gap:12px;align-items:flex-start;justify-content:center;width:100%">
+        <div id="townCol" style="display:flex;flex-direction:column;align-items:center;min-width:0;flex:0 1 auto;width:100%">
         <canvas id="townCv" style="width:100%;display:block;border-radius:10px;border:1px solid var(--border);background:#1d2b1f;touch-action:none" aria-label="主城地圖"></canvas>
         <div id="townBar" style="margin:8px 0 0;width:100%"></div>
         <div id="townPrompt" style="margin:8px 0;min-height:38px"></div>
@@ -1289,7 +1299,10 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <span></span><button type="button" class="btn btn-ghost" style="padding:0;min-width:0;width:100%" data-pad="u" aria-label="上">▲</button><span></span>
           <button type="button" class="btn btn-ghost" style="padding:0;min-width:0;width:100%" data-pad="l" aria-label="左">◀</button><button type="button" class="btn btn-ghost" style="padding:0;min-width:0;width:100%" data-pad="d" aria-label="下">▼</button><button type="button" class="btn btn-ghost" style="padding:0;min-width:0;width:100%" data-pad="r" aria-label="右">▶</button>
         </div>
-        <p class="xs muted">WASD／方向鍵移動，靠近 NPC 按 E 互動。同圖玩家即時可見，聊天內容會顯示在頭上。</p>`
+        <p class="xs muted">WASD／方向鍵移動，靠近 NPC 按 E 互動。同圖玩家即時可見，聊天內容會顯示在頭上。</p>
+        </div>
+        <div id="townSide" style="display:none"><div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button type="button" class="small-btn" id="townSideClose">關閉面板 ✕（Esc）</button></div></div>
+        </div>`
       town.wrap = w
       town.cv = w.querySelector('#townCv')
       w.querySelectorAll('[data-pad]').forEach((b) => {
@@ -1298,7 +1311,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         const off = () => { town.pad[k] = false }
         b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off)
       })
-      w.querySelector('#townToggle').addEventListener('click', () => { town.big = !town.big; townMount() })
+      w.querySelector('#townToggle').addEventListener('click', () => { town.big = !town.big; if (!town.big && state.townPanel) { state.townPanel = null; town.panelNpc = null; renderInfo() } else townMount() })
+      w.querySelector('#townSideClose').addEventListener('click', closeTownPanel)
       w.querySelector('#townPrompt').addEventListener('click', (e) => { if (e.target.closest('[data-town-npc]')) townInteract() })
     }
     const wr = town.wrap, tg = wr.querySelector('#townToggle')
@@ -1310,25 +1324,38 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     }
     if (!isOnline() || !town.map) { town.wrap.querySelector('#townPrompt').innerHTML = '<p class="muted">需要登入連線後才能進入主城。</p>' }
     townResize()
+    // NPC 面板：寬螢幕放地圖右側，窄螢幕（手機）放地圖下方
+    const side = wr.querySelector('#townSide'), main = wr.querySelector('#townMain')
+    if (town.big && state.townPanel) {
+      const wide = window.innerWidth >= 900
+      main.style.flexDirection = wide ? 'row' : 'column'; main.style.alignItems = wide ? 'flex-start' : 'center'
+      side.style.cssText = wide ? `display:block;width:${TOWN_SIDE_W}px;flex:none` : 'display:block;width:100%;max-width:640px'
+      INFO_SEC.style.maxHeight = wide ? Math.max(300, town.vh + 140) + 'px' : '60vh'
+      if (INFO_SEC.parentNode !== side) side.appendChild(INFO_SEC)
+    } else { side.style.display = 'none'; main.style.flexDirection = 'row'; infoSecHome() }
     if (!town.raf) { town.lastT = performance.now(); town.raf = requestAnimationFrame(townFrame) }
   }
-  function townUnmount() { if (town.wrap && town.wrap.parentNode) town.wrap.parentNode.removeChild(town.wrap); if (town.raf) { cancelAnimationFrame(town.raf); town.raf = 0 }; town.keys = {}; town.pad = {} }
+  function townUnmount() { infoSecHome(); if (town.wrap && town.wrap.parentNode) town.wrap.parentNode.removeChild(town.wrap); if (town.raf) { cancelAnimationFrame(town.raf); town.raf = 0 }; town.keys = {}; town.pad = {} }
   function townResize() {
     const cv = town.cv; if (!cv) return
     let w, h
-    if (town.big) { w = Math.max(260, Math.min(1000, window.innerWidth - 24)); h = Math.max(180, Math.min(640, window.innerHeight - 330)) }
+    const sideW = state.townPanel && window.innerWidth >= 900 ? TOWN_SIDE_W + 12 : 0
+    if (town.big) { w = Math.max(260, Math.min(1000, window.innerWidth - 24 - sideW)); h = Math.max(180, Math.min(640, window.innerHeight - 330)) }
     else { w = Math.max(240, Math.min(720, (cv.parentElement && cv.parentElement.clientWidth) || 480)); h = Math.round(w * 0.65) }
     cv.style.maxWidth = w + 'px'; cv.style.width = '100%'
     const dpr = window.devicePixelRatio || 1
-    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + 'px'
+    const col = cv.parentElement; if (col && col.id === 'townCol') col.style.width = town.big ? w + 'px' : '100%'
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr) }
+    cv.style.height = h + 'px'
     town.vw = w; town.vh = h; town.dpr = dpr
   }
-  window.addEventListener('resize', () => { if (state.nav === 'town') townResize() })
+  window.addEventListener('resize', () => { if (state.nav === 'town') townMount() })
 
   const townTyping = () => { const a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) }
   window.addEventListener('keydown', (e) => {
     if (state.nav !== 'town' || townTyping()) return
     const k = e.key.toLowerCase()
+    if (k === 'escape' && state.townPanel) { closeTownPanel(); return }
     if (k === 'escape' && town.big) { town.big = false; townMount(); return }
     const map = { w: 'u', arrowup: 'u', s: 'd', arrowdown: 'd', a: 'l', arrowleft: 'l', d: 'r', arrowright: 'r' }
     if (map[k]) { town.keys[map[k]] = true; e.preventDefault() }
@@ -1347,6 +1374,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function townInteract() {
     const n = town.near; if (!n) return
     if (n.panel === '__exit') return fieldLeave()
+    if (town.big) { state.townPanel = n.panel; town.panelNpc = n; renderInfo(); return }   // 全螢幕：面板開在地圖右側
     state.lastNav = state.nav; state.nav = n.panel
     renderNav(); renderInfo()
   }
@@ -1385,6 +1413,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       const el = town.wrap.querySelector('#townPrompt')
       el.innerHTML = best ? `<button type="button" class="btn btn-primary" data-town-npc="1">${best.panel === '__exit' ? '踏入傳送陣，返回主城' : '與「' + esc(best.name) + '」交談'}（E）</button>` : `<span class="xs muted">${town.curMap === 'town' ? '靠近 NPC 可互動' : '空白鍵／J 普攻，1-8 施展功法；傳送陣可返回主城'}</span>`
     }
+    if (state.townPanel && town.panelNpc && Math.hypot(town.panelNpc.x - town.me.x, town.panelNpc.y - town.me.y) > 3.5) closeTownPanel()   // 走遠自動關閉
     townDraw()
   }
 
@@ -1402,7 +1431,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const cv = town.cv, m = town.map, ctx = cv.getContext('2d')
     const W = town.vw, H = town.vh, dpr = town.dpr
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.fillStyle = '#141d16'; ctx.fillRect(0, 0, W, H)
+    ctx.fillStyle = '#5a9a3c'; ctx.fillRect(0, 0, W, H)
     const me = town.me
     let cx = me.x * TS - W / 2, cy = me.y * TS - H / 2
     cx = Math.max(0, Math.min(m.w * TS - W, cx)); cy = Math.max(0, Math.min(m.h * TS - H, cy))
@@ -1417,6 +1446,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     // 依 y 排序畫 NPC 與玩家
     const acts = m.npcs.map((n) => ({ y: n.y, f: () => townActor(ctx, n.x, n.y, n.color, n.name, 'd', true) }))
     for (let y = y0; y <= Math.min(m.h - 1, y1 + 1); y++) for (let x = x0; x <= x1; x++) if (m.rows[y][x] === '#') { const tx = x, ty = y; acts.push({ y: ty + 0.9, f: () => townTree(ctx, tx, ty) }) }
+    for (const pr of deco.props || []) if (pr.x * TS > cx - 64 && pr.x * TS < cx + W + 64 && pr.y * TS > cy - 64 && pr.y * TS < cy + H + 64) acts.push({ y: pr.y, f: () => townProp(ctx, pr) })
     for (const [n, o] of Object.entries(town.players)) {
       const self = n === net.name
       const px = self ? me.x : o.x, py = self ? me.y : o.y
@@ -1434,139 +1464,266 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     ctx.fillText(`${m.name || '主城'} · ${Object.keys(town.players).length} 人在場`, 12, 16)
   }
 
-  /* ---- Tile 素材：每種地形一個繪製函式（之後可在 TOWN_ASSETS 用同一個字元換成 PNG）----
-   * .草地 ,石板地坪 =道路 H橋 ~河流 B建築 #樹 W城牆 R岩石 */
+  /* ---- Tile 素材（亮色像素風）：每種地形一個繪製函式，畫好後快取成 32×32 小畫布重複使用 ----
+   * .草地 ,石板地坪 =道路 H橋 ~河流 B建築 #樹 W城牆 R岩石 F圍籬
+   * 要換成 PNG：在 TOWN_ASSETS 用同一個字元當 key 即可覆蓋。 */
   const townRow = (x, y) => { const r = town.map.rows[y]; return r ? r[x] : undefined }
   const tHash = (x, y) => ((x * 73856093) ^ (y * 19349663)) >>> 0
-  const TILE_DRAW = {
-    '.': (ctx, px, py, x, y) => {
-      const th = (town.map && town.map.theme) || { g1: '#3f6b3a', g2: '#447443' }
-      ctx.fillStyle = (x + y) % 2 ? th.g1 : th.g2; ctx.fillRect(px, py, TS, TS)
-      const n = tHash(x, y) % 11
-      if (n < 3) { ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(px + 7 + n * 5, py + 9 + n * 4, 3, 3) }
-      else if (n === 5) { ctx.fillStyle = 'rgba(0,0,0,.10)'; ctx.fillRect(px + 18, py + 20, 3, 3) }
-      else if (n === 7) { ctx.fillStyle = '#d58caa'; ctx.fillRect(px + 12, py + 6, 3, 3) }   // 小花
-    },
-    ',': (ctx, px, py, x, y) => {
-      ctx.fillStyle = (x + y) % 2 ? '#9b927b' : '#958c75'; ctx.fillRect(px, py, TS, TS)
-      ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(px, py + TS - 1, TS, 1); ctx.fillRect(px + (y % 2 ? 0 : TS / 2), py, 1, TS)
-      if (tHash(x, y) % 9 === 0) { ctx.fillStyle = 'rgba(80,110,60,.5)'; ctx.fillRect(px + 4, py + 26, 6, 2) }   // 石縫青苔
-    },
-    '=': (ctx, px, py, x, y) => {
-      ctx.fillStyle = (x + y) % 2 ? '#b4a78a' : '#b9ac8e'; ctx.fillRect(px, py, TS, TS)
-      ctx.fillStyle = 'rgba(0,0,0,.15)'
-      const e = (c) => c !== '=' && c !== 'H'
-      if (e(townRow(x, y - 1))) ctx.fillRect(px, py, TS, 2)
-      if (e(townRow(x, y + 1))) ctx.fillRect(px, py + TS - 2, TS, 2)
-      if (e(townRow(x - 1, y))) ctx.fillRect(px, py, 2, TS)
-      if (e(townRow(x + 1, y))) ctx.fillRect(px + TS - 2, py, 2, TS)
-      if (tHash(x, y) % 7 === 0) { ctx.fillStyle = '#d0c09a'; ctx.fillRect(px + 10, py + 14, 4, 3) }
-    },
-    '~': (ctx, px, py, x, y) => {
-      ctx.fillStyle = '#286c83'; ctx.fillRect(px, py, TS, TS)
-      const t = (town.lastT || 0) / 600, o = Math.sin(t + x * 0.7 + y * 0.4) * 4
-      ctx.fillStyle = 'rgba(160,220,230,.28)'; ctx.fillRect(px + 6 + o, py + 10 + (tHash(x, y) % 10), 12, 2)
-      ctx.fillStyle = '#65b6c0'   // 河岸
-      const land = (c) => c !== undefined && c !== '~' && c !== 'H'
-      if (land(townRow(x, y - 1))) ctx.fillRect(px, py, TS, 3)
-      if (land(townRow(x, y + 1))) ctx.fillRect(px, py + TS - 3, TS, 3)
-      if (land(townRow(x - 1, y))) ctx.fillRect(px, py, 3, TS)
-      if (land(townRow(x + 1, y))) ctx.fillRect(px + TS - 3, py, 3, TS)
-    },
-    'H': (ctx, px, py, x, y) => {
-      ctx.fillStyle = '#286c83'; ctx.fillRect(px, py, TS, TS)
-      const vert = townRow(x, y - 1) === '~' || townRow(x, y + 1) === '~'   // 上下是水 → 橋面東西向
-      ctx.fillStyle = '#9b7650'; ctx.fillRect(px, py, TS, TS)
-      ctx.fillStyle = '#7d5c3c'
-      for (let i = 0; i < 4; i++) vert ? ctx.fillRect(px + i * 8, py, 2, TS) : ctx.fillRect(px, py + i * 8, TS, 2)
-      ctx.fillStyle = '#e0c18a'   // 欄杆
-      if (vert) { if (townRow(x, y - 1) === '~') ctx.fillRect(px, py, TS, 3); if (townRow(x, y + 1) === '~') ctx.fillRect(px, py + TS - 3, TS, 3) }
-      else { if (townRow(x - 1, y) === '~') ctx.fillRect(px, py, 3, TS); if (townRow(x + 1, y) === '~') ctx.fillRect(px + TS - 3, py, 3, TS) }
-    },
-    'W': (ctx, px, py, x, y) => {
-      ctx.fillStyle = '#77796b'; ctx.fillRect(px, py, TS, TS)
-      ctx.fillStyle = '#5f6156'; ctx.fillRect(px, py + 15, TS, 2); ctx.fillRect(px + (y % 2 ? 8 : 24), py, 2, 15); ctx.fillRect(px + (y % 2 ? 24 : 8), py + 17, 2, 15)
-      ctx.fillStyle = '#8f9182'; ctx.fillRect(px, py, TS, 3)
-    },
-    'R': (ctx, px, py, x, y) => {
-      TILE_DRAW['.'](ctx, px, py, x, y)
-      ctx.fillStyle = '#7d7d82'; ctx.beginPath(); ctx.ellipse(px + 16, py + 20, 13, 9, 0, 0, 7); ctx.fill()
-      ctx.fillStyle = '#9a9aa0'; ctx.beginPath(); ctx.ellipse(px + 13, py + 17, 7, 5, 0, 0, 7); ctx.fill()
-    },
-    '#': (ctx, px, py, x, y) => TILE_DRAW['.'](ctx, px, py, x, y),   // 樹的本體在 townTree 跟角色一起依 y 排序繪製
-    'B': (ctx, px, py, x, y) => {
-      if (town.map.deco && town.map.deco.buildings) { TILE_DRAW[','](ctx, px, py, x, y); return }   // 有建築外觀資料 → 交給 townBuilding
-      const up = y > 0 && townIsB(x, y - 1)
-      ctx.fillStyle = up ? '#8a5a3a' : '#a33c32'; ctx.fillRect(px, py, TS, TS)
-      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + TS - 3, TS, 3)
-      if (up && !townIsB(x, y + 1)) { ctx.fillStyle = '#3b2a1c'; if ((x * 5) % 3 === 0) ctx.fillRect(px + 8, py + 8, 16, 24) }
-    },
+  const px1 = (g, x, y, c, w = 1, h = 1) => { g.fillStyle = c; g.fillRect(x, y, w, h) }
+  const COBBLE = ['#c4c3bd', '#b9b8b2', '#cfcec8', '#b2b1ab']
+  function drawGrass(g, v, th) {
+    px1(g, 0, 0, v % 2 ? th.g1 : th.g2, TS, TS)
+    const r = (i) => ((v * 7919 + i * 104729) >>> 0) % 29
+    for (let i = 0; i < 5; i++) { const x = r(i), y = r(i + 9); px1(g, x, y, 'rgba(255,255,255,.16)', 2, 2) }   // 亮點
+    for (let i = 0; i < 3; i++) { const x = r(i + 20), y = r(i + 30); px1(g, x, y + 2, 'rgba(30,90,20,.28)', 1, 2); px1(g, x + 2, y + 1, 'rgba(30,90,20,.28)', 1, 3) }   // 草叢
+    if (v === 3) { px1(g, 20, 8, '#fff6b0', 2, 2); px1(g, 21, 10, '#4a9a30', 1, 2) }   // 小黃花
+    if (v === 6) { px1(g, 7, 20, '#ffb3c8', 2, 2); px1(g, 8, 22, '#4a9a30', 1, 2) }
   }
+  function drawCobble(g, v, tint) {
+    px1(g, 0, 0, tint ? '#a5a49e' : '#9e9d97', TS, TS)
+    for (let row = 0; row < 4; row++) for (let col = -1; col < 4; col++) {
+      const x = col * 8 + (row % 2 ? 4 : 0) + 1, y = row * 8 + 1, k = ((v * 31 + row * 7 + col * 13) >>> 0) % 4
+      px1(g, x, y, COBBLE[k], 7, 6); px1(g, x, y, 'rgba(255,255,255,.35)', 6, 1); px1(g, x, y + 6, 'rgba(0,0,0,.12)', 7, 1)
+    }
+  }
+  const TILE_DRAW = {
+    '.': (g, v, n, th) => drawGrass(g, v, th),
+    ',': (g, v) => drawCobble(g, v, true),
+    '=': (g, v, n) => {
+      drawCobble(g, v, false)
+      const e = (c) => c !== undefined && !'=H,'.includes(c)   // 跟草地交界畫淺色路緣石
+      if (e(n.u)) { px1(g, 0, 0, '#e4e1d4', TS, 3); px1(g, 0, 3, 'rgba(0,0,0,.12)', TS, 1) }
+      if (e(n.d)) px1(g, 0, TS - 3, '#e4e1d4', TS, 3)
+      if (e(n.l)) px1(g, 0, 0, '#e4e1d4', 3, TS)
+      if (e(n.r)) px1(g, TS - 3, 0, '#e4e1d4', 3, TS)
+    },
+    '~': (g, v, n) => {
+      px1(g, 0, 0, '#56c3dc', TS, TS)
+      px1(g, 4 + v * 3, 8 + v * 2, '#8fe0ef', 8, 2); px1(g, 18 - v, 22 - v, '#8fe0ef', 6, 2)
+      const land = (c) => c !== undefined && c !== '~' && c !== 'H'   // 石砌河岸
+      if (land(n.u)) { px1(g, 0, 0, '#d9d4c3', TS, 5); px1(g, 0, 5, '#3d9fb8', TS, 2) }
+      if (land(n.d)) { px1(g, 0, TS - 4, '#b9b3a0', TS, 4) }
+      if (land(n.l)) { px1(g, 0, 0, '#d9d4c3', 4, TS); px1(g, 4, 0, '#3d9fb8', 2, TS) }
+      if (land(n.r)) { px1(g, TS - 4, 0, '#c9c3b0', 4, TS) }
+    },
+    'H': (g, v, n) => {
+      const ew = n.u === '~' || n.d === '~'   // 上下是水 → 橋面東西向
+      px1(g, 0, 0, '#b07a45', TS, TS)
+      for (let i = 0; i < 4; i++) ew ? px1(g, i * 8 + 7, 0, '#7f5229', 1, TS) : px1(g, 0, i * 8 + 7, '#7f5229', TS, 1)
+      for (let i = 0; i < 4; i++) ew ? px1(g, i * 8, 0, 'rgba(255,255,255,.15)', 1, TS) : px1(g, 0, i * 8, 'rgba(255,255,255,.15)', TS, 1)
+      if (ew) { if (n.u === '~') { px1(g, 0, 0, '#b3362d', TS, 4); px1(g, 0, 0, '#d9534a', TS, 1) } if (n.d === '~') px1(g, 0, TS - 4, '#8f2a23', TS, 4) }
+      else { if (n.l === '~') px1(g, 0, 0, '#b3362d', 4, TS); if (n.r === '~') px1(g, TS - 4, 0, '#8f2a23', 4, TS) }
+    },
+    'W': (g, v, n) => {
+      px1(g, 0, 0, '#a19c90', TS, TS)
+      for (let r = 0; r < 4; r++) { px1(g, 0, r * 8 + 7, '#7f7a6f', TS, 1); px1(g, (r % 2 ? 4 : 12) + 0, r * 8, '#7f7a6f', 1, 7); px1(g, (r % 2 ? 20 : 28), r * 8, '#7f7a6f', 1, 7) }
+      if (n.u !== 'W') { px1(g, 0, 0, '#e9b53b', TS, 6); px1(g, 0, 6, '#b8761d', TS, 2); for (let i = 0; i < 8; i++) px1(g, i * 4, 0, '#c88d25', 1, 6) }   // 琉璃瓦牆頭
+    },
+    'R': (g, v, n, th) => {
+      drawGrass(g, v, th)
+      g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(17, 25, 12, 4, 0, 0, 7); g.fill()
+      g.fillStyle = '#8d8c94'; g.beginPath(); g.ellipse(16, 18, 12, 9, 0, 0, 7); g.fill()
+      g.fillStyle = '#b4b3bb'; g.beginPath(); g.ellipse(13, 15, 6, 4, 0, 0, 7); g.fill()
+    },
+    '#': (g, v, n, th) => drawGrass(g, v, th),   // 樹的本體由 townTree 依 y 排序繪製
+    'F': (g, v, n, th) => {
+      drawGrass(g, v, th)
+      const h = n.l === 'F' || n.r === 'F' || !(n.u === 'F' || n.d === 'F')
+      px1(g, 0, 0, 'rgba(0,0,0,0)', 1, 1)
+      if (h) {
+        px1(g, 0, 12, '#9a6236', TS, 3); px1(g, 0, 20, '#9a6236', TS, 3); px1(g, 0, 15, 'rgba(0,0,0,.25)', TS, 1); px1(g, 0, 23, 'rgba(0,0,0,.25)', TS, 1)
+        for (const x of [4, 20]) { px1(g, x, 8, '#7a4a26', 4, 20); px1(g, x, 8, '#b98250', 4, 2) }
+      } else {
+        px1(g, 13, 0, '#9a6236', 3, TS); px1(g, 16, 0, 'rgba(0,0,0,.25)', 1, TS)
+        for (const y of [2, 18]) { px1(g, 11, y, '#7a4a26', 7, 10); px1(g, 11, y, '#b98250', 7, 2) }
+      }
+    },
+    'B': (g, v, n, th) => drawCobble(g, v, true),   // 建築底下鋪石板，外觀交給 townBuilding
+  }
+  const tileCache = new Map()
   function townTile(ctx, c, x, y) {
     const px = x * TS, py = y * TS, img = townImgs[c]
     if (img) { ctx.drawImage(img, px, py, TS, TS); return }
-    ;(TILE_DRAW[c] || TILE_DRAW['.'])(ctx, px, py, x, y)
+    const th = (town.map && town.map.theme) || { g1: '#7cc24f', g2: '#79be4c' }
+    const v = tHash(x, y) % 8
+    const n = { u: townRow(x, y - 1), d: townRow(x, y + 1), l: townRow(x - 1, y), r: townRow(x + 1, y) }
+    const key = c + v + (n.u || '_') + (n.d || '_') + (n.l || '_') + (n.r || '_') + th.g1
+    let t = tileCache.get(key)
+    if (!t) {
+      t = document.createElement('canvas'); t.width = TS; t.height = TS
+      ;(TILE_DRAW[c] || TILE_DRAW['.'])(t.getContext('2d'), v, n, th)
+      tileCache.set(key, t)
+    }
+    ctx.drawImage(t, px, py)
+    if (c === '~') {   // 水面波光動畫
+      const k = Math.sin((town.lastT || 0) / 500 + x * 0.8 + y * 0.5)
+      if (k > 0.6) { ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.fillRect(px + 10 + k * 6, py + 14, 6, 2) }
+    }
   }
   const townIsB = (x, y) => town.map.rows[y] && town.map.rows[y][x] === 'B'
 
   function townTree(ctx, x, y) {
     const img = townImgs['tree']; const px = x * TS + 16, py = y * TS + 16
     if (img) { ctx.drawImage(img, px - 20, py - 34, 40, 50); return }
-    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(px, py + 12, 13, 5, 0, 0, 7); ctx.fill()
-    ctx.fillStyle = '#503b2b'; ctx.fillRect(px - 3, py, 6, 13)
-    ctx.fillStyle = '#244b39'; ctx.beginPath(); ctx.arc(px, py - 8, 15, 0, 7); ctx.fill()
-    ctx.fillStyle = '#2f6a45'; ctx.beginPath(); ctx.arc(px - 5, py - 12, 9, 0, 7); ctx.fill()
-    ctx.fillStyle = '#6b9a68'; ctx.fillRect(px - 6, py - 19, 8, 4)
-    if (tHash(x, y) % 3 === 0) { ctx.fillStyle = '#d58caa'; ctx.fillRect(px - 6, py - 12, 4, 4); ctx.fillRect(px + 5, py - 5, 4, 4) }   // 靈花
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(px + 2, py + 13, 14, 5, 0, 0, 7); ctx.fill()
+    ctx.fillStyle = '#7a4a26'; ctx.fillRect(px - 3, py + 2, 6, 11); ctx.fillStyle = '#5c3519'; ctx.fillRect(px + 1, py + 2, 2, 11)
+    const blob = (cx, cy, r, c) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill() }
+    blob(px, py - 8, 16, '#2f6f2c')                                                     // 外輪廓
+    blob(px - 7, py - 6, 10, '#3f8f3a'); blob(px + 7, py - 6, 10, '#3f8f3a'); blob(px, py - 13, 12, '#4fa443')
+    blob(px - 4, py - 15, 7, '#6cc24f'); blob(px + 5, py - 9, 5, '#6cc24f'); blob(px - 6, py - 17, 3, '#a4e07a')
   }
 
-  function townZones(ctx, zones) {
-    for (const z of zones) {
-      ctx.strokeStyle = 'rgba(179,155,108,.75)'; ctx.lineWidth = 3; ctx.strokeRect(z.x * TS + 2, z.y * TS + 2, z.w * TS - 4, z.h * TS - 4)
-    }
+  /* ---- 建築：黃琉璃瓦屋頂 + 紅牆 + 白格窗 + 燈籠 ---- */
+  function roof(ctx, x, y, w, h, ridge) {
+    ctx.fillStyle = '#b8761d'; ctx.beginPath(); ctx.moveTo(x - 8, y + h); ctx.lineTo(x + w + 8, y + h); ctx.lineTo(x + w - 6, y + 4); ctx.lineTo(x + 6, y + 4); ctx.closePath(); ctx.fill()
+    ctx.fillStyle = '#e9b53b'; ctx.beginPath(); ctx.moveTo(x - 6, y + h - 5); ctx.lineTo(x + w + 6, y + h - 5); ctx.lineTo(x + w - 7, y + 5); ctx.lineTo(x + 7, y + 5); ctx.closePath(); ctx.fill()
+    ctx.save(); ctx.clip()
+    ctx.fillStyle = '#c0841f'; for (let i = x - 6; i < x + w + 6; i += 6) ctx.fillRect(i, y, 2, h)   // 瓦溝
+    ctx.fillStyle = 'rgba(150,90,20,.25)'; for (let j = y + 14; j < y + h - 6; j += 10) ctx.fillRect(x - 8, j, w + 16, 2)
+    ctx.fillStyle = 'rgba(255,245,190,.35)'; for (let i = x - 3; i < x + w + 6; i += 6) ctx.fillRect(i, y + 8, 1, h - 16)
+    ctx.fillStyle = 'rgba(255,240,160,.45)'; ctx.fillRect(x - 6, y + 5, w + 12, 3)
+    ctx.restore()
+    ctx.fillStyle = '#a3541b'; ctx.fillRect(x + 4, y, w - 8, 7)                       // 屋脊
+    ctx.fillStyle = '#d06a24'; ctx.fillRect(x + 4, y, w - 8, 2)
+    ctx.fillStyle = '#a3541b'                                                       // 翹角
+    ctx.beginPath(); ctx.moveTo(x - 10, y + h - 10); ctx.lineTo(x - 2, y + h - 4); ctx.lineTo(x - 8, y + h + 1); ctx.closePath(); ctx.fill()
+    ctx.beginPath(); ctx.moveTo(x + w + 10, y + h - 10); ctx.lineTo(x + w + 2, y + h - 4); ctx.lineTo(x + w + 8, y + h + 1); ctx.closePath(); ctx.fill()
+    if (ridge) { ctx.fillRect(x + 2, y - 5, 6, 8); ctx.fillRect(x + w - 8, y - 5, 6, 8) }  // 鴟吻
   }
-  function townZoneLabels(ctx, zones) {
-    ctx.font = 'bold 18px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    for (const z of zones) {
-      const x = (z.x + z.w / 2) * TS, y = (z.y + 1.2) * TS, w = ctx.measureText(z.name).width + 16
-      ctx.fillStyle = 'rgba(20,16,10,.45)'; ctx.fillRect(x - w / 2, y - 12, w, 24)
-      ctx.fillStyle = '#ead7a4'; ctx.fillText(z.name, x, y)
+  function lantern(ctx, x, y) {
+    ctx.fillStyle = '#5c3519'; ctx.fillRect(x - 1, y - 6, 2, 4)
+    ctx.fillStyle = '#d8342a'; ctx.beginPath(); ctx.ellipse(x, y + 2, 5, 6, 0, 0, 7); ctx.fill()
+    ctx.fillStyle = '#f7c948'; ctx.fillRect(x - 3, y - 4, 6, 1); ctx.fillRect(x - 3, y + 7, 6, 1)
+    ctx.fillStyle = 'rgba(255,220,120,.5)'; ctx.fillRect(x - 2, y, 2, 3)
+  }
+  function wallBody(ctx, x, y, w, h, b) {
+    ctx.fillStyle = '#8c8577'; ctx.fillRect(x, y + h - 6, w, 6)                      // 石基
+    ctx.fillStyle = '#b3362d'; ctx.fillRect(x, y, w, h - 6)
+    ctx.fillStyle = '#efe6cf'; ctx.fillRect(x, y, w, 5)                             // 白色樑帶
+    ctx.fillStyle = '#7a1f1a'; const cols = Math.max(2, Math.round(w / 56))
+    for (let i = 0; i <= cols; i++) ctx.fillRect(x + Math.min(w - 5, i * w / cols), y, 5, h - 6)   // 柱
+    const dw = Math.min(40, w * .26), dx = x + w / 2 - dw / 2, dh = Math.min(h - 10, 34)
+    for (let i = 0; i < cols; i++) {                                                // 白格窗
+      const cx = x + (i + .5) * w / cols
+      if (Math.abs(cx - (x + w / 2)) < dw / 2 + 12) continue
+      const ww = Math.min(26, w / cols - 14), wh = Math.min(18, h * .35)
+      ctx.fillStyle = '#f3ead2'; ctx.fillRect(cx - ww / 2, y + 10, ww, wh)
+      ctx.fillStyle = '#b3362d'; for (let k = 5; k < ww; k += 5) ctx.fillRect(cx - ww / 2 + k, y + 10, 1, wh); ctx.fillRect(cx - ww / 2, y + 10 + wh / 2, ww, 1)
     }
+    ctx.fillStyle = '#e9b53b'; ctx.fillRect(dx - 3, y + h - 6 - dh - 3, dw + 6, dh + 3)   // 門框
+    ctx.fillStyle = '#6b3f22'; ctx.fillRect(dx, y + h - 6 - dh, dw, dh)
+    ctx.fillStyle = '#4e2c16'; ctx.fillRect(dx + dw / 2 - 1, y + h - 6 - dh, 2, dh)
+    ctx.fillStyle = '#f7c948'; ctx.fillRect(dx + dw / 2 - 5, y + h - 6 - dh / 2, 2, 2); ctx.fillRect(dx + dw / 2 + 3, y + h - 6 - dh / 2, 2, 2)
+    if (b.name) {                                                                    // 匾額
+      ctx.font = 'bold 12px serif'; const tw = ctx.measureText(b.name).width + 10
+      ctx.fillStyle = '#2b2b33'; ctx.fillRect(x + w / 2 - tw / 2, y + h - 6 - dh - 20, tw, 15)
+      ctx.strokeStyle = '#e9b53b'; ctx.lineWidth = 1; ctx.strokeRect(x + w / 2 - tw / 2 + .5, y + h - 6 - dh - 19.5, tw - 1, 14)
+      ctx.fillStyle = '#f7d77a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.name, x + w / 2, y + h - 6 - dh - 12)
+    }
+    lantern(ctx, x + 10, y + 12); lantern(ctx, x + w - 10, y + 12)
   }
   function townBuilding(ctx, b) {
     const x = b.x * TS, y = b.y * TS, w = b.w * TS, h = b.h * TS, img = townImgs['bld_' + b.kind]
-    if (img) { ctx.drawImage(img, x, y, w, h) }
-    else if (b.kind === 'gate') {
-      ctx.fillStyle = '#77796b'; ctx.fillRect(x, y, w, h)
-      ctx.fillStyle = '#b68c4f'; ctx.fillRect(x + TS, y, w - 2 * TS, h)
-      ctx.fillStyle = '#3a2a1c'; ctx.fillRect(x + w / 2 - 28, y + 12, 56, h - 12)
-      ctx.fillStyle = '#d8a844'; ctx.beginPath(); ctx.moveTo(x - 6, y + 14); ctx.lineTo(x + w / 2, y - 18); ctx.lineTo(x + w + 6, y + 14); ctx.closePath(); ctx.fill()
-    } else {
-      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(x + 7, y + 12, w - 14, h - 8)
-      ctx.fillStyle = b.kind === 'palace' ? '#c49a42' : b.kind === 'forge' ? '#8b4936' : b.kind === 'garden' ? '#4f6b43' : '#425c59'
-      ctx.fillRect(x + 4, y + 5, w - 8, h - 9)
-      ctx.fillStyle = '#263a37'; ctx.fillRect(x + w * .18, y + h * .28, w * .64, h * .54)
-      ctx.fillStyle = '#d5b86e'; ctx.fillRect(x + w * .12, y + h * .2, w * .76, 4)
-      ctx.fillStyle = '#26303a'; ctx.fillRect(x + w * .43, y + h * .54, w * .14, h * .42)   // 門
-      ctx.fillStyle = '#8f342e'; ctx.fillRect(x + w * .46, y + h * .58, w * .08, h * .38)
-      for (let i = 1; i < 4; i++) { ctx.fillStyle = '#f2d27c'; ctx.fillRect(x + w * (i / 4) - 4, y + h * .4, 8, 10) }   // 窗
-      ctx.fillStyle = b.kind === 'palace' ? '#d8a844' : b.kind === 'forge' ? '#5a2e24' : '#304e4d'   // 飛簷屋頂
-      ctx.beginPath(); ctx.moveTo(x - 6, y + h * .36); ctx.lineTo(x + w * .5, y - 4); ctx.lineTo(x + w + 6, y + h * .36); ctx.lineTo(x + w * .5, y + h * .22); ctx.closePath(); ctx.fill()
-      ctx.strokeStyle = '#f0d18a'; ctx.lineWidth = 2; ctx.stroke()
+    if (img) { ctx.drawImage(img, x, y, w, h); return }
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(x + 6, y + h - 2, w, 6)            // 地面陰影
+    if (b.kind === 'fountain') {
+      const cx = x + w / 2, cy = y + h / 2, oct = (r, ry) => { ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + i * Math.PI / 4; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * ry) } ctx.closePath() }
+      ctx.fillStyle = '#8c8577'; oct(w / 2, h / 2); ctx.fill(); ctx.fillStyle = '#dcd6c4'; oct(w / 2 - 3, h / 2 - 5); ctx.fill()
+      ctx.fillStyle = '#56c3dc'; oct(w / 2 - 12, h / 2 - 14); ctx.fill()
+      ctx.fillStyle = '#3f9a45'; for (const [a, b2] of [[-20, -8], [18, 6], [-6, 14], [22, -12]]) { ctx.beginPath(); ctx.arc(cx + a, cy + b2, 6, 0, 7); ctx.fill() }
+      ctx.fillStyle = '#f5a3c0'; ctx.fillRect(cx - 22, cy - 10, 3, 3); ctx.fillRect(cx + 20, cy + 4, 3, 3)
+      const t = (town.lastT || 0) / 300; ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(cx - 12 + (t * 7) % 24, cy + 2, 5, 2)
+      return
     }
-    ctx.font = 'bold 14px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    const tw = ctx.measureText(b.name).width + 12, ty = b.kind === 'gate' ? y - 26 : y - 12
-    ctx.fillStyle = 'rgba(40,20,10,.7)'; ctx.fillRect(x + w / 2 - tw / 2, ty - 9, tw, 18)
-    ctx.fillStyle = '#f1d58d'; ctx.fillText(b.name, x + w / 2, ty)
+    if (b.kind === 'field') {
+      ctx.fillStyle = '#8a5a32'; ctx.fillRect(x + 2, y + 2, w - 4, h - 4)
+      for (let yy = y + 8; yy < y + h - 4; yy += 12) for (let xx = x + 8; xx < x + w - 6; xx += 10) {
+        ctx.fillStyle = '#6a4224'; ctx.fillRect(xx - 4, yy + 4, 9, 2)
+        ctx.fillStyle = '#3f8f3a'; ctx.fillRect(xx - 2, yy - 2, 4, 6); ctx.fillStyle = '#7fd35a'; ctx.fillRect(xx - 3, yy - 3, 2, 3); ctx.fillRect(xx + 1, yy - 4, 2, 3)
+      }
+      ctx.strokeStyle = '#7a4a26'; ctx.lineWidth = 3; ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3)
+      return
+    }
+    if (b.kind === 'stall') {
+      ctx.fillStyle = '#7a4a26'; ctx.fillRect(x + 6, y + 18, 4, h - 18); ctx.fillRect(x + w - 10, y + 18, 4, h - 18)
+      ctx.fillStyle = '#9a6236'; ctx.fillRect(x + 4, y + 34, w - 8, 18); ctx.fillStyle = '#b98250'; ctx.fillRect(x + 4, y + 34, w - 8, 3)
+      const goods = ['#e05a4a', '#f2c14e', '#7fd35a', '#f08bb0', '#e8e1c8']
+      for (let i = 0; i < 6; i++) { ctx.fillStyle = goods[(b.x + i) % 5]; ctx.beginPath(); ctx.arc(x + 12 + i * 8, y + 32, 3.5, 0, 7); ctx.fill() }
+      for (let i = 0; i < 4; i++) { ctx.fillStyle = i % 2 ? '#f3ead2' : '#d8342a'; ctx.fillRect(x + i * w / 4, y + 4, w / 4, 16) }   // 條紋布篷
+      ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(x, y + 20, w, 3)
+      return
+    }
+    if (b.kind === 'gate') {
+      ctx.fillStyle = '#b3362d'; ctx.fillRect(x + 20, y + 20, 14, h - 20); ctx.fillRect(x + w - 34, y + 20, 14, h - 20)   // 牌樓
+      ctx.fillStyle = '#7a1f1a'; ctx.fillRect(x + 30, y + 20, 4, h - 20); ctx.fillRect(x + w - 24, y + 20, 4, h - 20)
+      ctx.fillStyle = '#2b2b33'; ctx.fillRect(x + 34, y + 26, w - 68, 12)
+      roof(ctx, x + 4, y - 14, w - 8, 36, true)
+      ctx.font = 'bold 14px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#f7d77a'; ctx.fillText(b.name, x + w / 2, y + 32)
+      lantern(ctx, x + 27, y + 46); lantern(ctx, x + w - 27, y + 46)
+      return
+    }
+    if (b.kind === 'garden') {   // 靈植園：圍籬藥田 + 小亭
+      ctx.fillStyle = '#7cc24f'; ctx.fillRect(x, y, w, h)
+      townBuilding(ctx, { x: b.x + 1, y: b.y + 3, w: b.w - 2, h: b.h - 4, kind: 'field', name: '' })
+      roof(ctx, x + w / 2 - 40, y + 2, 80, 36, false)
+      ctx.font = 'bold 12px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#2b2b33'; const tw = ctx.measureText(b.name).width + 10
+      ctx.fillRect(x + w / 2 - tw / 2, y + 40, tw, 15); ctx.fillStyle = '#f7d77a'; ctx.fillText(b.name, x + w / 2, y + 48)
+      return
+    }
+    const roofH = Math.round(h * (b.kind === 'palace' ? .56 : .5))
+    wallBody(ctx, x + 6, y + roofH - 6, w - 12, h - roofH + 6, b)
+    roof(ctx, x, y + (b.kind === 'palace' ? 18 : 0), w, roofH - (b.kind === 'palace' ? 18 : 0), b.kind !== 'house')
+    if (b.kind === 'palace') {   // 重簷：上層屋頂
+      ctx.fillStyle = '#b3362d'; ctx.fillRect(x + w * .2, y + 8, w * .6, 22)
+      roof(ctx, x + w * .18, y - 10, w * .64, 30, true)
+    }
+    if (b.kind === 'forge') {   // 煙囪與煙
+      ctx.fillStyle = '#6e6a62'; ctx.fillRect(x + w - 48, y - 14, 16, 30); ctx.fillStyle = '#4a4640'; ctx.fillRect(x + w - 50, y - 16, 20, 5)
+      const t = (town.lastT || 0) / 700
+      for (let i = 0; i < 3; i++) { const k = (t + i / 3) % 1; ctx.fillStyle = `rgba(220,220,220,${.5 - k * .5})`; ctx.beginPath(); ctx.arc(x + w - 40 + k * 10, y - 20 - k * 34, 5 + k * 6, 0, 7); ctx.fill() }
+    }
+  }
+  function townProp(ctx, p) {
+    const x = p.x * TS, y = p.y * TS
+    if (p.t === 'lantern') {
+      ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(x - 3, y + 8, 8, 3)
+      ctx.fillStyle = '#7a1f1a'; ctx.fillRect(x - 2, y - 24, 4, 34); ctx.fillRect(x - 2, y - 24, 12, 3)
+      lantern(ctx, x + 8, y - 15)
+    } else if (p.t === 'barrel') {
+      ctx.fillStyle = '#7a4a26'; ctx.fillRect(x - 8, y - 10, 16, 18); ctx.fillStyle = '#9a6236'; ctx.fillRect(x - 6, y - 10, 12, 18)
+      ctx.fillStyle = '#4e4a44'; ctx.fillRect(x - 8, y - 6, 16, 2); ctx.fillRect(x - 8, y + 3, 16, 2)
+      ctx.fillStyle = '#b98250'; ctx.beginPath(); ctx.ellipse(x, y - 10, 8, 3, 0, 0, 7); ctx.fill()
+    } else if (p.t === 'crate') {
+      ctx.fillStyle = '#9a6236'; ctx.fillRect(x - 9, y - 12, 18, 18); ctx.strokeStyle = '#6b3f22'; ctx.lineWidth = 2; ctx.strokeRect(x - 8, y - 11, 16, 16)
+      ctx.beginPath(); ctx.moveTo(x - 8, y - 11); ctx.lineTo(x + 8, y + 5); ctx.stroke()
+    } else if (p.t === 'bench') {
+      ctx.fillStyle = '#7a4a26'; ctx.fillRect(x - 14, y - 2, 3, 8); ctx.fillRect(x + 11, y - 2, 3, 8)
+      ctx.fillStyle = '#b07a45'; ctx.fillRect(x - 16, y - 6, 32, 6); ctx.fillStyle = '#c99560'; ctx.fillRect(x - 16, y - 6, 32, 2)
+    } else if (p.t === 'well') {
+      ctx.fillStyle = '#8c8577'; ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.fill()
+      ctx.fillStyle = '#dcd6c4'; ctx.beginPath(); ctx.arc(x, y - 2, 11, 0, 7); ctx.fill()
+      ctx.fillStyle = '#244a5a'; ctx.beginPath(); ctx.arc(x, y - 2, 6, 0, 7); ctx.fill()
+    }
+  }
+  function townZones() {}   // 城區邊界改由 F 圍籬 Tile 呈現
+  function townZoneLabels(ctx, zones) {
+    ctx.font = 'bold 16px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    for (const z of zones) {
+      const x = (z.x + z.w / 2) * TS, y = (z.y + 1.4) * TS, w = ctx.measureText(z.name).width + 18
+      ctx.fillStyle = '#7a4a26'; ctx.fillRect(x - w / 2 - 2, y - 12, w + 4, 24)   // 木牌
+      ctx.fillStyle = '#b98250'; ctx.fillRect(x - w / 2, y - 10, w, 20)
+      ctx.fillStyle = '#3b2412'; ctx.fillText(z.name, x, y + 1)
+    }
   }
   function townPortal(ctx, p) {
     const x = p.x * TS, y = p.y * TS, t = (town.lastT || 0) / 400
-    ctx.strokeStyle = '#79e5ed'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(x, y, 16 + Math.sin(t) * 2, 10, 0, 0, 7); ctx.stroke()
-    ctx.strokeStyle = '#d7c8ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y, 9, 5, t, 0, 7); ctx.stroke()
-    ctx.fillStyle = 'rgba(156,244,255,.5)'; ctx.fillRect(x - 3, y - 18 - (t * 8) % 14, 2, 6); ctx.fillRect(x + 6, y - 12 - (t * 11) % 14, 2, 5)
+    ctx.fillStyle = '#dcd6c4'; ctx.beginPath(); ctx.ellipse(x, y, 22, 13, 0, 0, 7); ctx.fill()
+    ctx.strokeStyle = '#79e5ed'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y, 16 + Math.sin(t) * 2, 9, 0, 0, 7); ctx.stroke()
+    ctx.strokeStyle = '#b79cff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y, 9, 5, t, 0, 7); ctx.stroke()
+    ctx.fillStyle = 'rgba(156,244,255,.7)'; ctx.fillRect(x - 3, y - 18 - (t * 8) % 14, 2, 6); ctx.fillRect(x + 6, y - 12 - (t * 11) % 14, 2, 5)
   }
-  // 小地圖：整張地圖預先畫成 1 格 = 2px 的離屏畫布，換地圖時重建
-  const MINI_C = { '.': '#4f744d', ',': '#9b927b', '=': '#c2b085', 'H': '#9b7650', '~': '#2d6a9a', 'B': '#a33c32', '#': '#245a2c', 'W': '#77796b', 'R': '#7d7d82' }
+  // 小地圖：整張地圖預先畫成離屏畫布，換地圖時重建
+  const MINI_C = { '.': '#7cc24f', ',': '#b9b8b2', '=': '#c9c8c2', 'H': '#b07a45', '~': '#56c3dc', 'B': '#c9493c', '#': '#3f8f3a', 'W': '#a19c90', 'R': '#8d8c94', 'F': '#9a6236' }
   function townMinimap(ctx, m, W) {
     if (m.w < 50) return
     if (!m._mini) {
@@ -1575,12 +1732,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) { g.fillStyle = MINI_C[m.rows[y][x]] || MINI_C['.']; g.fillRect(x * 2, y * 2, 2, 2) }
       m._mini = c
     }
-    const s = W < 520 ? 1 : 1.6, mw = m.w * 2 * s / 2, mh = m.h * 2 * s / 2, ox = W - mw - 8, oy = 8
-    ctx.globalAlpha = .85; ctx.fillStyle = '#000'; ctx.fillRect(ox - 2, oy - 2, mw + 4, mh + 4)
+    const s = W < 520 ? 1 : 1.6, mw = m.w * s, mh = m.h * s, ox = W - mw - 8, oy = 8
+    ctx.globalAlpha = .9; ctx.fillStyle = '#3b2412'; ctx.fillRect(ox - 3, oy - 3, mw + 6, mh + 6)
     ctx.drawImage(m._mini, ox, oy, mw, mh); ctx.globalAlpha = 1
     ctx.fillStyle = '#ffd27a'; for (const n of m.npcs) ctx.fillRect(ox + n.x * s - 1, oy + n.y * s - 1, 3, 3)
-    ctx.fillStyle = '#ffe28a'; ctx.beginPath(); ctx.arc(ox + town.me.x * s, oy + town.me.y * s, 3, 0, 7); ctx.fill()
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke()
+    ctx.fillStyle = '#ff4d4d'; ctx.beginPath(); ctx.arc(ox + town.me.x * s, oy + town.me.y * s, 3, 0, 7); ctx.fill()
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke()
   }
 
   function townActor(ctx, x, y, color, name, f, isNpc, self) {
@@ -1712,14 +1869,17 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       <li><button type="button" data-nav="${n.id}" title="${(NAV_HELP[n.id] || '').replace(/"/g, '&quot;')}" ${n.id === state.nav ? 'aria-current="page"' : ''}>${n.icon}${n.label}</button></li>`).join('')
   }
 
+  // 目前右側面板顯示哪一頁：主城全螢幕時，跟 NPC 交談會在地圖旁開啟對應面板（state.townPanel）
+  function infoView() { return (state.nav === 'town' && state.townPanel) || state.nav }
   function renderInfo() {
-    $('info-title').textContent = NAV.find((n) => n.id === state.nav).label
+    const view = infoView()
+    $('info-title').textContent = NAV.find((n) => n.id === view).label
     // 重繪前記住輸入框內容與焦點，避免被每次更新清掉
     const keep = {}
     for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'reportType', 'reportText', 'gmChatQ', 'gmMuteTarget', 'gmMuteMin']) { const el = $(id); if (el) keep[id] = el.value }
     const focusId = document.activeElement && document.activeElement.id
     let html = ''
-    switch (state.nav) {
+    switch (view) {
       case 'character':
         html = '<dl>' + ATTRIBUTES.map((a) => `
           <div class="attr">
@@ -1769,8 +1929,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     for (const [id, v] of Object.entries(keep)) { const el = $(id); if (el) el.value = v }
     if (focusId && $(focusId)) $(focusId).focus()
     if (state.nav === 'town') townMount(); else townUnmount()
-    if (state.nav === 'world') { updateChat(); updateOnline() }
-    if (state.nav === 'auction') updateListSuggest(!keep.listPrice && !!$('listItemSelect') && !!$('listItemSelect').value)
+    if (infoView() === 'world') { updateChat(); updateOnline() }
+    if (infoView() === 'auction') updateListSuggest(!keep.listPrice && !!$('listItemSelect') && !!$('listItemSelect').value)
     tickTimers()
   }
 
@@ -2255,7 +2415,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     return `${state.sect ? '' : '<p class="xs muted" style="line-height:1.7">你目前是散修。拜入宗門即可獲得宗門特色狀態，並能承接宗門任務、以貢獻兌換天材地寶。</p>'}${groups}`
   }
 
-  function refreshSect() { render(); if (state.nav === 'sect') renderInfo() }
+  function refreshSect() { render(); if (infoView() === 'sect') renderInfo() }
 
   // 角色分頁：目前宗門特色與增益狀態
   // 已穿戴裝備的加成總覽
@@ -2338,7 +2498,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     renderSkills()
     if (bagOpen()) renderBagPanel()
     // 拍賣場／戰鬥中的畫面需要每秒即時更新，其餘分頁（背包、交易所…）的刷新由各自的操作函式自行呼叫 renderInfo()
-    if (state.nav === 'realm' && state.battle) renderInfo()
+    if (infoView() === 'realm' && state.battle) renderInfo()
   }
 
 
@@ -2374,7 +2534,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     for (const [t, tone] of r.logs || []) addLog(t, tone)
     if (r.ok === false && r.error) addLog(r.error, 'danger')
     render()
-    if (opt.info !== false && state.nav !== 'town') renderInfo()
+    if (opt.info !== false && infoView() !== 'town') renderInfo()
     if (bagOpen()) renderBagPanel(true)
     return r
   }
@@ -2391,7 +2551,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       net.seenMail.add(m.id); ids.push(m.id)
       addLog(m.text || '收到一封傳書。', m.kind === 'stones' && m.amount < 0 ? 'danger' : 'gold')
     }
-    if (ids.length) { api('mail/ack', { ids }); render(); if (['bag', 'market', 'auction', 'pets'].includes(state.nav)) renderInfo() }
+    if (ids.length) { api('mail/ack', { ids }); render(); if (['bag', 'market', 'auction', 'pets'].includes(infoView())) renderInfo() }
   }
 
   /* ---------- 修煉 ---------- */
@@ -2405,7 +2565,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if ((state.cooldowns[skill.id] || 0) > 0 || state.mp < skill.cost) return
     if ((skill.req || 0) > state.realm) { addLog(`「${skill.name}」需達到${REALMS[skill.req]}期方能施展。`, 'danger'); return }
     const isDmg = skill.effects.some((e) => e.t === 'dmg')
-    const bossMode = !state.battle && state.nav === 'boss' && net.boss && net.boss.alive
+    const bossMode = !state.battle && infoView() === 'boss' && net.boss && net.boss.alive
     const fieldMode = !state.battle && state.nav === 'town' && town.curMap !== 'town'
     if (isDmg && bossMode) return attackBoss(skill)
     if (isDmg && fieldMode) {
@@ -2469,7 +2629,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     applyServerState(r.state)
     town.map = r.map; town.curMap = r.map.id; town.players = {}; town.mobs = {}; town.fx = []; town.inited = true
     town.me.x = r.x; town.me.y = r.y; town.lastSent = ''; town.barSig = ''; town.near = undefined
-    town.big = true; state.lastNav = state.nav; state.nav = 'town'
+    town.big = true; state.lastNav = state.nav; state.nav = 'town'; state.townPanel = null; town.panelNpc = null
     addLog(`踏入「${r.map.name}」野外，妖獸四處遊蕩，小心！`, 'gold')
     renderNav(); renderInfo()
   }
@@ -2522,7 +2682,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   async function attackBoss(skill = null) {
     const r = await api('boss/attack', skill ? { skill: skill.id } : {})
     for (const t of (r && r.bossLog) || []) bossLogPush(t)
-    showResult(r, { info: state.nav === 'boss' })
+    showResult(r, { info: infoView() === 'boss' })
   }
 
   /* ---------- 拍賣 ---------- */
@@ -2617,6 +2777,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   }
 
   if (btn.dataset.nav !== 'report') state.lastNav = state.nav
+  state.townPanel = null; town.panelNpc = null
   state.nav = btn.dataset.nav
   renderNav()
   renderInfo()

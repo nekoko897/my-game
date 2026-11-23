@@ -331,7 +331,7 @@ const num = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0))
 
 /* ---------- 地圖與即時戰鬥 ----------
  * 地圖資料以伺服器為準（MAPS），進入時傳給客戶端。座標單位為「格」（浮點數）。
- * 圖例：. 草地  , 石板地坪  = 道路  H 橋  # 樹（不可走）  ~ 水（不可走）  B 建築（不可走）  R 岩石（不可走）  W 城牆（不可走）
+ * 圖例：. 草地  , 石板地坪  = 道路  H 橋  # 樹（不可走）  ~ 水（不可走）  B 建築（不可走）  R 岩石（不可走）  W 城牆（不可走）  F 圍籬（不可走）
  * 主城（town）是安全區；每個秘境（LOCATIONS）各有一張野外地圖，妖獸由伺服器生成、移動、攻擊。
  * 【第三階段】全部由伺服器計算：妖獸氣血/位置/AI、玩家攻擊距離與冷卻、傷害（境界、宗門、增益、神識、靈寵）、
  * 功法靈力與冷卻、妖獸對玩家的傷害與重傷撤退、擊殺的修為／掉落／任務進度。前端只負責畫面。 */
@@ -349,17 +349,17 @@ const TOWN_NPCS = [
 ]
 const TOWN_SPAWN = { x: 50, y: 41 }
 /* 天玄城（100×75 格，每格 32px）。由 tianxuan_city_orpg 的主城移植，拆成 Tile：
- * .草地 ,石板地坪 =道路 H橋 ~河流 B建築 #樹 W城牆 R岩石（後五種不可走）
+ * .草地 ,石板地坪 =道路 H橋 ~河流 B建築 #樹 W城牆 R岩石 F圍籬（後六種不可走）
  * buildings / zones / portals 只給前端畫外觀用，碰撞一律以 rows 為準。 */
 const TOWN_ZONES = [
   { name: '修煉區', x: 5, y: 5, w: 26, h: 18, floor: '.' },
   { name: '天玄宮', x: 35, y: 2, w: 30, h: 21, floor: ',' },
   { name: '坊市', x: 4, y: 29, w: 27, h: 20, floor: ',' },
-  { name: '中央廣場', x: 35, y: 27, w: 30, h: 22, floor: ',' },
-  { name: '任務大廳', x: 70, y: 5, w: 25, h: 22, floor: ',' },
+  { name: '中央廣場', x: 35, y: 27, w: 30, h: 22, floor: '.' },
+  { name: '任務大廳', x: 70, y: 5, w: 25, h: 22, floor: '.' },
   { name: '藥材區', x: 70, y: 31, w: 25, h: 20, floor: '.' },
-  { name: '居民區', x: 4, y: 53, w: 27, h: 18, floor: ',' },
-  { name: '鍛造坊', x: 70, y: 54, w: 25, h: 17, floor: ',' },
+  { name: '居民區', x: 4, y: 53, w: 27, h: 18, floor: '.' },
+  { name: '鍛造坊', x: 70, y: 54, w: 25, h: 17, floor: '.' },
 ]
 const TOWN_BUILDINGS = [
   { x: 11, y: 9, w: 13, h: 8, name: '修煉殿', kind: 'hall' },
@@ -373,6 +373,11 @@ const TOWN_BUILDINGS = [
   { x: 20, y: 56, w: 8, h: 8, name: '居民院', kind: 'house' },
   { x: 74, y: 57, w: 18, h: 10, name: '百煉坊', kind: 'forge' },
   { x: 46, y: 72, w: 8, h: 3, name: '天玄城門', kind: 'gate' },
+  { x: 39, y: 33, w: 5, h: 4, name: '', kind: 'fountain' },
+  { x: 72, y: 46, w: 8, h: 3, name: '', kind: 'field' },
+  { x: 6, y: 13, w: 4, h: 5, name: '', kind: 'field' },
+  ...[6, 9, 12, 20, 23, 26].map((x) => ({ x, y: 30, w: 2, h: 2, name: '', kind: 'stall' })),
+  ...[6, 9, 21, 24].map((x) => ({ x, y: 46, w: 2, h: 2, name: '', kind: 'stall' })),
 ]
 const TOWN_PORTALS = [{ x: 58.5, y: 30.5, name: '秘境傳送陣' }]
 const mkTownRows = () => {
@@ -386,6 +391,10 @@ const mkTownRows = () => {
   rect(3, 21, 94, 2, '='); rect(3, 43, 94, 3, '='); rect(3, 67, 94, 2, '=')      // 東西向道路
   rect(17, 23, 2, 20, '='); rect(82, 23, 2, 20, '='); rect(17, 46, 2, 21, '='); rect(82, 46, 2, 11, '=')   // 南北支路
   for (const [x, y, w, h] of [[32, 21, 2, 2], [66, 21, 2, 2], [32, 43, 2, 3], [66, 43, 2, 3], [32, 67, 2, 2], [66, 67, 2, 2], [48, 24, 4, 2], [48, 50, 4, 2]]) rect(x, y, w, h, 'H')   // 橋
+  for (const z of TOWN_ZONES) for (let y = z.y; y < z.y + z.h; y++) for (let x = z.x; x < z.x + z.w; x++)   // 城區木圍籬（道路經過處留門）
+    if ((x === z.x || x === z.x + z.w - 1 || y === z.y || y === z.y + z.h - 1) && (g[y][x] === '.' || g[y][x] === ',')) g[y][x] = 'F'
+  rect(37, 31, 9, 8, ','); rect(54, 29, 8, 6, ',')   // 噴水池與傳送陣的石板廣場
+  for (const b of TOWN_BUILDINGS) if (!['field', 'stall', 'fountain', 'garden'].includes(b.kind)) rect(b.x - 1, b.y + b.h, b.w + 2, 1, ',')   // 建築前的石板台階
   for (const b of TOWN_BUILDINGS) rect(b.x, b.y, b.w, b.h, 'B')
   for (let x = 0; x < W; x++) { g[0][x] = g[1][x] = 'W'; if (g[73][x] !== 'B') g[73][x] = g[74][x] = 'W' }   // 城牆
   for (let y = 0; y < H; y++) { g[y][0] = g[y][1] = 'W'; g[y][98] = g[y][99] = 'W' }
@@ -393,13 +402,23 @@ const mkTownRows = () => {
     [6, 7], [8, 18], [27, 9], [27, 15], [25, 18], [3, 12], [72, 28], [92, 4], [96, 15], [37, 60], [40, 56], [60, 56], [62, 62],
     [72, 32], [93, 33], [77, 48], [93, 47], [71, 44], [3, 30], [3, 47], [29, 30], [29, 48], [3, 54], [29, 54], [5, 70], [93, 70],
     [36, 28], [63, 28], [36, 47], [63, 47], [36, 4], [63, 4], [36, 21], [63, 21], [44, 66], [56, 66], [40, 63], [60, 59]]
+  for (const z of TOWN_ZONES) if (z.floor === '.') for (let x = z.x + 3; x < z.x + z.w - 3; x += 2) trees.push([x, z.y + 1])   // 圍籬內側樹列
   for (const [x, y] of trees) if (g[y][x] === '.' || g[y][x] === ',') g[y][x] = '#'
   for (const [x, y] of [[12, 26], [24, 27], [78, 52], [88, 29], [9, 51], [91, 69]]) if (g[y][x] === '.' || g[y][x] === ',') g[y][x] = 'R'
   for (const n of [...TOWN_NPCS, TOWN_SPAWN, ...TOWN_PORTALS]) { const tx = Math.floor(n.x), ty = Math.floor(n.y); if ('#R'.includes(g[ty][tx])) g[ty][tx] = ',' }
   return g.map((r) => r.join(''))
 }
+const mkTownProps = (rows) => {   // 純裝飾（可穿過）：燈籠、木桶、長椅
+  const ok = (x, y) => rows[y] && '.,'.includes(rows[y][x]), out = []
+  for (let y = 17; y < 71; y += 4) for (const x of [47, 52]) if (ok(x, y)) out.push({ t: 'lantern', x: x + 0.5, y: y + 0.5 })
+  for (const b of TOWN_BUILDINGS) if (['hall', 'palace', 'shop', 'house', 'forge'].includes(b.kind)) for (const dx of [-2, 2]) { const x = Math.floor(b.x + b.w / 2 + dx), y = b.y + b.h; if (ok(x, y)) out.push({ t: 'lantern', x: x + 0.5, y: y + 0.4 }) }
+  for (const [t, x, y] of [['barrel', 73, 67], ['barrel', 72, 67], ['crate', 92, 66], ['barrel', 7, 63], ['crate', 7, 41], ['barrel', 16, 41], ['bench', 38, 39], ['bench', 45, 30], ['bench', 61, 39], ['well', 25, 60], ['well', 28, 12], ['barrel', 27, 41]]) if (ok(x, y)) out.push({ t, x: x + 0.5, y: y + 0.5 })
+  return out
+}
 const MAPS = {}
 MAPS.town = { id: 'town', name: '天玄城', rows: mkTownRows(), npcs: TOWN_NPCS, spawn: TOWN_SPAWN, theme: { g1: '#4f744d', g2: '#52784f' }, deco: { zones: TOWN_ZONES.map(({ name, x, y, w, h }) => ({ name, x, y, w, h })), buildings: TOWN_BUILDINGS, portals: TOWN_PORTALS } }
+MAPS.town.deco.props = mkTownProps(MAPS.town.rows)
+MAPS.town.theme = { g1: '#7cc24f', g2: '#79be4c' }
 
 let LOCS = []
 function loadGameData() {
@@ -446,7 +465,7 @@ const mapInfo = (m) => ({ id: m.id, name: m.name, w: m.rows[0].length, h: m.rows
 const tileBlocked = (m, x, y) => {
   const tx = Math.floor(x), ty = Math.floor(y)
   if (tx < 0 || ty < 0 || ty >= m.rows.length || tx >= m.rows[0].length) return true
-  return '#~BRW'.includes(m.rows[ty][tx])
+  return '#~BRWF'.includes(m.rows[ty][tx])
 }
 const mapCollide = (m, x, y, r = MOVE_R) => tileBlocked(m, x - r, y - r) || tileBlocked(m, x + r, y - r) || tileBlocked(m, x - r, y + r) || tileBlocked(m, x + r, y + r)
 
