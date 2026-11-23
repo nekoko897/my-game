@@ -158,6 +158,12 @@ const muteList = () => Object.keys(db.mutes || {}).map((k) => ({ name: nameOf(k)
 
 /* ---------- 工具 ---------- */
 function hashPw(pw, salt) { return crypto.scryptSync(pw, salt, 32).toString('hex') }
+// 設定新密碼：重新產生 salt 與雜湊；除了 keepToken 以外，該道號的其他登入一律失效
+function setPassword(key, pw, keepToken) {
+  const pl = db.players[key], salt = crypto.randomBytes(16).toString('hex')
+  pl.salt = salt; pl.hash = hashPw(pw, salt); dirty = true
+  for (const [t, k] of sessions) if (k === key && t !== keepToken) sessions.delete(t)
+}
 function onlineKeys() { return [...new Set([...clients.values()].map((c) => c.key))] }
 function presence() {
   return onlineKeys().map((k) => { const p = db.players[k], s = (p && p.save) || {}; return { name: p.name, realm: s.realm || 0, layer: s.layer || 1, sect: s.sect || '' } })
@@ -712,6 +718,42 @@ async function handle(req, res) {
       let log = db.chatLog || []
       if (q) log = log.filter((m) => [m.from, m.to, m.text, m.raw].some((x) => x && String(x).toLowerCase().includes(q)))
       return json(res, 200, { ok: true, log: log.slice(-200), mutes: muteList() })
+    }
+    if (p === '/api/password') {
+      // 玩家自行修改密碼：需輸入舊密碼；新密碼至少 6 字元。成功後其他裝置的登入會失效。
+      if (limited(key, 'pw', 1500)) return json(res, 429, { error: '操作太頻繁，請稍後再試' })
+      if (isGMKey(key)) return json(res, 400, { error: 'GM 帳號的密碼由伺服器環境變數 GM_PASSWORD 設定' })
+      const oldPw = String(b.old || ''), newPw = String(b.pw || '')
+      const lf = loginFails.get(key)
+      if (lf && lf.until > now()) return json(res, 429, { error: `密碼錯誤次數過多，請 ${Math.ceil((lf.until - now()) / 60000)} 分鐘後再試` })
+      if (hashPw(oldPw, pl.salt) !== pl.hash) {
+        const f = loginFails.get(key) || { n: 0, until: 0 }
+        f.n++; if (f.n >= LOGIN_MAX_FAIL) { f.n = 0; f.until = now() + LOGIN_LOCK_MS }
+        loginFails.set(key, f)
+        return json(res, 403, { error: '舊密碼錯誤' })
+      }
+      if (newPw.length < 6 || newPw.length > 64) return json(res, 400, { error: '新密碼需 6–64 字元' })
+      if (newPw === oldPw) return json(res, 400, { error: '新密碼不能與舊密碼相同' })
+      setPassword(key, newPw, b.token)
+      console.log(`[密碼] ${key} 自行修改密碼`)
+      return json(res, 200, { ok: true })
+    }
+    if (p === '/api/gm/resetpw') {
+      // GM 專用：重設玩家密碼（玩家忘記密碼時使用）。密碼只以雜湊保存，無法查看原密碼。
+      if (!isGMKey(key)) return json(res, 403, { error: '無權限' })
+      if (limited(key, 'gmpw', 1000)) return json(res, 429, { error: '操作太頻繁' })
+      const tk = cleanName(b.target).toLowerCase(), tp = db.players[tk]
+      if (!tp || isNpc(tk)) return json(res, 404, { error: '找不到此道號的玩家' })
+      if (isGMKey(tk)) return json(res, 400, { error: '不能重設 GM 帳號的密碼' })
+      const newPw = String(b.pw || '')
+      if (newPw.length < 6 || newPw.length > 64) return json(res, 400, { error: '新密碼需 6–64 字元' })
+      setPassword(tk, newPw, null)   // 該玩家所有裝置都會被登出，需用新密碼重新登入
+      loginFails.delete(tk)          // 順便解除登入鎖定
+      db.gmLog = db.gmLog || []
+      db.gmLog.push({ t: now(), gm: key, to: tk, resetPw: true })   // 只記錄動作，不記錄密碼
+      if (db.gmLog.length > 500) db.gmLog.shift()
+      console.log(`[GM] ${key} 重設了 ${tk} 的密碼`)
+      return json(res, 200, { ok: true, name: tp.name })
     }
     if (p === '/api/gm/mute') {
       // GM 專用：禁言／解除禁言。minutes = 0 代表解除；上限 525600（一年，視為永久）

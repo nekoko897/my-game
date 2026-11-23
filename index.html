@@ -558,7 +558,7 @@
 
   const NAV_HELP = {
     town: '主城：用 WASD／方向鍵（手機用下方按鈕）自由走動，與其他玩家同圖。靠近 NPC 按 E 或點提示按鈕即可開啟對應功能。持門票後可從「秘境」面板進入野外即時戰鬥（空白鍵／J 普攻，數字鍵施展功法）。',
-    character: '查看境界、屬性、宗門特色、裝備加成與目前的增益狀態。',
+    character: '查看境界、屬性、宗門特色、裝備加成與目前的增益狀態；最下方可修改登入密碼。',
     techniques: '查看已習得的功法。戰鬥中可點擊功法或按鍵盤數字鍵 1～9 施放，施放後有冷卻時間。',
     bag: '開啟行囊視窗：使用丹藥、穿脫裝備、出售物品。',
     pets: '孵化靈獸蛋、餵養靈寵並選擇出戰靈寵，戰鬥時靈寵會一同出手。',
@@ -569,7 +569,7 @@
     boss: '全服玩家共同挑戰的魔蛟。每個人造成的傷害會累計並有排行，被擊殺後倒數重生；氣血低於 30% 會狂暴，反擊傷害 ×1.5。',
     sect: '拜入宗門可獲得特色加成與宗門功法。完成宗門任務（每個任務完成後有冷卻時間）賺取貢獻，到「寶庫」兌換專屬道具與高階功法、到「工坊」煉製裝備。離開或改投宗門，貢獻會歸零。',
     report: '回報遊戲 BUG 或提出建議，GM 會看到。',
-    gm: '（GM 專用）發送靈石或道具給指定玩家，用於活動與補償。',
+    gm: '（GM 專用）發送靈石或道具給指定玩家、重設玩家密碼、查看聊天紀錄與禁言。',
   }
 
 
@@ -1008,7 +1008,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
           <input id="gmMsg" class="exchange-input" maxlength="60" placeholder="選填" autocomplete="off" />
         </label>
         <button type="button" class="small-btn" data-gm-send>發送</button>
-      </div>${renderGMChat()}${renderGMReports()}`
+      </div>${renderGMResetPw()}${renderGMChat()}${renderGMReports()}`
   }
   async function sendGM() {
     const target = $('gmTarget').value.trim(), stones = Math.floor(Number($('gmStones').value) || 0)
@@ -1044,6 +1044,58 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     if (!r.ok) return addLog(r.error || '操作失敗', 'danger')
     addLog(minutes > 0 ? `已禁言「${r.name}」${muteLabel(minutes)}。` : `已解除「${r.name}」的禁言。`, 'gold')
     loadChatLog()
+  }
+  /* ---------- 密碼：玩家自行修改（角色分頁最下方）與 GM 重設（GM 分頁）----------
+   * 伺服器只存密碼的雜湊值，任何人（包括 GM）都看不到原密碼；玩家忘記時由 GM 重設一組新密碼再告知玩家。 */
+  function renderChangePw() {
+    if (state.isGM || !isOnline()) return ''
+    return `
+      <div class="card stack" style="gap:8px;margin-top:14px">
+        <h3 class="xs muted" style="letter-spacing:.2em">帳號安全 · 修改密碼</h3>
+        <input id="pwOld" class="exchange-input" type="password" maxlength="64" placeholder="目前密碼" autocomplete="current-password" />
+        <input id="pwNew" class="exchange-input" type="password" maxlength="64" placeholder="新密碼（至少 6 字元）" autocomplete="new-password" />
+        <input id="pwNew2" class="exchange-input" type="password" maxlength="64" placeholder="再輸入一次新密碼" autocomplete="new-password" />
+        <button type="button" class="small-btn" data-pw-change>修改密碼</button>
+        <p class="xs muted">修改後，其他裝置上的登入會被登出。</p>
+      </div>`
+  }
+  async function changePw() {
+    const old = $('pwOld').value, pw = $('pwNew').value, pw2 = $('pwNew2').value
+    if (!old) return addLog('請輸入目前密碼。', 'danger')
+    if (pw.length < 6) return addLog('新密碼至少 6 字元。', 'danger')
+    if (pw !== pw2) return addLog('兩次輸入的新密碼不一致。', 'danger')
+    const r = await api('password', { old, pw })
+    if (!r.ok) return addLog(r.error || '修改密碼失敗', 'danger')
+    $('pwOld').value = ''; $('pwNew').value = ''; $('pwNew2').value = ''
+    addLog('密碼已修改，下次登入請使用新密碼。', 'gold')
+  }
+  function renderGMResetPw() {
+    return `
+      <div class="card stack" style="gap:8px;margin-top:14px">
+        <h3 class="xs muted" style="letter-spacing:.2em">重設玩家密碼（玩家忘記密碼時使用）</h3>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <input id="gmPwTarget" class="exchange-input" maxlength="12" placeholder="玩家道號" autocomplete="off" style="min-width:100px" />
+          <input id="gmPwNew" class="exchange-input" type="text" maxlength="64" placeholder="新密碼（至少 6 字元）" autocomplete="off" style="min-width:120px" />
+          <button type="button" class="small-btn" data-pw-gen>隨機產生</button>
+          <button type="button" class="small-btn" data-pw-reset>重設</button>
+        </div>
+        <p class="xs muted">無法查看玩家原本的密碼。重設後該玩家會被登出，請把新密碼告訴玩家，並提醒他到「角色」分頁最下方自行改掉。</p>
+      </div>`
+  }
+  function genPw() {
+    const cs = 'abcdefghjkmnpqrstuvwxyz23456789', a = new Uint32Array(8)
+    crypto.getRandomValues(a)
+    const el = $('gmPwNew'); if (el) el.value = [...a].map((n) => cs[n % cs.length]).join('')
+  }
+  async function resetPw() {
+    const target = $('gmPwTarget').value.trim(), pw = $('gmPwNew').value
+    if (!target) return addLog('請輸入玩家道號。', 'danger')
+    if (pw.length < 6) return addLog('新密碼至少 6 字元。', 'danger')
+    if (!confirm(`確定把「${target}」的密碼重設為：${pw}？\n該玩家會被登出。`)) return
+    const r = await api('gm/resetpw', { target, pw })
+    if (!r.ok) return addLog(r.error || '重設失敗', 'danger')
+    addLog(`已重設「${r.name}」的密碼為：${pw}（請轉告玩家）`, 'gold')
+    $('gmPwTarget').value = ''; $('gmPwNew').value = ''
   }
   function renderGMChat() {
     if (state.gmChat === undefined) { state.gmChat = null; loadChatLog() }
@@ -1890,7 +1942,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     $('info-title').textContent = NAV.find((n) => n.id === view).label
     // 重繪前記住輸入框內容與焦點，避免被每次更新清掉
     const keep = {}
-    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'reportType', 'reportText', 'gmChatQ', 'gmMuteTarget', 'gmMuteMin']) { const el = $(id); if (el) keep[id] = el.value }
+    for (const id of ['listPrice', 'listQty', 'listItemSelect', 'exchangeAmount', 'chatInput', 'gmTarget', 'gmStones', 'gmItem', 'gmQty', 'gmMsg', 'reportType', 'reportText', 'gmChatQ', 'gmMuteTarget', 'gmMuteMin', 'gmPwTarget', 'gmPwNew', 'pwOld', 'pwNew', 'pwNew2']) { const el = $(id); if (el) keep[id] = el.value }
     const focusId = document.activeElement && document.activeElement.id
     let html = ''
     switch (view) {
@@ -1900,7 +1952,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
             <div class="attr-head"><dt>${a.label}</dt><dd>${a.value + statPts(a.stat)}${statPts(a.stat) ? ` <span class="xs" style="color:var(--accent)">(+${statPts(a.stat)})</span>` : ''}</dd></div>
             <div class="mini-track" aria-hidden="true"><div style="width:${Math.min(100, a.value + statPts(a.stat))}%"></div></div>
             <p class="xs muted">${a.hint}${statPts(a.stat) ? `　丹藥加成：${STAT_META[a.stat].fx(statPts(a.stat))}` : ''}（丹藥已提升 ${statPts(a.stat)} / ${STAT_CAP}）</p>
-          </div>`).join('') + '</dl>' + renderStatus()
+          </div>`).join('') + '</dl>' + renderStatus() + renderChangePw()
         break
       case 'town':
         html = '<div id="townHost"></div>'
@@ -2809,6 +2861,9 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen())
     if (e.target.closest('[data-suggest-apply]')) return updateListSuggest(true)
     if (e.target.closest('[data-gm-send]')) return sendGM()
     if (e.target.closest('[data-chatlog-load]')) return loadChatLog()
+    if (e.target.closest('[data-pw-change]')) return changePw()
+    if (e.target.closest('[data-pw-gen]')) return genPw()
+    if (e.target.closest('[data-pw-reset]')) return resetPw()
     const muteDo = e.target.closest('[data-mute-do]')
     if (muteDo) return doMute($('gmMuteTarget') && $('gmMuteTarget').value, Number($('gmMuteMin') && $('gmMuteMin').value) || 0)
     const muteLift = e.target.closest('[data-mute-lift]')
