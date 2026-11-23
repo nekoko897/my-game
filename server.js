@@ -340,10 +340,10 @@ const TOWN_NPCS = [
   { id: 'sect', name: '宗門長老', x: 46.5, y: 17.5, panel: 'sect', color: '#4a7fb5' },
   { id: 'character', name: '修煉導師', x: 17.5, y: 19.5, panel: 'character', color: '#5f8f5a' },
   { id: 'techniques', name: '藏經閣執事', x: 53.5, y: 17.5, panel: 'techniques', color: '#8a6bd1' },
-  { id: 'market', name: '交易所掌櫃', x: 11.5, y: 41.5, panel: 'market', color: '#c9a24a' },
+  { id: 'market', name: '交易所掌櫃', x: 13.5, y: 41.5, panel: 'market', color: '#c9a24a' },
   { id: 'auction', name: '拍賣官', x: 22.5, y: 41.5, panel: 'auction', color: '#b35a3c' },
   { id: 'world', name: '傳訊童子', x: 45.5, y: 40.5, panel: 'world', color: '#5aa5b5' },
-  { id: 'realm', name: '秘境引路人', x: 56.5, y: 31.5, panel: 'realm', color: '#6a4ab5' },
+  { id: 'realm', name: '秘境引路人', x: 57.5, y: 36.5, panel: 'realm', color: '#6a4ab5' },
   { id: 'boss', name: '鎮魔使', x: 82.5, y: 24.5, panel: 'boss', color: '#a33' },
   { id: 'pets', name: '靈寵司', x: 87.5, y: 47.5, panel: 'pets', color: '#3a9a6a' },
 ]
@@ -379,33 +379,60 @@ const TOWN_BUILDINGS = [
   ...[6, 9, 12, 20, 23, 26].map((x) => ({ x, y: 30, w: 2, h: 2, name: '', kind: 'stall' })),
   ...[6, 9, 21, 24].map((x) => ({ x, y: 46, w: 2, h: 2, name: '', kind: 'stall' })),
 ]
-const TOWN_PORTALS = [{ x: 58.5, y: 30.5, name: '秘境傳送陣' }]
+const TOWN_PORTALS = [{ x: 50.5, y: 35.5, name: '秘境傳送陣' }]
+/* 碰撞格依天玄城背景圖重新配置：不再使用舊版十字河道與分區圍籬。
+ * 背景圖為 100×75 的整張俯視地圖；以下只把可見的建築、城牆與水域設為阻擋，
+ * 廣場、街道、建築入口與城門通道保持可走。 */
 const mkTownRows = () => {
   const W = 100, H = 75
   const g = Array.from({ length: H }, () => Array(W).fill('.'))
-  const rect = (x0, y0, w, h, c) => { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) if (g[y] && g[y][x] !== undefined) g[y][x] = c }
-  for (const z of TOWN_ZONES) rect(z.x, z.y, z.w, z.h, z.floor)                 // 城區地坪
-  rect(32, 2, 2, 71, '~'); rect(66, 2, 2, 71, '~')                               // 河流（縱）
-  rect(34, 24, 32, 2, '~'); rect(34, 50, 32, 2, '~')                             // 河流（橫）
-  rect(48, 16, 4, 57, '=')                                                       // 主幹道：宮門 → 城門
-  rect(3, 21, 94, 2, '='); rect(3, 43, 94, 3, '='); rect(3, 67, 94, 2, '=')      // 東西向道路
-  rect(17, 23, 2, 20, '='); rect(82, 23, 2, 20, '='); rect(17, 46, 2, 21, '='); rect(82, 46, 2, 11, '=')   // 南北支路
-  for (const [x, y, w, h] of [[32, 21, 2, 2], [66, 21, 2, 2], [32, 43, 2, 3], [66, 43, 2, 3], [32, 67, 2, 2], [66, 67, 2, 2], [48, 24, 4, 2], [48, 50, 4, 2]]) rect(x, y, w, h, 'H')   // 橋
-  for (const z of TOWN_ZONES) for (let y = z.y; y < z.y + z.h; y++) for (let x = z.x; x < z.x + z.w; x++)   // 城區木圍籬（道路經過處留門）
-    if ((x === z.x || x === z.x + z.w - 1 || y === z.y || y === z.y + z.h - 1) && (g[y][x] === '.' || g[y][x] === ',')) g[y][x] = 'F'
-  rect(37, 31, 9, 8, ','); rect(54, 29, 8, 6, ',')   // 噴水池與傳送陣的石板廣場
-  for (const b of TOWN_BUILDINGS) if (!['field', 'stall', 'fountain', 'garden'].includes(b.kind)) rect(b.x - 1, b.y + b.h, b.w + 2, 1, ',')   // 建築前的石板台階
-  for (const b of TOWN_BUILDINGS) rect(b.x, b.y, b.w, b.h, 'B')
-  for (let x = 0; x < W; x++) { g[0][x] = g[1][x] = 'W'; if (g[73][x] !== 'B') g[73][x] = g[74][x] = 'W' }   // 城牆
-  for (let y = 0; y < H; y++) { g[y][0] = g[y][1] = 'W'; g[y][98] = g[y][99] = 'W' }
-  const trees = [[5, 3], [28, 4], [4, 24], [28, 25], [70, 3], [94, 28], [5, 50], [28, 70], [94, 51], [95, 71], [36, 69], [63, 69],
-    [6, 7], [8, 18], [27, 9], [27, 15], [25, 18], [3, 12], [72, 28], [92, 4], [96, 15], [37, 60], [40, 56], [60, 56], [62, 62],
-    [72, 32], [93, 33], [77, 48], [93, 47], [71, 44], [3, 30], [3, 47], [29, 30], [29, 48], [3, 54], [29, 54], [5, 70], [93, 70],
-    [36, 28], [63, 28], [36, 47], [63, 47], [36, 4], [63, 4], [36, 21], [63, 21], [44, 66], [56, 66], [40, 63], [60, 59]]
-  for (const z of TOWN_ZONES) if (z.floor === '.') for (let x = z.x + 3; x < z.x + z.w - 3; x += 2) trees.push([x, z.y + 1])   // 圍籬內側樹列
-  for (const [x, y] of trees) if (g[y][x] === '.' || g[y][x] === ',') g[y][x] = '#'
-  for (const [x, y] of [[12, 26], [24, 27], [78, 52], [88, 29], [9, 51], [91, 69]]) if (g[y][x] === '.' || g[y][x] === ',') g[y][x] = 'R'
-  for (const n of [...TOWN_NPCS, TOWN_SPAWN, ...TOWN_PORTALS]) { const tx = Math.floor(n.x), ty = Math.floor(n.y); if ('#R'.includes(g[ty][tx])) g[ty][tx] = ',' }
+  const rect = (x0, y0, w, h, c) => {
+    for (let y = y0; y < y0 + h; y++)
+      for (let x = x0; x < x0 + w; x++)
+        if (g[y] && g[y][x] !== undefined) g[y][x] = c
+  }
+
+  // 城牆：四周不可穿越，南側中央保留城門通道
+  rect(0, 0, W, 2, 'W')
+  rect(0, 73, 39, 2, 'W'); rect(61, 73, 39, 2, 'W')
+  rect(0, 0, 2, H, 'W'); rect(98, 0, 2, H, 'W')
+  // 城門兩側門樓
+  rect(3, 68, 4, 5, 'B'); rect(93, 68, 4, 5, 'B')
+
+  // 北側：修煉區、天玄宮、右側殿宇（依背景圖實際輪廓留出前方台階）
+  rect(13, 8, 19, 11, 'B')
+  rect(39, 2, 22, 15, 'B')
+  rect(68, 7, 19, 12, 'B')
+  // 中段西側坊市攤棚：分散阻擋，保留攤位間巷道
+  rect(5, 27, 7, 7, 'B'); rect(14, 26, 7, 7, 'B'); rect(23, 28, 8, 6, 'B')
+  rect(5, 37, 7, 6, 'B'); rect(15, 38, 7, 6, 'B'); rect(24, 37, 7, 6, 'B')
+  // 中段東側鍛造／商鋪建築
+  rect(70, 27, 10, 10, 'B'); rect(82, 28, 10, 9, 'B')
+  // 南側西區居民院落與建築
+  rect(5, 49, 9, 9, 'B'); rect(16, 50, 9, 9, 'B'); rect(27, 50, 8, 8, 'B')
+  // 南側中央城門內殿，兩側保留道路
+  rect(40, 63, 20, 9, 'B')
+  // 東南側庭園的水池／河道（只封水面，不封岸邊步道）
+  rect(73, 52, 8, 4, '~'); rect(80, 56, 10, 5, '~')
+  rect(70, 62, 7, 4, '~'); rect(84, 64, 8, 3, '~')
+
+  // 樹叢與景石：點狀碰撞，避開主要道路、NPC、出生點與傳送陣
+  const trees = [
+    [4,5],[8,5],[28,4],[34,5],[64,5],[91,5],[95,10],
+    [4,20],[9,22],[27,21],[34,22],[65,22],[92,22],[96,25],
+    [3,45],[33,46],[37,28],[63,28],[67,45],[94,44],
+    [4,61],[30,63],[36,60],[64,60],[68,68],[91,68],
+    [12,46],[28,46],[36,51],[63,51],[68,49],[96,55]
+  ]
+  for (const [x,y] of trees) if (g[y]?.[x] === '.') g[y][x] = '#'
+  const rocks = [[36,25],[63,25],[36,45],[64,45],[69,50],[92,50],[37,66],[62,66]]
+  for (const [x,y] of rocks) if (g[y]?.[x] === '.') g[y][x] = 'R'
+
+  // 保證角色出生點、NPC 與傳送陣落在可通行格
+  for (const n of [...TOWN_NPCS, TOWN_SPAWN, ...TOWN_PORTALS]) {
+    const tx = Math.floor(n.x), ty = Math.floor(n.y)
+    if (g[ty] && g[ty][tx] && '#R~'.includes(g[ty][tx])) g[ty][tx] = '.'
+  }
   return g.map((r) => r.join(''))
 }
 const mkTownProps = (rows) => {   // 純裝飾（可穿過）：燈籠、木桶、長椅
