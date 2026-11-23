@@ -337,111 +337,90 @@ const num = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0))
  * 功法靈力與冷卻、妖獸對玩家的傷害與重傷撤退、擊殺的修為／掉落／任務進度。前端只負責畫面。 */
 const MOVE_SPEED = 5.5, MOVE_R = 0.3
 const TOWN_NPCS = [
-  { id: 'sect', name: '宗門長老', x: 46.5, y: 17.5, panel: 'sect', color: '#4a7fb5' },
-  { id: 'character', name: '修煉導師', x: 17.5, y: 19.5, panel: 'character', color: '#5f8f5a' },
-  { id: 'techniques', name: '藏經閣執事', x: 53.5, y: 17.5, panel: 'techniques', color: '#8a6bd1' },
-  { id: 'market', name: '交易所掌櫃', x: 13.5, y: 41.5, panel: 'market', color: '#c9a24a' },
-  { id: 'auction', name: '拍賣官', x: 22.5, y: 41.5, panel: 'auction', color: '#b35a3c' },
-  { id: 'world', name: '傳訊童子', x: 45.5, y: 40.5, panel: 'world', color: '#5aa5b5' },
-  { id: 'realm', name: '秘境引路人', x: 57.5, y: 36.5, panel: 'realm', color: '#6a4ab5' },
-  { id: 'boss', name: '鎮魔使', x: 82.5, y: 24.5, panel: 'boss', color: '#a33' },
-  { id: 'pets', name: '靈寵司', x: 87.5, y: 47.5, panel: 'pets', color: '#3a9a6a' },
+  { id: 'character', name: '修煉導師', x: 21.5, y: 16.5, panel: 'character', color: '#5f8f5a' },   // 西北：修煉殿門前
+  { id: 'market', name: '交易所掌櫃', x: 7.5, y: 14.5, panel: 'market', color: '#c9a24a' },        // 西北：坊市攤棚前
+  { id: 'techniques', name: '藏經閣執事', x: 36.5, y: 22.5, panel: 'techniques', color: '#8a6bd1' }, // 北：二層樓閣門前
+  { id: 'world', name: '傳訊童子', x: 63.5, y: 20.5, panel: 'world', color: '#5aa5b5' },           // 東北：掛匾正廳前
+  { id: 'realm', name: '秘境引路人', x: 31.5, y: 32.5, panel: 'realm', color: '#6a4ab5' },         // 中央廣場：傳送陣旁
+  { id: 'auction', name: '拍賣官', x: 44.5, y: 45.5, panel: 'auction', color: '#b35a3c' },          // 中南：大樓門口
+  { id: 'pets', name: '靈寵司', x: 6.5, y: 37.5, panel: 'pets', color: '#3a9a6a' },               // 西：魚池邊沙地
+  { id: 'sect', name: '宗門長老', x: 21.5, y: 51.5, panel: 'sect', color: '#4a7fb5' },            // 西南：宗門大殿台階下
+  { id: 'boss', name: '鎮魔使', x: 63.5, y: 43.5, panel: 'boss', color: '#a33' },                // 東南：殿前廣場
 ]
-const TOWN_SPAWN = { x: 50, y: 41 }
-/* 天玄城（100×75 格，每格 32px）。由 tianxuan_city_orpg 的主城移植，拆成 Tile：
- * .草地 ,石板地坪 =道路 H橋 ~河流 B建築 #樹 W城牆 R岩石 F圍籬（後六種不可走）
- * buildings / zones / portals 只給前端畫外觀用，碰撞一律以 rows 為準。 */
-const TOWN_ZONES = [
-  { name: '修煉區', x: 5, y: 5, w: 26, h: 18, floor: '.' },
-  { name: '天玄宮', x: 35, y: 2, w: 30, h: 21, floor: ',' },
-  { name: '坊市', x: 4, y: 29, w: 27, h: 20, floor: ',' },
-  { name: '中央廣場', x: 35, y: 27, w: 30, h: 22, floor: '.' },
-  { name: '任務大廳', x: 70, y: 5, w: 25, h: 22, floor: '.' },
-  { name: '藥材區', x: 70, y: 31, w: 25, h: 20, floor: '.' },
-  { name: '居民區', x: 4, y: 53, w: 27, h: 18, floor: '.' },
-  { name: '鍛造坊', x: 70, y: 54, w: 25, h: 17, floor: '.' },
+const TOWN_SPAWN = { x: 36.5, y: 33.5 }   // 中央噴泉南側
+/* 天玄城：整張背景圖 img/new.jpg（1200×896）切成 75×56 格，每格對應原圖 16px（畫面上放大成 32px）。
+ * .可走  B建築／樹叢／圍籬（不可走）  ~水（不可走）。碰撞一律以 rows 為準，前端直接貼整張圖。 */
+const TOWN_ZONES = []
+const TOWN_BUILDINGS = []
+const TOWN_PORTALS = [{ x: 32.5, y: 30.0, name: '秘境傳送陣' }]
+const TOWN_ROWS = [
+  '............BBB.......................BBB..B...BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  '............BBB...............BBBBBBBBBBB..B...BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBBBBBBBBBBBBBBBB.....BBBBBBBBBB...B...BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBBBBBBBBBBBBBBBB.....BBBBBBBBBB...B...BB.BB.BBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBBBBBBBBBBBBBBBB.....BBBBBBBBBB...B...BB....BBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBBBBBBBBBBBBBBBB..................B...BB....BBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBBBBBBBBBBBBBBBB..................B..BBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBBBBBBBBBBBBBBBB.....................BBB...BBBBBBBBBB.BBBBB.BBBBBB',
+  'BBBBBBBBBBBBBBBBBBBBBBBBBBBB...................BB....BB..BBBBB..BBBB.BBBBB.',
+  'BBBBBBBBBBBBBBBBBBBBBBBBBB~~..BB...............................B...........',
+  'BBBBBBBBBBBBBBBBBBBBBBBBBBBB.BBB..........BB................BBBBBBB........',
+  'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB...BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBB.BBB.BBB.BBBBBBBBBBBBBBBBBBBB....BB...BBB...BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBB.BBB.BBB.BBBBBBBBBBBBBBBBBBB..BBBBBBB.BBB...B.....BBBBBB.BBBBBBB.BBBBB.B',
+  '...............BB.BBBBBBBBBBBBBBBBBBBBBBBBBB...B..BB.BBBBBBBBBBBBBB.BBBBBBB',
+  'BBBBBBB.........BBBBBBBBBBBBBBBBBBBBBBBBBBBB...B.....BBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBB............B...BBBBBBBBBBBBBBBBBBBBB...B.....BBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBB.........BB.....BBBBBBBBBBBBBBBBBBBBB...BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBBB..B.BBB.....BBB....BBBBBBBBBBBBBBBBBBBBB........BBBBB.BBBBB.BBBBB.BBBBB',
+  'BBBBBBBBBBB.....BBB....BBBBBBBBBBBBBBBBBBBBB........BBBBB.BBBBB.BBBBB..BBBB',
+  'BBBBBBBBBBB.....BB.....BBBBBBBBBBBBBBBBBBBBB...............................',
+  '.BBBB.BBBBB.....BBB....BBBBBBBBBBBBBBBBBBBBB...............................',
+  'BBB.BBB...B.....BBB....BBBBBBBB....................BBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBB.BBB.....................................BBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBBBBB......BBBBBBB.................BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  '..BBBBBBBBBBBB......BBBBBBB................BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  '...BBBBBBBBB........BBBBBBB.B.............BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBB......B..BBBBBBB.BBB...BB~~~B..BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBB....BBB.BBBBBBBBBBBBB..~~~BBB.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  'BBBBBBBBBBBB....BB.BBBBBBBBB.BBB..~BB~~B.BBBBBBBBBBB~~~~~~~~~~~~~~~~~~~~~~~',
+  'BBBBBBB.BBB.....BBBBBBBBBB...BB...BB~~BB..BBBBBBBBBB~~~~~~~~~~~~~~~~~~~~~~~',
+  'BBBBBBB.BBB....BBBBBBBBBBB...BB....BB.B...BBBBBBBBBB~~~~~~~~~~~~~~~~~~~~~~~',
+  '................BBBBBBBBBB...BB...................BB~~~~~~~~~~~~~~~~~~~~~~~',
+  '...................B.........BB.............B.BB..BB~~~~~~~~~BBBBB~~~~~~~~~',
+  '..........B........B.........BBBB......BBBBBBBBBBBBBB~~~~~~~BBBBBB~~~~~~~~~',
+  'BBBB.....BBBBBBB...B.BBBBB...BBBB......BBBBBBBBBBBBBB~BBBBBBBBBBBBBBBB.B~~~',
+  '~~~~B....BBBBBBBBBBBBBBBBBBB...........BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB~~~',
+  '~~~~B...BBBB...............BBBBBBBB....BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB~~~',
+  '~~~~B...BBBB....................BB......BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.B~~~',
+  'BBBB....BBBB..BBB...............BB...BBBBBBBBBBBBBBBBBBBBBB.BBBBBBBBBBBB~~~',
+  '........BBBB.BBBB...............BB...BBBBBBBBBBBBBBBBBBBBBB.BBBBBBBBBBBB~~~',
+  'BBBBBBBBBBBB.BBB.BBBBBBBBBBBB~~BBBB..BBBBBBBBBBBBBBBBB.BBBB.BBBBBBB..BBB~~~',
+  'BBBBBBBBBBBB.....BBBBBBBBBBB~~~BBBB...BBBBBBBBBBBBBBBB.BBBB.BB.........B~~~',
+  '~~~~~~~~~~BB.....BBBBBBBBBBB~~~BBBB.....BBBBBBBBBBBBBB.BBBB.B.........BB~~~',
+  '~~~~~~~~~~BB.....BBBBBBBBBBB~~~BBB......BBBBBBBBBBBBBB................BBB~~',
+  'BBBBBBBBBBBB.....BBBBBBBBBBB~~~BBB.......B.....BBBBBBB.....................',
+  'BBBBBBBBBBBB.....BBBBBBBBBBB~~~BBB......BB.BB.BBBBBBBB................BBBBB',
+  '~~~~~~~~~~BB....BBBBBBBBBBBB~~~BBBB.....BB....BBB~~~~B................BB~~~',
+  '~~~~~~~~~~BB....BBBB...BBBBB~~~BBB............BBB~~~~BBBBBBBB....BBBBBBB~~~',
+  '~~~~~~~~~~BB.....BBB...BBB.B~~~BBB...............................BBBBBBB~~~',
+  '~~~~~~~~~~BB.....B.B.......B~~~BBB...............................B.....B~~~',
+  '.B.B..B...BB.....BBB....BBBB~~~BBBB....BBB....BBBBBBBBBBBBBBB....BBBBBBB~~~',
+  '.B.BB.B.B.BB.....BBB....BBB.BBB........BBBB...BBBBBBBBBBBBBBB....BBBBBBB~~~',
+  'BBBBBBBBBBB.....................B......BB.B...B~~~~~~~~~~~~~~B...B~BBBBB~~~',
+  'BBBBBBBBBBB..B..B.B..B..B.B..B..BB.....BBBB...B~~~~~~~~~~~~~~B...BBBBBBBBB~',
+  'BBBBBB.BBBB..BBBB.BB.BBBBBB.BBBBBB.....BBBBB..B~~~~~~~~~~~~~~BB.BBBBBBBBB.B'
 ]
-const TOWN_BUILDINGS = [
-  { x: 11, y: 9, w: 13, h: 8, name: '修煉殿', kind: 'hall' },
-  { x: 40, y: 4, w: 20, h: 12, name: '天玄宮', kind: 'palace' },
-  { x: 74, y: 9, w: 17, h: 12, name: '任務大廳', kind: 'hall' },
-  { x: 8, y: 33, w: 8, h: 7, name: '靈寶閣', kind: 'shop' },
-  { x: 19, y: 33, w: 8, h: 7, name: '萬寶樓', kind: 'shop' },
-  { x: 73, y: 34, w: 9, h: 8, name: '百草堂', kind: 'shop' },
-  { x: 84, y: 34, w: 8, h: 8, name: '靈植園', kind: 'garden' },
-  { x: 8, y: 56, w: 9, h: 8, name: '客棧', kind: 'shop' },
-  { x: 20, y: 56, w: 8, h: 8, name: '居民院', kind: 'house' },
-  { x: 74, y: 57, w: 18, h: 10, name: '百煉坊', kind: 'forge' },
-  { x: 46, y: 72, w: 8, h: 3, name: '天玄城門', kind: 'gate' },
-  { x: 39, y: 33, w: 5, h: 4, name: '', kind: 'fountain' },
-  { x: 72, y: 46, w: 8, h: 3, name: '', kind: 'field' },
-  { x: 6, y: 13, w: 4, h: 5, name: '', kind: 'field' },
-  ...[6, 9, 12, 20, 23, 26].map((x) => ({ x, y: 30, w: 2, h: 2, name: '', kind: 'stall' })),
-  ...[6, 9, 21, 24].map((x) => ({ x, y: 46, w: 2, h: 2, name: '', kind: 'stall' })),
-]
-const TOWN_PORTALS = [{ x: 50.5, y: 35.5, name: '秘境傳送陣' }]
-/* 碰撞格依天玄城背景圖重新配置：不再使用舊版十字河道與分區圍籬。
- * 背景圖為 100×75 的整張俯視地圖；以下只把可見的建築、城牆與水域設為阻擋，
- * 廣場、街道、建築入口與城門通道保持可走。 */
 const mkTownRows = () => {
-  const W = 100, H = 75
-  const g = Array.from({ length: H }, () => Array(W).fill('.'))
-  const rect = (x0, y0, w, h, c) => {
-    for (let y = y0; y < y0 + h; y++)
-      for (let x = x0; x < x0 + w; x++)
-        if (g[y] && g[y][x] !== undefined) g[y][x] = c
-  }
-
-  // 城牆：四周不可穿越，南側中央保留城門通道
-  rect(0, 0, W, 2, 'W')
-  rect(0, 73, 39, 2, 'W'); rect(61, 73, 39, 2, 'W')
-  rect(0, 0, 2, H, 'W'); rect(98, 0, 2, H, 'W')
-  // 城門兩側門樓
-  rect(3, 68, 4, 5, 'B'); rect(93, 68, 4, 5, 'B')
-
-  // 北側：修煉區、天玄宮、右側殿宇（依背景圖實際輪廓留出前方台階）
-  rect(13, 8, 19, 11, 'B')
-  rect(39, 2, 22, 15, 'B')
-  rect(68, 7, 19, 12, 'B')
-  // 中段西側坊市攤棚：分散阻擋，保留攤位間巷道
-  rect(5, 27, 7, 7, 'B'); rect(14, 26, 7, 7, 'B'); rect(23, 28, 8, 6, 'B')
-  rect(5, 37, 7, 6, 'B'); rect(15, 38, 7, 6, 'B'); rect(24, 37, 7, 6, 'B')
-  // 中段東側鍛造／商鋪建築
-  rect(70, 27, 10, 10, 'B'); rect(82, 28, 10, 9, 'B')
-  // 南側西區居民院落與建築
-  rect(5, 49, 9, 9, 'B'); rect(16, 50, 9, 9, 'B'); rect(27, 50, 8, 8, 'B')
-  // 南側中央城門內殿，兩側保留道路
-  rect(40, 63, 20, 9, 'B')
-  // 東南側庭園的水池／河道（只封水面，不封岸邊步道）
-  rect(73, 52, 8, 4, '~'); rect(80, 56, 10, 5, '~')
-  rect(70, 62, 7, 4, '~'); rect(84, 64, 8, 3, '~')
-
-  // 樹叢與景石：點狀碰撞，避開主要道路、NPC、出生點與傳送陣
-  const trees = [
-    [4,5],[8,5],[28,4],[34,5],[64,5],[91,5],[95,10],
-    [4,20],[9,22],[27,21],[34,22],[65,22],[92,22],[96,25],
-    [3,45],[33,46],[37,28],[63,28],[67,45],[94,44],
-    [4,61],[30,63],[36,60],[64,60],[68,68],[91,68],
-    [12,46],[28,46],[36,51],[63,51],[68,49],[96,55]
-  ]
-  for (const [x,y] of trees) if (g[y]?.[x] === '.') g[y][x] = '#'
-  const rocks = [[36,25],[63,25],[36,45],[64,45],[69,50],[92,50],[37,66],[62,66]]
-  for (const [x,y] of rocks) if (g[y]?.[x] === '.') g[y][x] = 'R'
-
-  // 保證角色出生點、NPC 與傳送陣落在可通行格
+  const g = TOWN_ROWS.map((r) => r.split(''))
+  // 保證出生點、NPC 與傳送陣落在可通行格
   for (const n of [...TOWN_NPCS, TOWN_SPAWN, ...TOWN_PORTALS]) {
     const tx = Math.floor(n.x), ty = Math.floor(n.y)
-    if (g[ty] && g[ty][tx] && '#R~'.includes(g[ty][tx])) g[ty][tx] = '.'
+    if (g[ty] && g[ty][tx] && g[ty][tx] !== '.') g[ty][tx] = '.'
   }
   return g.map((r) => r.join(''))
 }
-const mkTownProps = (rows) => {   // 純裝飾（可穿過）：燈籠、木桶、長椅
-  const ok = (x, y) => rows[y] && '.,'.includes(rows[y][x]), out = []
-  for (let y = 17; y < 71; y += 4) for (const x of [47, 52]) if (ok(x, y)) out.push({ t: 'lantern', x: x + 0.5, y: y + 0.5 })
-  for (const b of TOWN_BUILDINGS) if (['hall', 'palace', 'shop', 'house', 'forge'].includes(b.kind)) for (const dx of [-2, 2]) { const x = Math.floor(b.x + b.w / 2 + dx), y = b.y + b.h; if (ok(x, y)) out.push({ t: 'lantern', x: x + 0.5, y: y + 0.4 }) }
-  for (const [t, x, y] of [['barrel', 73, 67], ['barrel', 72, 67], ['crate', 92, 66], ['barrel', 7, 63], ['crate', 7, 41], ['barrel', 16, 41], ['bench', 38, 39], ['bench', 45, 30], ['bench', 61, 39], ['well', 25, 60], ['well', 28, 12], ['barrel', 27, 41]]) if (ok(x, y)) out.push({ t, x: x + 0.5, y: y + 0.5 })
-  return out
-}
+const mkTownProps = () => []   // 燈籠、木桶等已畫在背景圖上，不再額外疊加
 const MAPS = {}
 MAPS.town = { id: 'town', name: '天玄城', rows: mkTownRows(), npcs: TOWN_NPCS, spawn: TOWN_SPAWN, theme: { g1: '#4f744d', g2: '#52784f' }, deco: { zones: TOWN_ZONES.map(({ name, x, y, w, h }) => ({ name, x, y, w, h })), buildings: TOWN_BUILDINGS, portals: TOWN_PORTALS } }
 MAPS.town.deco.props = mkTownProps(MAPS.town.rows)

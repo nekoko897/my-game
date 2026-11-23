@@ -1255,7 +1255,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   // 天玄仙城整張美術底圖：放在專案的 img/tianxuan-city.png
   const townMapBackground = new Image()
   townMapBackground.onload = () => { if (town.cv && town.map) townDraw() }
-  townMapBackground.src = './img/tianxuan-city.png'
+  townMapBackground.src = './img/new.jpg'
   const TS = 32
   const town = { map: null, players: {}, me: { x: 20.5, y: 13.5, f: 'd' }, inited: false, keys: {}, pad: {}, host: null, cv: null, raf: 0, lastT: 0, lastSend: 0, lastSent: '', sending: false, near: null, wrap: null, big: true, curMap: 'town', townMap: null, mobs: {}, fx: [], atkAt: 0, barSig: '', barAt: 0 }
 
@@ -1442,10 +1442,12 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     ctx.save(); ctx.translate(-Math.round(cx), -Math.round(cy))
     const x0 = Math.max(0, Math.floor(cx / TS)), x1 = Math.min(m.w - 1, Math.ceil((cx + W) / TS))
     const y0 = Math.max(0, Math.floor(cy / TS)), y1 = Math.min(m.h - 1, Math.ceil((cy + H) / TS))
-    const hasTownArt = townMapBackground.complete && townMapBackground.naturalWidth > 0
+    const hasTownArt = m.id === 'town' && townMapBackground.complete && townMapBackground.naturalWidth > 0   // 只有主城貼整張圖，秘境仍用地磚
     if (hasTownArt) {
-      // 將整張主城美術圖縮放至伺服器地圖尺寸；鏡頭仍依玩家座標移動
+      // 將整張主城美術圖縮放至伺服器地圖尺寸（原圖 16px＝1 格，放大 2 倍）；關閉平滑讓像素風保持銳利
+      ctx.imageSmoothingEnabled = false
       ctx.drawImage(townMapBackground, 0, 0, m.w * TS, m.h * TS)
+      ctx.imageSmoothingEnabled = true
     } else {
       // 圖片尚未載入或路徑錯誤時，沿用原本程式繪製的地磚
       for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) townTile(ctx, m.rows[y][x], x, y)
@@ -1745,7 +1747,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     }
     const s = W < 520 ? 1 : 1.6, mw = m.w * s, mh = m.h * s, ox = W - mw - 8, oy = 8
     ctx.globalAlpha = .9; ctx.fillStyle = '#3b2412'; ctx.fillRect(ox - 3, oy - 3, mw + 6, mh + 6)
-    ctx.drawImage(m._mini, ox, oy, mw, mh); ctx.globalAlpha = 1
+    const art = m.id === 'town' && townMapBackground.complete && townMapBackground.naturalWidth > 0
+    ctx.drawImage(art ? townMapBackground : m._mini, ox, oy, mw, mh); ctx.globalAlpha = 1   // 主城小地圖直接用背景圖縮圖
     ctx.fillStyle = '#ffd27a'; for (const n of m.npcs) ctx.fillRect(ox + n.x * s - 1, oy + n.y * s - 1, 3, 3)
     ctx.fillStyle = '#ff4d4d'; ctx.beginPath(); ctx.arc(ox + town.me.x * s, oy + town.me.y * s, 3, 0, 7); ctx.fill()
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke()
