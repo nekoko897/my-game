@@ -512,6 +512,488 @@
 <!-- 共用遊戲規則：道具、秘境、宗門等資料與計算公式（伺服器載入同一份，數值以伺服器為準） -->
 <script src="shared/game-rules.js"></script>
 <script>
+/* =========================================================
+ * 【招式動畫】SkillFX：劍修角色 + 普攻 + 所有功法的施展動畫
+ * - 普攻：御劍飛出、斬擊、收劍
+ * - 攻伐功法：依功法的屬性字（火／水／雷…）自動配對動畫，傷害倍率越高、品階越高越華麗
+ * - 回復／靈力／增益功法：在施法者身上播放對應效果
+ * - 野外畫在主城 Canvas 上；魔蛟、回合制戰鬥畫在整頁覆蓋層上
+ * 想讓某個功法換別的動畫：SkillFX.OVERRIDE['功法id'] = 'thunder'（可用的型態見 KINDS）
+ * ========================================================= */
+const SkillFX = (() => {
+  const sheet = new Image(), sword = new Image()
+  sheet.src = 'img/characters/jianxiu.png'          // 32×48 一格；列：下左右上；欄：走路 0-3、待機 4-5
+  sword.src = 'img/characters/jianxiu_sword.png'    // 10×22，劍尖朝下
+  const ready = (im) => im.complete && im.naturalWidth > 0
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  const now = () => performance.now()
+  const rnd = (a, b) => a + Math.random() * (b - a)
+  const clamp01 = (t) => Math.max(0, Math.min(1, t))
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3)
+  const easeIn = (t) => t * t * t
+  const lerp = (a, b, t) => a + (b - a) * t
+  const seg = (t, a, b) => clamp01((t - a) / (b - a))   // 把整段進度 t 切出 a~b 的子進度
+
+  /* ---------- 屬性 → 動畫型態與配色 [亮, 主, 暗] ---------- */
+  const KINDS = {
+    sword:   ['#ffffff', '#9fe8ff', '#3b8fd8'],
+    fire:    ['#fff3b0', '#ffb347', '#e8412c'],
+    water:   ['#e6fbff', '#6fd3f5', '#1f7fc4'],
+    ice:     ['#ffffff', '#c6f3ff', '#5ab8e8'],
+    thunder: ['#ffffff', '#fff27a', '#a98bff'],
+    wood:    ['#f0ffd0', '#8fe36a', '#2f8f3a'],
+    earth:   ['#f3e2b8', '#c99a5b', '#7a5530'],
+    blade:   ['#ffffff', '#ffe08a', '#c9962e'],
+    wind:    ['#ffffff', '#c8f7e8', '#5cc8a8'],
+    light:   ['#ffffff', '#fff6c8', '#ffd24a'],
+    dark:    ['#f0d0ff', '#a05ae0', '#3b1d5c'],
+    poison:  ['#eaffc0', '#9be04a', '#4f7a1f'],
+    blood:   ['#ffd0d0', '#ff5a5a', '#8a1020'],
+    orb:     ['#ffffff', '#9fe8ff', '#4f8fd8'],
+  }
+  const CHAR_KIND = {
+    '火': 'fire', '炎': 'fire', '焰': 'fire', '烈': 'fire', '陽': 'light',
+    '水': 'water', '浪': 'water', '潮': 'water', '雨': 'water',
+    '冰': 'ice', '寒': 'ice', '霜': 'ice', '雪': 'ice',
+    '雷': 'thunder', '電': 'thunder', '霆': 'thunder',
+    '木': 'wood', '藤': 'wood', '葉': 'wood', '春': 'wood', '藥': 'wood', '花': 'wood',
+    '土': 'earth', '石': 'earth', '山': 'earth', '岩': 'earth', '地': 'earth',
+    '金': 'blade', '劍': 'sword', '刃': 'blade', '刀': 'blade',
+    '風': 'wind', '嵐': 'wind',
+    '光': 'light', '聖': 'light', '佛': 'light', '天': 'light', '日': 'light',
+    '暗': 'dark', '魔': 'dark', '陰': 'dark', '冥': 'dark', '魂': 'dark', '幽': 'dark', '鬼': 'dark', '煞': 'dark',
+    '毒': 'poison', '蠱': 'poison',
+    '血': 'blood',
+  }
+  const OVERRIDE = {}
+  function styleOf(skill) {
+    if (!skill) return { kind: 'sword', c: KINDS.sword, power: 1, tier: 0 }
+    let kind = OVERRIDE[skill.id]
+    if (!kind) for (const ch of String(skill.element || '') + String(skill.name || '')) if (CHAR_KIND[ch]) { kind = CHAR_KIND[ch]; break }
+    kind = KINDS[kind] ? kind : 'orb'
+    const dmg = (skill.effects || []).find((e) => e.t === 'dmg')
+    return { kind, c: KINDS[kind], power: dmg ? Math.max(1, Math.min(3, dmg.mult || 1)) : 1, tier: skill.grade === 'advanced' ? 2 : skill.grade === 'sect' ? 1 : 0 }
+  }
+
+  /* ---------- 座標：{x,y}、函式、CSS 選擇器、{sel,dx,dy} 都可以 ---------- */
+  function P(p) {
+    if (!p) return null
+    if (typeof p === 'function') return p()
+    if (typeof p === 'string') p = { sel: p }
+    if (p.sel) {
+      const el = document.querySelector(p.sel); if (!el) return null
+      const r = el.getBoundingClientRect(); if (!r.width && !r.height) return null
+      return { x: r.left + r.width / 2 + (p.dx || 0), y: r.top + r.height / 2 + (p.dy || 0) }
+    }
+    return p
+  }
+
+  /* ---------- 效果佇列：world＝主城 Canvas（世界座標 px），screen＝整頁覆蓋層（螢幕 px） ---------- */
+  const layers = { world: [], screen: [] }
+  let shakeUntil = 0, shakeAmp = 0
+  function add(layer, dur, draw, delay = 0) {
+    const e = { t0: now() + delay, dur, draw }
+    layers[layer].push(e)
+    if (layer === 'screen') startOverlay()
+    return e
+  }
+  function shake(amp, ms) { if (reduce) return; shakeAmp = Math.max(shakeAmp, amp); shakeUntil = Math.max(shakeUntil, now() + ms) }
+  function shakeOffset() {
+    const t = now(); if (t > shakeUntil) { shakeAmp = 0; return { x: 0, y: 0 } }
+    return { x: Math.round(rnd(-shakeAmp, shakeAmp)), y: Math.round(rnd(-shakeAmp, shakeAmp)) }
+  }
+  function run(ctx, list) {
+    const t = now()
+    for (let i = list.length - 1; i >= 0; i--) {
+      const e = list[i], k = (t - e.t0) / e.dur
+      if (k < 0) continue
+      if (k >= 1) { list.splice(i, 1); continue }
+      ctx.save(); ctx.imageSmoothingEnabled = false
+      try { e.draw(ctx, k) } catch (err) { list.splice(i, 1) }
+      ctx.restore()
+    }
+  }
+  const drawWorld = (ctx) => run(ctx, layers.world)
+
+  // 覆蓋層（魔蛟、回合制戰鬥用）：有效果時才建立並跑動畫迴圈
+  let ov = null, ovRaf = 0
+  function startOverlay() {
+    if (!ov) {
+      ov = document.createElement('canvas')
+      ov.setAttribute('aria-hidden', 'true')
+      ov.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:80'
+      document.body.appendChild(ov)
+    }
+    if (!ovRaf) ovRaf = requestAnimationFrame(ovFrame)
+  }
+  function ovFrame() {
+    const dpr = window.devicePixelRatio || 1, w = window.innerWidth, h = window.innerHeight
+    if (ov.width !== Math.round(w * dpr) || ov.height !== Math.round(h * dpr)) { ov.width = Math.round(w * dpr); ov.height = Math.round(h * dpr) }
+    const ctx = ov.getContext('2d')
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); ctx.imageSmoothingEnabled = false
+    run(ctx, layers.screen)
+    ovRaf = layers.screen.length ? requestAnimationFrame(ovFrame) : 0
+    if (!ovRaf) ctx.clearRect(0, 0, w, h)
+  }
+
+  /* ---------- 繪圖小工具 ---------- */
+  function glow(ctx, x, y, r, color, a = 1) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+    g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.globalAlpha = a; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1
+  }
+  function ring(ctx, x, y, r, color, w, a, sy = 0.5) {
+    ctx.globalAlpha = a; ctx.strokeStyle = color; ctx.lineWidth = w
+    ctx.beginPath(); ctx.ellipse(x, y, r, r * sy, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1
+  }
+  function drawSword(ctx, x, y, ang, s = 1, a = 1) {   // ang：劍尖指向的角度
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.rotate(ang - Math.PI / 2); ctx.scale(s, s)
+    if (ready(sword)) ctx.drawImage(sword, -5, -11)
+    else { ctx.fillStyle = '#d0ecff'; ctx.fillRect(-1.5, -10, 3, 20); ctx.fillStyle = '#e8c050'; ctx.fillRect(-4, -4, 8, 2) }
+    ctx.restore()
+  }
+  const parts = (n, f) => Array.from({ length: n }, (_, i) => f(i))
+  function slashX(ctx, x, y, r, c, a) {   // 交叉斬痕
+    ctx.globalAlpha = a; ctx.lineCap = 'round'
+    for (const [d, w, col] of [[1, 5, c[2]], [1, 2.5, c[0]]]) {
+      ctx.strokeStyle = col; ctx.lineWidth = w * d
+      ctx.beginPath(); ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r); ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+  }
+  function burst(ctx, x, y, k, list, c, sizeMul = 1) {  // 往外噴的粒子
+    for (const p of list) {
+      const d = easeOut(k) * p.d, px = x + Math.cos(p.a) * d, py = y + Math.sin(p.a) * d * 0.7 + (p.g || 0) * k * k * 30
+      ctx.globalAlpha = 1 - k; ctx.fillStyle = p.c || c[1]
+      const s = Math.max(1, p.s * sizeMul * (1 - k * 0.6)); ctx.fillRect(px - s / 2, py - s / 2, s, s)
+    }
+    ctx.globalAlpha = 1
+  }
+
+  /* ---------- 攻擊招式：from 施法者、to 目標 ---------- */
+  // 回傳命中時間（毫秒），讓傷害數字在動畫打到時才跳出來
+  function strike(layer, skill, from, to, opt = {}) {
+    const st = styleOf(skill), z = (layer === 'screen' ? 1.7 : 1) * (1 + (st.power - 1) * 0.3 + st.tier * 0.15)
+    const owner = opt.owner
+    const big = st.tier >= 2 || st.power >= 2.2
+    const T = { sword: 520, thunder: 560, earth: 640, light: 600, blade: 760 }[st.kind] || 620
+    const hitAt = { sword: 0.42, thunder: 0.28, earth: 0.35, light: 0.3, blade: 0.55 }[st.kind] || 0.5
+    const c = st.c
+    const sparks = parts(10 + st.tier * 6, () => ({ a: rnd(0, Math.PI * 2), d: rnd(12, 30) * z, s: rnd(2, 4), g: rnd(0, 1), c: Math.random() < 0.5 ? c[0] : c[1] }))
+    const trail = []
+    if (owner && (st.kind === 'sword')) busy[owner] = now() + T
+    const impactFx = () => { if (big) shake(layer === 'world' ? 3 : 5, 200) }
+    let impacted = false
+    add(layer, T, (ctx, k) => {
+      const a = P(from), b = P(to); if (!a || !b) return
+      const ang = Math.atan2(b.y - a.y, b.x - a.x)
+      if (k >= hitAt && !impacted) { impacted = true; impactFx() }
+      const kt = seg(k, 0, hitAt), ki = seg(k, hitAt, 1)
+      switch (st.kind) {
+        case 'sword': {   // 御劍：飛出 → 斬擊 → 收劍
+          let x, y
+          if (k < hitAt) { const e = easeOut(kt); x = lerp(a.x, b.x, e); y = lerp(a.y, b.y, e) - Math.sin(e * Math.PI) * 10 * z }
+          else { const e = easeIn(seg(k, hitAt + 0.15, 1)); x = lerp(b.x, a.x, e); y = lerp(b.y, a.y, e) - Math.sin(e * Math.PI) * 14 * z }
+          trail.push({ x, y }); if (trail.length > 7) trail.shift()
+          ctx.lineCap = 'round'
+          for (let i = 1; i < trail.length; i++) { ctx.globalAlpha = i / trail.length * 0.7; ctx.strokeStyle = c[1]; ctx.lineWidth = 3 * z * i / trail.length; ctx.beginPath(); ctx.moveTo(trail[i - 1].x, trail[i - 1].y); ctx.lineTo(trail[i].x, trail[i].y); ctx.stroke() }
+          ctx.globalAlpha = 1
+          glow(ctx, x, y, 10 * z, 'rgba(127,216,255,.55)')
+          drawSword(ctx, x, y, k < hitAt ? ang : ang + Math.PI, z * (layer === 'screen' ? 1 : 1))
+          if (k >= hitAt && ki < 0.45) {
+            const e = ki / 0.45
+            ctx.globalAlpha = 1 - e; ctx.strokeStyle = c[0]; ctx.lineWidth = 3 * z
+            ctx.beginPath(); ctx.arc(b.x, b.y, 14 * z, ang - 1.2 + e * 0.6, ang + 0.6 + e * 0.6); ctx.stroke()
+            burst(ctx, b.x, b.y, e, sparks.slice(0, 8), c, z)
+          }
+          break
+        }
+        case 'thunder': {   // 天雷：從天而降
+          const top = { x: b.x + rnd(-6, 6), y: b.y - 150 * z }
+          if (k < hitAt + 0.25) {   // 雷光由上往下劈，命中後閃爍
+            const reach = easeOut(seg(k, 0, hitAt)), n = 7
+            const pts = [{ x: top.x, y: top.y }]
+            for (let i = 1; i <= n; i++) { const e = i / n; if (e > reach) break; pts.push({ x: lerp(top.x, b.x, e) + (i === n ? 0 : rnd(-12, 12) * z), y: lerp(top.y, b.y, e) }) }
+            if (reach < 1) pts.push({ x: lerp(top.x, b.x, reach), y: lerp(top.y, b.y, reach) })
+            ctx.globalAlpha = k >= hitAt && Math.floor(k * 40) % 2 ? 0.5 : 1
+            ctx.lineJoin = 'round'; ctx.lineCap = 'round'
+            for (const [w, col] of [[7 * z, c[2]], [3 * z, c[1]], [1.5 * z, c[0]]]) {
+              ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath()
+              pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.stroke()
+            }
+            ctx.globalAlpha = 1
+          }
+          if (k >= hitAt) {
+            glow(ctx, b.x, b.y, 40 * z * (1 - ki), 'rgba(255,255,200,.9)', 1 - ki)
+            ring(ctx, b.x, b.y + 6, 30 * z * easeOut(ki), c[2], 3, 1 - ki)
+            burst(ctx, b.x, b.y, ki, sparks, c, z)
+          }
+          break
+        }
+        case 'earth': {   // 地刺：從目標腳下竄出
+          const n = 3 + st.tier * 2
+          for (let i = 0; i < n; i++) {
+            const ox = (i - (n - 1) / 2) * 9 * z, h = 26 * z * (1 - Math.abs(i - (n - 1) / 2) / n) + 8 * z
+            const rise = easeOut(seg(k, i * 0.04, hitAt + 0.1)), fall = seg(k, 0.75, 1)
+            const hh = h * rise * (1 - fall)
+            ctx.fillStyle = c[2]; ctx.beginPath(); ctx.moveTo(b.x + ox - 6 * z, b.y + 10); ctx.lineTo(b.x + ox, b.y + 10 - hh); ctx.lineTo(b.x + ox + 6 * z, b.y + 10); ctx.fill()
+            ctx.fillStyle = c[1]; ctx.beginPath(); ctx.moveTo(b.x + ox - 2 * z, b.y + 10); ctx.lineTo(b.x + ox, b.y + 10 - hh); ctx.lineTo(b.x + ox + 3 * z, b.y + 10); ctx.fill()
+          }
+          if (k >= hitAt) burst(ctx, b.x, b.y + 8, ki, sparks, ['#ffffff', '#d8c8a0', '#8a7050'], z)
+          ring(ctx, b.x, b.y + 10, 24 * z * easeOut(k), c[1], 2, 0.6 * (1 - k))
+          break
+        }
+        case 'light': {   // 光束
+          const w = 10 * z * Math.sin(Math.min(1, k * 1.6) * Math.PI)
+          ctx.lineCap = 'round'
+          for (const [ww, col, al] of [[w * 2.2, c[2], 0.35], [w, c[1], 0.8], [w * 0.4, c[0], 1]]) { ctx.globalAlpha = al; ctx.strokeStyle = col; ctx.lineWidth = Math.max(0.5, ww); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke() }
+          ctx.globalAlpha = 1
+          glow(ctx, a.x, a.y, 14 * z * (1 - k), 'rgba(255,240,180,.8)')
+          if (k >= hitAt) { glow(ctx, b.x, b.y, 34 * z * (1 - ki), 'rgba(255,250,210,.95)'); burst(ctx, b.x, b.y, ki, sparks, c, z) }
+          break
+        }
+        case 'blade': {   // 萬劍歸宗：數把金劍從天而落
+          const n = 3 + st.tier * 2
+          for (let i = 0; i < n; i++) {
+            const s0 = i * (hitAt / n) * 0.8, kk = seg(k, s0, s0 + hitAt * 0.5)
+            if (kk <= 0) continue
+            const ox = Math.sin(i * 2.3) * 16 * z, tx = b.x + ox, ty = b.y + Math.cos(i * 1.7) * 6
+            if (kk < 1) drawSword(ctx, tx, lerp(ty - 120 * z, ty, easeIn(kk)), Math.PI / 2, z, 1)
+            else { const e = seg(k, s0 + hitAt * 0.5, s0 + hitAt * 0.5 + 0.25); if (e < 1) { drawSword(ctx, tx, ty, Math.PI / 2, z, 1 - e); ring(ctx, tx, ty + 6, 12 * z * e, c[0], 2, 1 - e) } }
+          }
+          if (k >= hitAt) { slashX(ctx, b.x, b.y, 14 * z, c, 1 - ki); burst(ctx, b.x, b.y, ki, sparks, c, z) }
+          break
+        }
+        default: {   // 飛行彈：火球、水箭、冰錐、藤葉、風刃、暗球、毒霧、血珠、靈氣彈
+          if (k < hitAt) {
+            const e = st.kind === 'wind' ? kt : easeIn(kt * 0.6 + 0.4 * kt)
+            const x = lerp(a.x, b.x, e), y = lerp(a.y, b.y, e) - Math.sin(e * Math.PI) * (st.kind === 'fire' ? 18 : 6) * z
+            trail.push({ x, y }); if (trail.length > 10) trail.shift()
+            projectile(ctx, st, x, y, ang, z, k, trail)
+          } else impact(ctx, st, b.x, b.y, ki, z, sparks, ang)
+        }
+      }
+    })
+    return Math.round(T * hitAt)
+  }
+
+  function projectile(ctx, st, x, y, ang, z, k, trail) {
+    const c = st.c
+    for (let i = 0; i < trail.length; i++) {   // 拖尾
+      const p = trail[i], f = (i + 1) / trail.length
+      ctx.globalAlpha = f * 0.5; ctx.fillStyle = st.kind === 'fire' ? (i % 2 ? c[2] : c[1]) : c[1]
+      const s = (st.kind === 'fire' ? 6 : 3) * z * f; ctx.beginPath(); ctx.arc(p.x + (st.kind === 'fire' ? rnd(-2, 2) : 0), p.y, s, 0, Math.PI * 2); ctx.fill()
+    }
+    ctx.globalAlpha = 1
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang)
+    switch (st.kind) {
+      case 'fire':
+        glow(ctx, 0, 0, 18 * z, 'rgba(255,150,60,.8)')
+        ctx.fillStyle = c[2]; ctx.beginPath(); ctx.arc(0, 0, 8 * z, 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = c[1]; ctx.beginPath(); ctx.arc(1, 0, 5.5 * z, 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = c[0]; ctx.beginPath(); ctx.arc(2, 0, 3 * z, 0, Math.PI * 2); ctx.fill()
+        break
+      case 'water': case 'ice':
+        glow(ctx, 0, 0, 14 * z, st.kind === 'ice' ? 'rgba(200,245,255,.7)' : 'rgba(110,210,245,.7)')
+        ctx.fillStyle = c[2]; ctx.beginPath(); ctx.moveTo(12 * z, 0); ctx.lineTo(-10 * z, -4 * z); ctx.lineTo(-6 * z, 0); ctx.lineTo(-10 * z, 4 * z); ctx.fill()
+        ctx.fillStyle = c[0]; ctx.beginPath(); ctx.moveTo(10 * z, 0); ctx.lineTo(-4 * z, -1.5 * z); ctx.lineTo(-4 * z, 1.5 * z); ctx.fill()
+        break
+      case 'wood':
+        for (let i = 0; i < 3; i++) {
+          const r = k * 30 + i * 2.1
+          ctx.save(); ctx.translate(Math.cos(r) * 6 * z, Math.sin(r) * 6 * z); ctx.rotate(r)
+          ctx.fillStyle = i % 2 ? c[1] : c[2]; ctx.beginPath(); ctx.ellipse(0, 0, 5 * z, 2.2 * z, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore()
+        }
+        glow(ctx, 0, 0, 10 * z, 'rgba(160,240,120,.6)')
+        break
+      case 'wind':
+        for (let i = 0; i < 3; i++) {
+          ctx.globalAlpha = 1 - i * 0.28; ctx.strokeStyle = i ? c[1] : c[0]; ctx.lineWidth = 2.5 * z
+          ctx.beginPath(); ctx.arc(-i * 7 * z, 0, 10 * z, -1.1, 1.1); ctx.stroke()
+        }
+        break
+      default: {   // dark / poison / blood / orb
+        const wob = 1 + Math.sin(k * 60) * 0.12
+        glow(ctx, 0, 0, 16 * z, st.kind === 'dark' ? 'rgba(160,90,224,.7)' : st.kind === 'poison' ? 'rgba(155,224,74,.6)' : st.kind === 'blood' ? 'rgba(255,90,90,.6)' : 'rgba(150,220,255,.7)')
+        ctx.fillStyle = c[2]; ctx.beginPath(); ctx.arc(0, 0, 7 * z * wob, 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = c[1]; ctx.beginPath(); ctx.arc(-1, -1, 4.5 * z, 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = c[0]; ctx.fillRect(-2 * z, -3 * z, 2 * z, 2 * z)
+      }
+    }
+    ctx.restore()
+  }
+
+  function impact(ctx, st, x, y, k, z, sparks, ang) {
+    const c = st.c
+    switch (st.kind) {
+      case 'fire':
+        glow(ctx, x, y, 36 * z * (0.6 + k * 0.6), 'rgba(255,170,60,.9)', 1 - k)
+        ring(ctx, x, y + 6, 30 * z * easeOut(k), c[2], 4, 1 - k)
+        burst(ctx, x, y, k, sparks.map((p) => ({ ...p, g: -p.g })), c, z * 1.2)
+        break
+      case 'water':
+        ring(ctx, x, y + 6, 28 * z * easeOut(k), c[1], 3, 1 - k)
+        ring(ctx, x, y + 6, 16 * z * easeOut(k), c[0], 2, 1 - k)
+        burst(ctx, x, y - 4, k, sparks.map((p) => ({ ...p, g: 1.5 })), c, z)
+        break
+      case 'ice':
+        ctx.lineCap = 'round'
+        for (let i = 0; i < 8; i++) {
+          const a = i * Math.PI / 4 + 0.3, r = 22 * z * easeOut(k)
+          ctx.globalAlpha = 1 - k; ctx.strokeStyle = i % 2 ? c[0] : c[1]; ctx.lineWidth = 3 * z * (1 - k * 0.5)
+          ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.3); ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.8); ctx.stroke()
+        }
+        ring(ctx, x, y + 6, 26 * z * easeOut(k), c[2], 2, 1 - k)
+        glow(ctx, x, y, 20 * z, 'rgba(220,250,255,.8)', 1 - k)
+        break
+      case 'wood':
+        for (const p of sparks) {
+          const d = easeOut(k) * p.d, px = x + Math.cos(p.a) * d, py = y + Math.sin(p.a) * d * 0.7 + k * k * 18
+          ctx.save(); ctx.globalAlpha = 1 - k; ctx.translate(px, py); ctx.rotate(p.a + k * 6)
+          ctx.fillStyle = p.c === c[0] ? c[1] : c[2]; ctx.beginPath(); ctx.ellipse(0, 0, 4 * z, 1.8 * z, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore()
+        }
+        break
+      case 'wind':
+        ctx.lineCap = 'round'
+        for (let i = 0; i < 3; i++) {
+          const e = seg(k, i * 0.12, 0.6 + i * 0.12), r = 16 * z
+          if (e <= 0 || e >= 1) continue
+          ctx.globalAlpha = 1 - e; ctx.strokeStyle = c[i % 2 ? 1 : 0]; ctx.lineWidth = 3 * z
+          ctx.beginPath(); ctx.moveTo(x - r + i * 4, y - r * (1 - 2 * e)); ctx.lineTo(x + r - i * 4, y + r * (1 - 2 * e) * 0.5); ctx.stroke()
+        }
+        break
+      case 'dark': case 'poison': case 'blood': {
+        const r = k < 0.35 ? 26 * z * (1 - k / 0.35) : 30 * z * easeOut(seg(k, 0.35, 1))   // 先內縮再炸開
+        ring(ctx, x, y, r, c[1], 3, 1 - k * 0.8, 0.8)
+        for (const p of sparks.slice(0, 8)) {   // 煙霧
+          const e = seg(k, 0.35, 1), d = e * p.d
+          ctx.globalAlpha = (1 - e) * 0.55; ctx.fillStyle = c[2]
+          ctx.beginPath(); ctx.arc(x + Math.cos(p.a) * d, y + Math.sin(p.a) * d * 0.6 - e * 10, (4 + e * 8) * z, 0, Math.PI * 2); ctx.fill()
+        }
+        glow(ctx, x, y, 18 * z, st.kind === 'blood' ? 'rgba(255,60,60,.8)' : st.kind === 'poison' ? 'rgba(160,230,80,.7)' : 'rgba(170,100,240,.8)', 1 - k)
+        break
+      }
+      default:
+        glow(ctx, x, y, 28 * z * (0.5 + k), 'rgba(180,235,255,.9)', 1 - k)
+        ring(ctx, x, y + 4, 24 * z * easeOut(k), c[1], 3, 1 - k)
+        burst(ctx, x, y, k, sparks, c, z)
+    }
+  }
+
+  /* ---------- 自身施展：回復、靈力、增益 ---------- */
+  function selfCast(layer, skill, at) {
+    const z = layer === 'screen' ? 1.6 : 1, st = styleOf(skill)
+    const ef = (skill.effects || [])
+    const has = (t) => ef.some((e) => e.t === t)
+    const buff = ef.find((e) => e.t !== 'dmg' && e.t !== 'heal' && e.t !== 'mp')
+    const pts = parts(14, (i) => ({ a: i / 14 * Math.PI * 2 + rnd(-0.2, 0.2), r: rnd(14, 24), s: rnd(0.6, 1.2), d: rnd(0, 0.3) }))
+    if (has('heal')) add(layer, 1100, (ctx, k) => {   // 回復：綠光上升的「十」字
+      const p = P(at); if (!p) return
+      ring(ctx, p.x, p.y + 14 * z, 22 * z * easeOut(k), '#8fe36a', 3, 1 - k)
+      glow(ctx, p.x, p.y, 26 * z, 'rgba(140,240,140,.55)', 1 - k)
+      ctx.fillStyle = '#c8ffb0'
+      for (const q of pts.slice(0, 8)) {
+        const e = seg(k, q.d, q.d + 0.7); if (e <= 0 || e >= 1) continue
+        const x = p.x + Math.cos(q.a) * q.r * z * 0.8, y = p.y + 12 * z - e * 36 * z, s = 2 * z * q.s
+        ctx.globalAlpha = 1 - e; ctx.fillRect(x - s * 1.5, y - s / 2, s * 3, s); ctx.fillRect(x - s / 2, y - s * 1.5, s, s * 3)
+      }
+    })
+    if (has('mp')) add(layer, 1000, (ctx, k) => {   // 回靈：藍色靈氣向內收攏
+      const p = P(at); if (!p) return
+      for (const q of pts) {
+        const e = easeIn(seg(k, q.d, q.d + 0.7)); if (e >= 1) continue
+        const a = q.a + e * 2.5, r = q.r * 1.6 * z * (1 - e)
+        ctx.globalAlpha = 0.9 * (1 - e * 0.3); ctx.fillStyle = e > 0.5 ? '#e6fbff' : '#6fd3f5'
+        ctx.fillRect(p.x + Math.cos(a) * r - 1.5, p.y + Math.sin(a) * r * 0.8 - 1.5, 3 * q.s * z, 3 * q.s * z)
+      }
+      glow(ctx, p.x, p.y, 22 * z * k, 'rgba(110,210,245,.6)', 1 - k)
+    })
+    if (buff) {
+      const stat = buff.stat || buff.t
+      if (stat === 'def') add(layer, 1300, (ctx, k) => {   // 減傷：金色護體罩
+        const p = P(at); if (!p) return
+        const r = 22 * z * (k < 0.2 ? easeOut(k / 0.2) : 1), a = k < 0.7 ? 0.9 : 0.9 * (1 - seg(k, 0.7, 1))
+        ctx.globalAlpha = a * 0.25; ctx.fillStyle = '#ffe08a'
+        hex(ctx, p.x, p.y, r); ctx.fill()
+        ctx.globalAlpha = a; ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2.5; hex(ctx, p.x, p.y, r); ctx.stroke()
+        ctx.strokeStyle = '#fff6c8'; ctx.lineWidth = 1; hex(ctx, p.x, p.y, r * 0.75 + Math.sin(k * 20) * 1.5); ctx.stroke()
+      })
+      else add(layer, 1200, (ctx, k) => {   // 攻擊／修煉／靈寵等增益：腳下陣圖 + 上升氣柱
+        const p = P(at); if (!p) return
+        const col = stat === 'atk' ? ['#ffe0a0', '#ff8a3c', '#c0301c'] : stat === 'cultivate' ? ['#ffffff', '#b8f0d8', '#4fb8a0'] : st.c
+        const fy = p.y + 14 * z
+        ctx.save(); ctx.translate(p.x, fy); ctx.scale(1, 0.45); ctx.rotate(k * 3)
+        ctx.globalAlpha = 1 - k; ctx.strokeStyle = col[1]; ctx.lineWidth = 2
+        ctx.beginPath(); ctx.arc(0, 0, 20 * z, 0, Math.PI * 2); ctx.stroke()
+        ctx.beginPath(); for (let i = 0; i < 9; i++) { const a = i * Math.PI * 0.8; ctx.lineTo(Math.cos(a) * 18 * z, Math.sin(a) * 18 * z) } ctx.stroke()
+        ctx.restore()
+        for (const q of pts.slice(0, 10)) {
+          const e = seg(k, q.d, q.d + 0.6); if (e <= 0 || e >= 1) continue
+          const x = p.x + Math.cos(q.a) * 14 * z
+          ctx.globalAlpha = (1 - e) * 0.9; ctx.fillStyle = e < 0.4 ? col[0] : col[1]
+          ctx.fillRect(x - 1, fy - e * 40 * z, 2 * z, 7 * z)
+        }
+        glow(ctx, p.x, p.y, 24 * z, col[1] === '#ff8a3c' ? 'rgba(255,140,60,.45)' : 'rgba(180,240,210,.45)', 1 - k)
+      })
+    }
+    if (!has('heal') && !has('mp') && !buff && !has('dmg')) add(layer, 900, (ctx, k) => { const p = P(at); if (p) glow(ctx, p.x, p.y, 26 * z, 'rgba(180,235,255,.7)', 1 - k) })
+  }
+  function hex(ctx, x, y, r) { ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r * 1.1) } ctx.closePath() }
+
+  /* ---------- 功法名稱浮字、受擊 ---------- */
+  function callout(layer, at, text, color = '#ffe28a') {
+    add(layer, 1100, (ctx, k) => {
+      const p = P(at); if (!p) return
+      const s = layer === 'screen' ? 22 : 15, y = p.y - 26 - easeOut(k) * 16
+      ctx.globalAlpha = k < 0.15 ? k / 0.15 : 1 - seg(k, 0.65, 1)
+      ctx.font = `900 ${s}px "Noto Serif TC", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(30,15,5,.85)'; ctx.strokeText(`「${text}」`, p.x, y)
+      ctx.fillStyle = color; ctx.fillText(`「${text}」`, p.x, y)
+    })
+  }
+  function hurt(layer, at) {
+    const z = layer === 'screen' ? 1.6 : 1
+    add(layer, 380, (ctx, k) => {
+      const p = P(at); if (!p) return
+      glow(ctx, p.x, p.y, 22 * z, 'rgba(255,60,40,.7)', 1 - k)
+      slashX(ctx, p.x, p.y, 8 * z * (0.6 + k * 0.4), ['#ffffff', '#ff8a7a', '#c0301c'], 1 - k)
+    })
+  }
+
+  /* ---------- 劍修角色（取代原本的方塊人；圖沒載到時回傳 false 改用舊畫法） ---------- */
+  const ROW = { d: 0, l: 1, r: 2, u: 3 }
+  // 飛劍相對腳底中心的位置 [x, y, 畫在身體後面]
+  const SWORD_AT = { d: [13, -23, false], u: [-23, -23, false], r: [-22, -25, true], l: [12, -25, true] }
+  const actors = {}, busy = {}
+  function drawActor(ctx, px, py, f, name) {
+    if (!ready(sheet)) return false
+    ctx.save(); ctx.imageSmoothingEnabled = false
+    const t = now(), dir = ROW[f] != null ? f : 'd'
+    let s = actors[name]; if (!s) s = actors[name] = { x: px, y: py, mv: 0 }
+    if (Math.hypot(px - s.x, py - s.y) > 0.25) s.mv = t
+    s.x = px; s.y = py
+    const moving = t - s.mv < 140
+    const col = moving ? Math.floor(t / 125) % 4 : 4 + (Math.floor(t / 500) % 2)
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(px, py + 8, 10, 4, 0, 0, Math.PI * 2); ctx.fill()
+    const [sx, sy, behind] = SWORD_AT[dir]
+    const showSword = !(busy[name] > t)
+    const drawIdleSword = () => {
+      if (!showSword || !ready(sword)) return
+      const x = Math.round(px + sx), y = Math.round(py + sy + Math.sin(t / 330) * 2)
+      glow(ctx, x + 5, y + 14, 9, 'rgba(127,216,255,.35)')
+      ctx.drawImage(sword, x, y)
+    }
+    if (behind) drawIdleSword()
+    ctx.drawImage(sheet, col * 32, ROW[dir] * 48, 32, 48, Math.round(px - 16), Math.round(py + 9 - 48), 32, 48)
+    if (!behind) drawIdleSword()
+    ctx.restore()
+    return true
+  }
+
+  return { strike, selfCast, callout, hurt, drawActor, drawWorld, shakeOffset, styleOf, OVERRIDE, KINDS }
+})()
+</script>
+<script>
   /* =========================================================
    * 遊戲基礎數值設定
    * 要調整境界層數上限／氣血・靈力上限／運功消耗，改這裡即可。
@@ -1491,7 +1973,8 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const me = town.me
     let cx = me.x * TS - W / 2, cy = me.y * TS - H / 2
     cx = Math.max(0, Math.min(m.w * TS - W, cx)); cy = Math.max(0, Math.min(m.h * TS - H, cy))
-    ctx.save(); ctx.translate(-Math.round(cx), -Math.round(cy))
+    const fxSh = SkillFX.shakeOffset()   // 【招式動畫】大招命中時畫面震動
+    ctx.save(); ctx.translate(-Math.round(cx) + fxSh.x, -Math.round(cy) + fxSh.y)
     const x0 = Math.max(0, Math.floor(cx / TS)), x1 = Math.min(m.w - 1, Math.ceil((cx + W) / TS))
     const y0 = Math.max(0, Math.floor(cy / TS)), y1 = Math.min(m.h - 1, Math.ceil((cy + H) / TS))
     const hasTownArt = m.id === 'town' && townMapBackground.complete && townMapBackground.naturalWidth > 0   // 只有主城貼整張圖，秘境仍用地磚
@@ -1521,6 +2004,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     for (const o of Object.values(town.mobs)) if (o.st !== 2) acts.push({ y: o.y, f: () => townMob(ctx, o, o === tgt) })
     acts.sort((a, b) => a.y - b.y).forEach((a) => a.f())
     townDrawFx(ctx)
+    SkillFX.drawWorld(ctx)   // 【招式動畫】
     if (deco.zones) townZoneLabels(ctx, deco.zones)
     ctx.restore()
     townMinimap(ctx, m, W)
@@ -1808,6 +2292,13 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
 
   function townActor(ctx, x, y, color, name, f, isNpc, self) {
     const px = x * TS, py = y * TS, img = townImgs[isNpc ? 'npc' : 'player']
+    if (!isNpc && SkillFX.drawActor(ctx, px, py, f, name)) {   // 【招式動畫】劍修角色（圖片沒載到才用下面的舊畫法）
+      ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+      const w = ctx.measureText(name).width + 8
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(px - w / 2, py - 42, w, 15)
+      ctx.fillStyle = self ? '#ffe28a' : '#fff'; ctx.fillText(name, px, py - 30)
+      return
+    }
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(px, py + 9, 9, 4, 0, 0, 7); ctx.fill()
     if (img) ctx.drawImage(img, px - 16, py - 28, 32, 36)
     else {
@@ -2640,7 +3131,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       return fieldAttack(skill)
     }
     if (isDmg && !state.battle) { addLog(`「${skill.name}」是攻伐功法，需在秘境戰鬥、野外，或在「魔蛟」分頁對世界王施展。`, 'danger'); return }
-    return act('cast', { skill: skill.id })
+    return act('cast', { skill: skill.id }).then((r) => { if (r && r.ok !== false && !r.error) fxSkillCast(skill); return r })   // 【招式動畫】
   }
 
   /* ---------- 背包、交易所 ---------- */
@@ -2684,7 +3175,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   const enterLocation = (id) => act('enterLoc', { id })
   const backToLocations = () => act('leaveLoc')
   const startBattle = (monster) => act('battleStart', { mon: monster.id })
-  const attackMonster = () => act('battleAttack')
+  const attackMonster = () => { const hp0 = state.hp; return act('battleAttack').then((r) => { if (r && r.ok !== false && !r.error) fxBattleHit(hp0); return r }) }   // 【招式動畫】
   const fleeBattle = () => act('battleFlee')
 
   /* ---------- 野外即時戰鬥 ---------- */
@@ -2711,7 +3202,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function fieldHit(d) {   // 伺服器已扣好氣血，這裡只顯示
     if (d.v != null && d.v >= (state.v || 0)) { state.hp = d.hp; state.v = d.v }
     for (const [t, tone] of d.logs || []) addLog(t, tone)
-    if (town.curMap !== 'town') townFloat(town.me.x, town.me.y, `-${d.dmg}`, '#ff6b5a')
+    if (town.curMap !== 'town') { townFloat(town.me.x, town.me.y, `-${d.dmg}`, '#ff6b5a'); if (fxTownOn()) SkillFX.hurt('world', fxMe) }   // 【招式動畫】受擊
     render()
   }
   function fieldDefeat(d) {   // 伺服器判定重傷：已扣修為、門票作廢、送回主城
@@ -2734,14 +3225,41 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     town.atkAt = performance.now()
     const tg = fieldTarget(skill ? 4.4 : 2.0)
     if (tg) { town.me.f = Math.abs(tg.x - town.me.x) > Math.abs(tg.y - town.me.y) ? (tg.x > town.me.x ? 'r' : 'l') : (tg.y > town.me.y ? 'd' : 'u') }
+    if (!skill && tg && fxTownOn()) SkillFX.strike('world', null, fxMe, { x: tg.x * TS, y: tg.y * TS - 10 }, { owner: net.name })   // 【招式動畫】普攻：按下就御劍出擊
     const r = await api('attack', { skill: skill ? skill.id : null })
     if (r.state) applyServerState(r.state)
     for (const [t, tone] of r.logs || []) addLog(t, tone)
     if (!r.ok) { if (r.error) addLog(r.error, 'danger'); render(); return }
-    town.fx.push({ k: 'slash', x: town.me.x, y: town.me.y, x2: r.mx, y2: r.my, t0: performance.now() })
-    townFloat(r.mx, r.my, `${r.dmg}`, skill ? '#ffb347' : '#ffffff')
+    const hitMs = skill ? fxFieldSkill(skill, r) : 0   // 【招式動畫】功法動畫，傷害數字等打中才跳
+    setTimeout(() => townFloat(r.mx, r.my, `${r.dmg}`, skill ? '#ffb347' : '#ffffff'), hitMs)
     const o = town.mobs[r.mi]; if (o) o.hp = r.hp
     render()
+  }
+
+  /* ---------- 【招式動畫】把戰鬥事件接到 SkillFX（引擎在檔案開頭的 <script>） ---------- */
+  const fxMe = () => ({ x: town.me.x * TS, y: town.me.y * TS - 12 })
+  const fxTownOn = () => state.nav === 'town' && !!town.cv && town.cv.isConnected
+  function fxFieldSkill(skill, r) {   // 野外施展攻伐功法；回傳打中目標的時間（毫秒）
+    if (!fxTownOn()) return 0
+    SkillFX.callout('world', fxMe, skill.name)
+    return SkillFX.strike('world', skill, fxMe, { x: r.mx * TS, y: r.my * TS - 10 }, { owner: net.name })
+  }
+  function fxSkillCast(skill) {   // 野外以外施展成功：回合制的攻伐功法、各處的回復／靈力／增益功法
+    const dmg = skill.effects.some((e) => e.t === 'dmg')
+    const me = '#infoBody .combatant .avatar', mon = '#infoBody .combatant .monster-icon'
+    if (dmg) { if (state.battle) { SkillFX.callout('screen', me, skill.name); SkillFX.strike('screen', skill, me, mon) } return }
+    if (fxTownOn()) { SkillFX.callout('world', fxMe, skill.name); SkillFX.selfCast('world', skill, fxMe); return }
+    const at = state.battle && document.querySelector(me) ? me : '#game-screen .who .avatar'
+    SkillFX.callout('screen', { sel: at, dy: at === me ? 0 : 70 }, skill.name); SkillFX.selfCast('screen', skill, at)
+  }
+  function fxBattleHit(hp0) {   // 回合制普攻：御劍出擊，被反擊時頭像閃紅
+    const me = '#infoBody .combatant .avatar', hit = SkillFX.strike('screen', null, me, '#infoBody .combatant .monster-icon')
+    if (state.hp < hp0) setTimeout(() => SkillFX.hurt('screen', me), hit + 250)
+  }
+  function fxBossHit(skill) {   // 魔蛟：從魔蛟卡片下方出招
+    const boss = '#infoBody .monster-icon'
+    if (skill) SkillFX.callout('screen', { sel: boss, dy: 110 }, skill.name)
+    SkillFX.strike('screen', skill, { sel: boss, dy: 150 }, boss)
   }
 
   /* ---------- 世界王 ---------- */
@@ -2749,6 +3267,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     const r = await api('boss/attack', skill ? { skill: skill.id } : {})
     for (const t of (r && r.bossLog) || []) bossLogPush(t)
     showResult(r, { info: infoView() === 'boss' })
+    if (r && r.ok) fxBossHit(skill)   // 【招式動畫】
   }
 
   /* ---------- 拍賣 ---------- */
