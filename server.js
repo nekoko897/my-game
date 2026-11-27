@@ -8,6 +8,7 @@ const PORT = process.env.PORT || 3000
 // 【第二、三階段】遊戲規則與資料全部來自共用檔 shared/game-rules.js（前端載入同一份）。
 // 伺服器是唯一計算與保存數值的地方：前端只送出「我要做什麼」，結果由這裡算好、存檔，再傳回前端顯示。
 const R = require('./shared/game-rules.js')
+const TOWER = require('./tower.js')   // 【試煉塔】樓層地圖與 BOSS 設定
 const ITEM_DEFS = R.ITEMS
 
 // ===== GM 帳號 =====
@@ -474,7 +475,40 @@ function genField(loc, idx) {
     types: loc.monsters.map((m) => ({ id: m.id, name: m.name, icon: m.icon, hp: m.hp, atkMin: m.atkMin, atkMax: m.atkMax, exp: m.exp })),
   }
 }
-const mapInfo = (m) => ({ id: m.id, name: m.name, w: m.rows[0].length, h: m.rows.length, rows: m.rows, npcs: m.npcs, speed: MOVE_SPEED, r: MOVE_R, theme: m.theme, types: m.types || null, deco: m.deco || null })
+/* ---------- 【試煉塔】9 層，每層一張地圖、一隻守關 BOSS；打完第 N 層才能進第 N+1 層 ----------
+ * 樓層地圖與 BOSS 設定在 tower.js。進度存在 db.players[key].tower = { best: 已通關的最高層 }，由伺服器判定，前端改不了。
+ * BOSS 還沒設定（boss: null）的樓層，BOSS 位置放「試煉石碑」，走過去觸碰即通關；設定 BOSS 後石碑自動消失，改成要擊敗 BOSS。 */
+const towerBest = (key) => ((db.players[key] || {}).tower || {}).best || 0
+const towerInfo = (key) => ({ best: towerBest(key), floors: TOWER.FLOORS.map((f) => ({ floor: f.floor, id: f.id, realm: f.realm, boss: f.boss ? f.boss.name : null })) })
+function towerClear(key, floor) {
+  const p = db.players[key]; if (!p) return
+  const t = p.tower || (p.tower = { best: 0 })
+  if (floor !== t.best + 1) return   // 已通關過的樓層、或跳層（不可能發生）都不改進度
+  t.best = floor; t.at = now(); dirty = true
+  sendTo(key, 'tower', Object.assign(towerInfo(key), { justCleared: floor }))
+  sysChat(`🏯「${p.name}」通關了試煉塔第 ${floor} 層！`)
+}
+function loadTower() {
+  for (const f of TOWER.FLOORS) {
+    const rows = f.rows.map((r) => r.split(''))
+    for (const pt of [f.spawn, f.exit, f.bossAt]) if (rows[pt.y] && rows[pt.y][pt.x]) rows[pt.y][pt.x] = '.'   // 保證關鍵位置可走
+    const boss = f.boss ? Object.assign({ id: f.id + 'boss', icon: '👹', exp: 0, loot: [] }, f.boss) : null
+    const npcs = [{ id: 'exit', name: '傳送陣（返回主城）', x: f.exit.x + 0.5, y: f.exit.y + 0.5, panel: '__exit', color: '#8a6bd1' }]
+    if (!boss) npcs.push({ id: 'stele', name: '試煉石碑', x: f.bossAt.x + 0.5, y: f.bossAt.y + 0.5, panel: '__towerclear', color: '#c9a24a' })
+    MAPS[f.id] = {
+      id: f.id, name: f.name, rows: rows.map((r) => r.join('')), npcs, bg: f.bg, tower: f, spots: [],
+      spawn: { x: f.spawn.x + 0.5, y: f.spawn.y + 0.5 }, theme: { g1: '#2a2f3a', g2: '#2d3340' },
+      loc: boss ? { id: f.id, name: f.name, reqRealm: 0, monsters: [boss] } : null,
+      types: boss ? [{ id: boss.id, name: boss.name, icon: boss.icon, hp: boss.hp, atkMin: boss.atkMin, atkMax: boss.atkMax, exp: boss.exp }] : null,
+    }
+  }
+  console.log(`試煉塔：${TOWER.FLOORS.length} 層（已設定 BOSS：${TOWER.FLOORS.filter((f) => f.boss).length} 層）`)
+}
+function makeTowerField(map) {   // 試煉塔樓層只生成一隻 BOSS，站在 bossAt、不遊蕩
+  const b = map.tower.bossAt, def = map.loc.monsters[0], x = b.x + 0.5, y = b.y + 0.5
+  return { mons: [{ i: 0, t: 0, x, y, sx: x, sy: y, hp: def.hp, st: 0, tg: null, cd: 1, wt: 1e9, wx: x, wy: y, rs: 0, dmg: {} }], acc: 0 }
+}
+const mapInfo = (m) => ({ id: m.id, name: m.name, w: m.rows[0].length, h: m.rows.length, rows: m.rows, npcs: m.npcs, speed: MOVE_SPEED, r: MOVE_R, theme: m.theme, types: m.types || null, deco: m.deco || null, bg: m.bg || null, tower: m.tower ? { floor: m.tower.floor } : null })
 const tileBlocked = (m, x, y) => {
   const tx = Math.floor(x), ty = Math.floor(y)
   if (tx < 0 || ty < 0 || ty >= m.rows.length || tx >= m.rows[0].length) return true
@@ -483,6 +517,7 @@ const tileBlocked = (m, x, y) => {
 const mapCollide = (m, x, y, r = MOVE_R) => tileBlocked(m, x - r, y - r) || tileBlocked(m, x + r, y - r) || tileBlocked(m, x - r, y + r) || tileBlocked(m, x + r, y + r)
 
 loadGameData()
+loadTower()   // 【試煉塔】
 const positions = new Map()   // key -> { x, y, f, t, m }（只存在記憶體，不寫入雲端）
 let posDirty = false
 const posList = () => [...positions.entries()].filter(([k]) => onlineKeys().includes(k)).map(([k, p]) => ({ n: db.players[k].name, x: +p.x.toFixed(2), y: +p.y.toFixed(2), f: p.f, m: p.m }))
@@ -495,6 +530,7 @@ const fields = {}
 const rint = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a
 const MON_R = 0.35, AGGRO = 6.5, LEASH = 15, MON_SPAWN = 20
 function makeField(map) {
+  if (map.tower) return makeTowerField(map)   // 【試煉塔】
   const mons = []
   const defs = map.loc.monsters
   for (let i = 0; i < MON_SPAWN && map.spots.length; i++) {
@@ -515,6 +551,7 @@ function killMon(map, f, m) {
   const entries = Object.entries(m.dmg).filter(([k]) => onlineKeys().includes(k) && (positions.get(k) || {}).m === map.id)
   m.dmg = {}
   if (!entries.length) return
+  if (map.tower) { m.rs = TOWER.BOSS_RESPAWN || 60; for (const [k] of entries) towerClear(k, map.tower.floor) }   // 【試煉塔】擊敗 BOSS 即通關
   const top = entries.sort((a, b) => b[1].d - a[1].d)[0][0]
   const lm = 1 + R.sectBonus(getSave(top), 'loot')   // 掉落加成依傷害第一者的存檔計算
   const loot = []
@@ -791,7 +828,10 @@ async function handle(req, res) {
       if (!map) return json(res, 400, { error: '地圖不存在' })
       if (limited(key, 'enter', 600)) return json(res, 429, { error: '操作太頻繁' })
       const s = getSave(key), me = ensurePos(key)
-      if (map.loc) {
+      if (map.tower) {   // 【試煉塔】要先通關上一層，不需門票
+        if (map.tower.floor > towerBest(key) + 1) return json(res, 403, { error: `需先通關試煉塔第 ${map.tower.floor - 1} 層` })
+        s.battle = null
+      } else if (map.loc) {
         if (s.realm < map.loc.reqRealm) return json(res, 403, { error: '境界不足，無法進入' })
         if (s.selectedLocation !== id) return json(res, 403, { error: '請先在「秘境」購買此地門票。' })
         s.battle = null
@@ -799,6 +839,17 @@ async function handle(req, res) {
       s.v = (s.v || 0) + 1; dirty = true
       me.m = id; me.x = map.spawn.x; me.y = map.spawn.y; me.t = Date.now(); me.f = 'd'; posDirty = true
       return json(res, 200, { ok: true, map: mapInfo(map), x: me.x, y: me.y, state: R.publicSave(s) })
+    }
+    if (p === '/api/tower') return json(res, 200, Object.assign({ ok: true }, towerInfo(key)))   // 【試煉塔】進度
+    if (p === '/api/tower/clear') {   // 【試煉塔】暫代：BOSS 尚未設定的樓層，走到試煉石碑旁觸碰即通關
+      const me = positions.get(key), map = me && MAPS[me.m]
+      if (!map || !map.tower) return json(res, 400, { error: '你不在試煉塔中' })
+      if (map.tower.boss) return json(res, 400, { error: '這一層需要擊敗守關 BOSS 才能通關' })
+      const b = map.tower.bossAt
+      if (Math.hypot(me.x - (b.x + 0.5), me.y - (b.y + 0.5)) > 2.5) return json(res, 400, { error: '請走到試煉石碑旁' })
+      const already = map.tower.floor <= towerBest(key)
+      towerClear(key, map.tower.floor)
+      return json(res, 200, Object.assign({ ok: true, already }, towerInfo(key)))
     }
     if (p === '/api/attack') {   // 即時攻擊：自動鎖定射程內最近的妖獸
       const me = positions.get(key), map = me && MAPS[me.m]

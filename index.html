@@ -1033,6 +1033,7 @@ const SkillFX = (() => {
     { id: 'auction', label: '拍賣場', icon: ICON('<path d="m14.5 12.5-8 8a2.12 2.12 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/>') },
     { id: 'world', label: '世界', icon: ICON('<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>') },
     { id: 'boss', label: '魔蛟', icon: ICON('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>') },
+    { id: 'tower', label: '試煉塔', icon: ICON('<path d="M12 2 7 6h10z"/><path d="M8 6v4h8V6"/><path d="M7 10h10v5H7z"/><path d="M6 15h12v7H6z"/><path d="M10 22v-3h4v3"/>') },   // 【試煉塔】
     { id: 'sect', label: '宗門', icon: ICON('<path d="M10 5V3"/><path d="M14 5V3"/><path d="M15 21v-3a3 3 0 0 0-6 0v3"/><path d="M18 3v8"/><path d="M18 5H6"/><path d="M22 11H2"/><path d="M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9"/><path d="M6 3v8"/>') },
     { id: 'report', label: '回報', icon: ICON('<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>') },
     { id: 'gm', label: 'GM', gm: true, icon: ICON('<path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>') },
@@ -1049,6 +1050,7 @@ const SkillFX = (() => {
     auction: '玩家之間的買賣：把物品上架拍賣，或對別人上架的物品出價競標。',
     world: '查看線上修士，在世界頻道聊天；輸入「/w 道號 內容」可以私訊指定玩家。聊天內容（含私訊）會被記錄，管理員可能檢視，請文明發言。',
     boss: '全服玩家共同挑戰的魔蛟。每個人造成的傷害會累計並有排行，被擊殺後倒數重生；氣血低於 30% 會狂暴，反擊傷害 ×1.5。',
+    tower: '試煉塔共九層，每層一張秘境地圖與一隻守關 BOSS。擊敗這一層的 BOSS 才能挑戰下一層，進度永久保存；不需門票。',
     sect: '拜入宗門可獲得特色加成與宗門功法。完成宗門任務（每個任務完成後有冷卻時間）賺取貢獻，到「寶庫」兌換專屬道具與高階功法、到「工坊」煉製裝備。離開或改投宗門，貢獻會歸零。',
     report: '回報遊戲 BUG 或提出建議，GM 會看到。',
     gm: '（GM 專用）發送靈石或道具給指定玩家、重設玩家密碼、查看聊天紀錄與禁言。',
@@ -1340,6 +1342,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     on('hit', (d) => fieldHit(d))
     on('kill', (d) => fieldKill(d))
     on('defeat', (d) => fieldDefeat(d))
+    on('tower', (d) => towerUpdate(d))   // 【試煉塔】
     on('presence', (d) => { net.online = d; setNet(true); refreshNet('presence') })
     on('chat', (m) => { net.chat.push(m); if (net.chat.length > 80) net.chat.shift(); refreshNet('chat') })
     on('auctions', (d) => { net.auctions = d; refreshNet('auctions') })
@@ -1912,6 +1915,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
   function townInteract() {
     const n = town.near; if (!n) return
     if (n.panel === '__exit') return fieldLeave()
+    if (n.panel === '__towerclear') return towerClearStone()   // 【試煉塔】
     if (town.big) { state.townPanel = n.panel; town.panelNpc = n; renderInfo(); return }   // 全螢幕：面板開在地圖右側
     state.lastNav = state.nav; state.nav = n.panel
     renderNav(); renderInfo()
@@ -1985,7 +1989,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
       ctx.imageSmoothingEnabled = true
     } else {
       // 圖片尚未載入或路徑錯誤時，沿用原本程式繪製的地磚
-      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) townTile(ctx, m.rows[y][x], x, y)
+      if (!townDrawMapBg(ctx, m)) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) townTile(ctx, m.rows[y][x], x, y)   // 【試煉塔】有背景圖就貼圖
     }
     const deco = m.deco || {}
     if (deco.zones) townZones(ctx, deco.zones)
@@ -2503,6 +2507,9 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
         break
       case 'world':
         html = renderWorld()
+        break
+      case 'tower':   // 【試煉塔】
+        html = renderTower()
         break
       case 'boss':
         html = renderBoss()
@@ -3297,6 +3304,61 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     SkillFX.strike('screen', skill, { sel: boss, dy: 150 }, boss)
   }
 
+  /* ---------- 【試煉塔】九層試煉：進度由伺服器保存；擊敗該層 BOSS（BOSS 未設定的樓層為試煉石碑）才能挑戰下一層 ---------- */
+  net.tower = null
+  const towerBgImgs = {}
+  function townDrawMapBg(ctx, m) {   // 有整張背景圖的地圖（試煉塔樓層）：直接貼圖，沒有就回傳 false 改畫地磚
+    if (!m.bg) return false
+    let im = towerBgImgs[m.bg]
+    if (!im) { im = towerBgImgs[m.bg] = new Image(); im.onload = () => { if (town.cv && town.map === m) townDraw() }; im.src = m.bg }
+    if (!(im.complete && im.naturalWidth > 0)) return false
+    ctx.drawImage(im, 0, 0, m.w * TS, m.h * TS)
+    return true
+  }
+  async function loadTower() {
+    const r = await api('tower', {})
+    if (r && r.ok) { net.tower = r; if (infoView() === 'tower') renderInfo() }
+    else if (r && r.error) addLog(r.error, 'danger')
+  }
+  function towerUpdate(d) {   // 伺服器通知：通關
+    net.tower = d
+    if (d.justCleared) {
+      const last = d.justCleared >= d.floors.length
+      addLog(`🏯 通關試煉塔第 ${d.justCleared} 層！${last ? '九層全數通關，可喜可賀！' : `第 ${d.justCleared + 1} 層已開啟。`}`, 'gold')
+      if (town.curMap !== 'town') townFloat(town.me.x, town.me.y - 1, `第 ${d.justCleared} 層通關！`, '#ffd966')
+    }
+    if (infoView() === 'tower') renderInfo()
+  }
+  async function towerClearStone() {   // 觸碰試煉石碑（BOSS 未設定時的暫代通關方式）
+    const r = await api('tower/clear', {})
+    if (!r.ok) return addLog(r.error || '無法通關', 'danger')
+    net.tower = r
+    if (r.already) addLog('這一層你已經通關過了。', 'normal')
+  }
+  function renderTower() {
+    const t = net.tower
+    if (!t) { loadTower(); return '<p class="xs muted">正在感應試煉塔…</p>' }
+    const cards = t.floors.slice().reverse().map((f) => {
+      const cleared = f.floor <= t.best, open = f.floor <= t.best + 1
+      const status = cleared ? '<span class="xs" style="color:var(--primary);white-space:nowrap">已通關</span>'
+        : open ? '<span class="xs" style="color:var(--accent);white-space:nowrap">可挑戰</span>'
+        : `<span class="xs muted" style="white-space:nowrap">需通關第 ${f.floor - 1} 層</span>`
+      return `
+        <li class="card" style="${open ? '' : 'opacity:.55'}">
+          <div class="row" style="align-items:flex-start">
+            <div class="col"><span class="bold">第${NUM[f.floor - 1] || f.floor}層 · ${esc(f.realm)}</span>
+              <span class="xs muted" style="margin-top:4px">守關：${f.boss ? esc(f.boss) : 'BOSS 尚未降臨（暫以試煉石碑代替，觸碰即通關）'}</span></div>
+            ${status}
+          </div>
+          <div class="actions" style="justify-content:flex-start;margin-top:8px">
+            <button type="button" class="small-btn" data-tower-enter="${f.id}" ${open ? '' : 'disabled'}>${cleared ? '再次挑戰' : '進入'}</button>
+          </div>
+        </li>`
+    }).join('')
+    return `
+      <p class="xs muted" style="line-height:1.7;margin-bottom:10px">試煉塔共 ${t.floors.length} 層，每層一隻守關 BOSS。目前通關至第 <span class="bold" style="color:var(--accent)">${t.best}</span> 層；擊敗該層 BOSS 才能挑戰下一層。氣血歸零會被送回主城，進度不會消失。</p>
+      <ul class="stack">${cards}</ul>`
+  }
   /* ---------- 世界王 ---------- */
   async function attackBoss(skill = null) {
     const r = await api('boss/attack', skill ? { skill: skill.id } : {})
@@ -3412,6 +3474,7 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bagOpen())
   $('infoBody').addEventListener('change', (e) => { if (e.target.id === 'listItemSelect') updateListSuggest(true) })
   $('infoBody').addEventListener('input', (e) => { if (e.target.id === 'listPrice' || e.target.id === 'listQty') updateListSuggest(false) })
   $('infoBody').addEventListener('click', (e) => {
+    const twBtn = e.target.closest('[data-tower-enter]'); if (twBtn) return fieldEnter(twBtn.dataset.towerEnter)   // 【試煉塔】
     if (e.target.closest('[data-suggest-apply]')) return updateListSuggest(true)
     if (e.target.closest('[data-gm-send]')) return sendGM()
     if (e.target.closest('[data-chatlog-load]')) return loadChatLog()
