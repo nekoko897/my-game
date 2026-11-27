@@ -2002,6 +2002,7 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     }
     const tgt = town.curMap !== 'town' ? fieldTarget(town.lastRange || 2.0) : null
     for (const o of Object.values(town.mobs)) if (o.st !== 2) acts.push({ y: o.y, f: () => townMob(ctx, o, o === tgt) })
+    if (hasTownArt) townRoofActs(ctx, acts, x0, x1, y0, y1)   // 【屋頂遮擋】屋頂依前後順序蓋住角色
     acts.sort((a, b) => a.y - b.y).forEach((a) => a.f())
     townDrawFx(ctx)
     SkillFX.drawWorld(ctx)   // 【招式動畫】
@@ -2288,6 +2289,35 @@ document.getElementById('bagModalBody').addEventListener('click', (e) => {
     ctx.fillStyle = '#ffd27a'; for (const n of m.npcs) ctx.fillRect(ox + n.x * s - 1, oy + n.y * s - 1, 3, 3)
     ctx.fillStyle = '#ff4d4d'; ctx.beginPath(); ctx.arc(ox + town.me.x * s, oy + town.me.y * s, 3, 0, 7); ctx.fill()
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke()
+  }
+
+  /* 【屋頂遮擋】地圖上的 O 格是高建築的屋頂：角色可以走到屋頂後面，屋頂依前後順序蓋住角色。
+   * 同一欄連續的 O 格算一段屋頂，排序位置 = 屋頂最下緣；站在屋後（比下緣靠北）的角色會被蓋住，站在屋前則畫在屋頂上。
+   * 自己躲在屋頂下時，附近的屋頂變半透明，看得到自己在哪。 */
+  function townRoofActs(ctx, acts, x0, x1, y0, y1) {
+    const m = town.map
+    if (!m._roofRuns) {
+      m._roofRuns = []
+      for (let x = 0; x < m.w; x++) for (let y = 0; y < m.h; y++) {
+        if (m.rows[y][x] !== 'O' || (y > 0 && m.rows[y - 1][x] === 'O')) continue
+        let e = y; while (e + 1 < m.h && m.rows[e + 1][x] === 'O') e++
+        m._roofRuns.push({ x, a: y, b: e })
+      }
+    }
+    if (!m._roofRuns.length) return
+    const img = townMapBackground, sw = img.naturalWidth / m.w, sh = img.naturalHeight / m.h
+    const me = town.me, row = m.rows[Math.floor(me.y)], under = !!row && row[Math.floor(me.x)] === 'O'
+    for (const r of m._roofRuns) {
+      if (r.x < x0 - 1 || r.x > x1 + 1 || r.b < y0 - 1 || r.a > y1 + 1) continue
+      acts.push({ y: r.b + 1, f: () => {
+        ctx.imageSmoothingEnabled = false
+        for (let y = r.a; y <= r.b; y++) {
+          ctx.globalAlpha = under && Math.hypot(r.x + 0.5 - me.x, y + 0.5 - me.y) < 2.6 ? 0.45 : 1
+          ctx.drawImage(img, r.x * sw, y * sh, sw, sh, r.x * TS, y * TS, TS, TS)
+        }
+        ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = true
+      } })
+    }
   }
 
   function townActor(ctx, x, y, color, name, f, isNpc, self) {
